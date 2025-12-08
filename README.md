@@ -91,7 +91,8 @@ flowchart TD
     MONTHLY --> DASH
     MATCH --> DASH
 
-AI-Assisted Development
+
+## AI-Assisted Development
 
 This project is intentionally built using AI pair programming:
 
@@ -101,7 +102,7 @@ A second model (e.g. Gemini) is used as a cross-model reviewer for critical modu
 
 The goal is to demonstrate practical, safe use of multi-model workflows for software engineering.
 
-Roadmap
+## Roadmap
 
 Sprint 0: Repo setup, models, and basic scraper skeleton
 
