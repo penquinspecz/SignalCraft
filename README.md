@@ -24,7 +24,6 @@ High level:
 - Insight generator (weekly / monthly pulse)  
 - Notification & dashboard layer  
 
-
 ## AI-Assisted Development
 
 This project is intentionally built using AI pair programming:
