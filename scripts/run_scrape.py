@@ -19,12 +19,11 @@ if str(SRC_PATH) not in sys.path:
 
 from ji_engine.scraper import ScraperManager  # noqa: E402
 
+
 def main() -> None:
     manager = ScraperManager(output_dir="data")
-    manager.run_all()
+    manager.run_all(mode="SNAPSHOT")  # <- key change
 
 
 if __name__ == "__main__":
     main()
-
-
