@@ -68,32 +68,68 @@ class OpenAICareersProvider(BaseJobProvider):
 
     def _parse_html(self, html: str) -> List[RawJobPosting]:
         """
-        Parse the saved careers page HTML and extract job postings with best-effort descriptions.
+        Parse the saved careers page HTML using DOM targeting.
 
-        Extracts:
-        - Job title
-        - Apply URL (Ashby links)
-        - Detail URL (if different from apply URL)
-        - Best-effort job description text
-        - Location and team (if available in HTML)
+        Strategy:
+        (a) Locate each job card/list item
+        (b) Within each card, identify anchor with href containing jobs.ashbyhq.com/openai/ as apply_url
+        (c) Set title to nearest preceding heading/anchor representing job title
+        (d) Extract department and location from specific sibling nodes/spans
+        (e) Return one RawJobPosting per card (dedupe by apply_url)
         """
         soup = BeautifulSoup(html, "html.parser")
         results: List[RawJobPosting] = []
+        seen_apply_urls: set[str] = set()
         now = datetime.utcnow()
 
-        # Find all job links (Ashby job application links)
-        apply_links = soup.find_all("a", href=lambda h: h and "jobs.ashbyhq.com" in h)
+        # Find all job cards/list items - common patterns
+        job_cards = soup.find_all(
+            ["li", "div", "article", "section"],
+            class_=lambda c: c and any(
+                keyword in c.lower()
+                for keyword in ["job", "card", "posting", "position", "role", "listing"]
+            ),
+        )
 
-        for apply_tag in apply_links:
-            if not isinstance(apply_tag, Tag):
+        # If no cards found with class hints, try finding cards by structure
+        if not job_cards:
+            # Look for containers that have Ashby links inside
+            apply_links = soup.find_all("a", href=lambda h: h and "jobs.ashbyhq.com/openai/" in h)
+            for link in apply_links:
+                if not isinstance(link, Tag):
+                    continue
+                # Find the containing card
+                card = link.find_parent(["li", "div", "article", "section", "tr"])
+                if card and card not in job_cards:
+                    job_cards.append(card)
+
+        # Process each job card
+        for card in job_cards:
+            if not isinstance(card, Tag):
                 continue
 
-            apply_url = apply_tag.get("href", "")
+            # (b) Find apply_url anchor within this card
+            apply_link = card.find("a", href=lambda h: h and "jobs.ashbyhq.com/openai/" in h)
+            if not apply_link or not isinstance(apply_link, Tag):
+                continue
 
-            title = self._extract_title(apply_tag)
-            detail_url = self._extract_detail_url(apply_tag, apply_url)
-            location, team = self._extract_metadata(apply_tag)
-            job_description = self._extract_job_description(apply_tag)
+            apply_url = apply_link.get("href", "").strip()
+            if not apply_url or apply_url in seen_apply_urls:
+                continue  # Dedupe by apply_url
+            seen_apply_urls.add(apply_url)
+
+            # (c) Extract title from nearest preceding heading/anchor
+            title = self._extract_title_from_card(card, apply_link)
+
+            # (d) Extract department/team and location from sibling nodes/spans
+            team = self._extract_team_from_card(card)
+            location = self._extract_location_from_card(card)
+
+            # Extract detail_url if different from apply_url
+            detail_url = self._extract_detail_url_from_card(card, apply_url)
+
+            # Extract job description (minimal, just for raw_text field)
+            job_description = self._extract_job_description_from_card(card, title)
 
             posting = RawJobPosting(
                 source=JobSource.OPENAI,
@@ -112,137 +148,135 @@ class OpenAICareersProvider(BaseJobProvider):
 
     # ---------- Helpers ----------
 
-    def _extract_title(self, apply_tag: Tag) -> str:
-        """Extract job title from the HTML structure near the apply link."""
-        # Try to find a title link or heading near the apply tag
-        title_tag = apply_tag.find_previous("a")
-        if title_tag is not None and title_tag is not apply_tag:
-            title_text = title_tag.get_text(strip=True)
-            if title_text:
-                return title_text
+    def _extract_title_from_card(self, card: Tag, apply_link: Tag) -> str:
+        """
+        Extract job title from card using DOM targeting.
+        Looks for nearest preceding heading or anchor (not the apply link itself).
+        """
+        # Look for headings (h1-h6) in the card, before the apply link
+        for heading in card.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+            if heading.get_text(strip=True):
+                # Check if heading comes before apply_link in document order
+                if self._element_before(heading, apply_link):
+                    title = heading.get_text(strip=True)
+                    if title and title.lower() not in ["apply", "apply now", "view job"]:
+                        return title
 
-        # Look for heading elements (h1-h6) in parent containers
-        parent = apply_tag.parent
-        for _ in range(3):  # Check up to 3 levels up
-            if parent is None:
-                break
-            heading = parent.find(["h1", "h2", "h3", "h4", "h5", "h6"])
-            if heading is not None:
-                title_text = heading.get_text(strip=True)
-                if title_text:
-                    return title_text
-            parent = parent.parent
+        # Look for anchor tags that might be title links (not the apply link)
+        for anchor in card.find_all("a"):
+            if anchor is apply_link:
+                continue
+            href = anchor.get("href", "")
+            # Skip if it's another apply link
+            if "jobs.ashbyhq.com" in href:
+                continue
+            if self._element_before(anchor, apply_link):
+                title = anchor.get_text(strip=True)
+                if title and len(title) > 3:
+                    return title
 
-        # Fallback to apply tag text
-        title_text = apply_tag.get_text(strip=True)
-        return title_text if title_text else "Untitled Position"
+        # Fallback: look for any strong/bold text before apply link
+        for strong in card.find_all(["strong", "b"]):
+            if self._element_before(strong, apply_link):
+                title = strong.get_text(strip=True)
+                if title and len(title) > 3:
+                    return title
 
-    def _extract_detail_url(self, apply_tag: Tag, apply_url: str) -> Optional[str]:
+        # Last resort: use apply link text if it's meaningful
+        apply_text = apply_link.get_text(strip=True)
+        if apply_text and len(apply_text) > 10:
+            return apply_text
+
+        return "Untitled Position"
+
+    def _extract_team_from_card(self, card: Tag) -> Optional[str]:
+        """Extract department/team from card using DOM targeting."""
+        # Look for spans/divs with class hints
+        for elem in card.find_all(["span", "div", "p"]):
+            class_attr = elem.get("class", [])
+            class_str = " ".join(class_attr).lower() if class_attr else ""
+            if any(keyword in class_str for keyword in ["team", "department", "dept", "group"]):
+                text = elem.get_text(strip=True)
+                if text and len(text) < 100:  # Reasonable team name length
+                    # Clean up common prefixes
+                    for prefix in ["team:", "department:", "dept:", "group:"]:
+                        if text.lower().startswith(prefix):
+                            text = text[len(prefix):].strip()
+                    return text
+
+        # Look for text patterns like "Team: X" or "Department: Y"
+        for elem in card.find_all(["span", "div", "p"]):
+            text = elem.get_text(strip=True)
+            if not text:
+                continue
+            text_lower = text.lower()
+            for pattern in ["team:", "department:", "dept:"]:
+                if pattern in text_lower:
+                    parts = text.split(":", 1)
+                    if len(parts) == 2:
+                        team = parts[1].strip()
+                        if team and len(team) < 100:
+                            return team
+
+        return None
+
+    def _extract_location_from_card(self, card: Tag) -> Optional[str]:
+        """Extract location from card using DOM targeting."""
+        # Look for spans/divs with class hints
+        for elem in card.find_all(["span", "div", "p"]):
+            class_attr = elem.get("class", [])
+            class_str = " ".join(class_attr).lower() if class_attr else ""
+            if any(keyword in class_str for keyword in ["location", "loc", "city", "office", "place"]):
+                text = elem.get_text(strip=True)
+                if text and len(text) < 100:  # Reasonable location length
+                    # Clean up common prefixes
+                    for prefix in ["location:", "loc:", "city:", "office:"]:
+                        if text.lower().startswith(prefix):
+                            text = text[len(prefix):].strip()
+                    return text
+
+        # Look for text patterns like "Location: X"
+        for elem in card.find_all(["span", "div", "p"]):
+            text = elem.get_text(strip=True)
+            if not text:
+                continue
+            text_lower = text.lower()
+            for pattern in ["location:", "loc:", "based in:"]:
+                if pattern in text_lower:
+                    parts = text.split(":", 1)
+                    if len(parts) == 2:
+                        location = parts[1].strip()
+                        if location and len(location) < 100:
+                            return location
+
+        return None
+
+    def _extract_detail_url_from_card(self, card: Tag, apply_url: str) -> Optional[str]:
         """Extract detail URL if different from apply URL."""
-        title_tag = apply_tag.find_previous("a")
-        if title_tag is not None and title_tag is not apply_tag:
-            detail_url = title_tag.get("href")
-            if detail_url and detail_url != apply_url:
-                return detail_url
-        return apply_url
+        # Look for title links that might be detail pages
+        for anchor in card.find_all("a"):
+            href = anchor.get("href", "")
+            if href and href != apply_url and "jobs.ashbyhq.com" not in href:
+                # Might be a detail page
+                return href
+        return None
 
-    def _extract_metadata(self, apply_tag: Tag) -> Tuple[Optional[str], Optional[str]]:
-        """Extract location and team metadata from HTML structure."""
-        location: Optional[str] = None
-        team: Optional[str] = None
+    def _extract_job_description_from_card(self, card: Tag, title: str) -> str:
+        """Extract minimal job description from card (for raw_text field)."""
+        # Just return title for now - full description extraction happens in enrichment
+        return f"Job Title: {title}\n\nFull job description available on detail page."
 
-        parent = apply_tag.parent
-        for _ in range(5):  # Check up to 5 levels up
-            if parent is None:
-                break
-
-            # Look for common location/team indicators
-            text = parent.get_text()
-
-            if not location:
-                location_elem = parent.find(
-                    string=lambda s: s
-                    and any(
-                        loc_indicator in s.lower()
-                        for loc_indicator in ["location", "based in", "remote", "hybrid"]
-                    )
-                )
-                if location_elem:
-                    location_text = (
-                        location_elem.parent.get_text(strip=True)
-                        if getattr(location_elem, "parent", None)
-                        else None
-                    )
-                    if location_text:
-                        location = (
-                            location_text.split(":", 1)[-1].strip()
-                            if ":" in location_text
-                            else location_text
-                        )
-
-            if not team:
-                team_elem = parent.find(
-                    string=lambda s: s
-                    and any(
-                        team_indicator in s.lower()
-                        for team_indicator in ["team", "department", "division"]
-                    )
-                )
-                if team_elem:
-                    team_text = (
-                        team_elem.parent.get_text(strip=True)
-                        if getattr(team_elem, "parent", None)
-                        else None
-                    )
-                    if team_text:
-                        team = (
-                            team_text.split(":", 1)[-1].strip()
-                            if ":" in team_text
-                            else team_text
-                        )
-
-            parent = parent.parent
-
-        return location, team
-
-     def _extract_job_description(self, apply_tag, soup: BeautifulSoup) -> str:
-        """
-        Simpler description extractor:
-
-        - Look in the nearest job-card container.
-        - Take paragraphs / divs that look like content.
-        - Strip obvious UI noise.
-        """
-        # 1) Find a reasonably small container around this link
-        container = apply_tag.find_parent(["div", "article", "section", "li", "tr"])
-        if not container:
-            title = self._extract_title(apply_tag)
-            return f"Job Title: {title}\n\nFull job description not found in snapshot HTML."
-
-        raw_text = container.get_text(separator="\n", strip=True)
-
-        # 2) Remove common noise
-        lines = []
-        for line in raw_text.split("\n"):
-            lower = line.lower().strip()
-            if not line:
-                continue
-            if any(phrase in lower for phrase in ["apply now", "learn more", "view job"]):
-                continue
-            if len(line) < 10:
-                continue
-            lines.append(line)
-
-        if not lines:
-            title = self._extract_title(apply_tag)
-            return f"Job Title: {title}\n\nFull job description not found in snapshot HTML."
-
-        desc = "\n".join(lines)
-
-        # 3) If still super short, fall back to title-only
-        if len(desc) < 80:
-            title = self._extract_title(apply_tag)
-            return f"Job Title: {title}\n\nDescription in snapshot is very short."
-
-        return desc
+    def _element_before(self, elem1: Tag, elem2: Tag) -> bool:
+        """Check if elem1 comes before elem2 in document order."""
+        # Simple check: compare string positions in parent's HTML
+        parent = elem1.find_parent()
+        if not parent:
+            return True
+        parent_html = str(parent)
+        try:
+            pos1 = parent_html.find(str(elem1))
+            pos2 = parent_html.find(str(elem2))
+            return pos1 < pos2 if pos1 != -1 and pos2 != -1 else True
+        except Exception:
+            return True
 
