@@ -69,6 +69,24 @@ def main() -> None:
         print(f"\n{i}. {job['title']}")
         print(f"   {job['apply_url']}")
 
+    # Write labeled jobs to JSON file
+    output_data = []
+    for job, labeled_result in zip(jobs, labeled):
+        output_data.append({
+            "title": job.title,
+            "apply_url": job.apply_url,
+            "detail_url": job.detail_url,
+            "location": job.location,
+            "team": job.team,
+            "relevance": labeled_result["relevance"],
+        })
+
+    output_path = ROOT / "data" / "openai_labeled_jobs.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output_data, f, indent=2, ensure_ascii=False)
+
+    print(f"\nWrote labeled jobs to {output_path}")
+
 
 if __name__ == "__main__":
     main()

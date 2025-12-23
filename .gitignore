@@ -5,3 +5,5 @@ __pycache__/
 .env.*
 *.sqlite
 .DS_Store
+data/ashby_cache_json/
+data/ashby_cache/
