@@ -119,11 +119,16 @@ class OpenAICareersProvider(BaseJobProvider):
             seen_apply_urls.add(apply_url)
 
             # (c) Extract title from nearest preceding heading/anchor
-            title = self._extract_title_from_card(card, apply_link)
+            raw_title = self._extract_title_from_card(card, apply_link)
 
             # (d) Extract department/team and location from sibling nodes/spans
             team = self._extract_team_from_card(card)
             location = self._extract_location_from_card(card)
+
+            # Sanitize title to avoid concatenated department/location
+            title = self._sanitize_title(raw_title, team, location)
+            if not title:
+                title = raw_title or "Untitled Position"
 
             # Extract detail_url if different from apply_url
             detail_url = self._extract_detail_url_from_card(card, apply_url)
@@ -153,6 +158,13 @@ class OpenAICareersProvider(BaseJobProvider):
         Extract job title from card using DOM targeting.
         Looks for nearest preceding heading or anchor (not the apply link itself).
         """
+        # Prefer dedicated title elements if present (common Ashby data-testid)
+        title_el = card.find(attrs={"data-testid": lambda v: v and "title" in v.lower()})
+        if isinstance(title_el, Tag):
+            text = title_el.get_text(strip=True)
+            if text:
+                return text
+
         # Look for headings (h1-h6) in the card, before the apply link
         for heading in card.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
             if heading.get_text(strip=True):
@@ -188,6 +200,35 @@ class OpenAICareersProvider(BaseJobProvider):
             return apply_text
 
         return "Untitled Position"
+
+    def _sanitize_title(self, title: str, team: Optional[str], location: Optional[str]) -> str:
+        """
+        Remove concatenated department/location suffixes with no separator.
+        Examples: 'Field EngineerRoboticsSan Francisco' -> 'Field Engineer'
+        """
+        if not title:
+            return title
+
+        sanitized = title
+
+        def strip_suffix(text: str, suffix: str) -> str:
+            if text.endswith(suffix):
+                return text[: -len(suffix)].strip()
+            return text
+
+        if team and location:
+            combo = f"{team}{location}"
+            if combo and combo in sanitized:
+                sanitized = sanitized.replace(combo, "").strip()
+                return sanitized
+            sanitized = strip_suffix(sanitized, combo)
+
+        if team:
+            sanitized = strip_suffix(sanitized, team)
+        if location:
+            sanitized = strip_suffix(sanitized, location)
+
+        return sanitized if sanitized else title
 
     def _extract_team_from_card(self, card: Tag) -> Optional[str]:
         """Extract department/team from card using DOM targeting."""
