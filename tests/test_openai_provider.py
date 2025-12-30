@@ -45,5 +45,15 @@ def test_titles_not_concatenated_with_metadata():
             assert bad not in job.title, f"Title '{job.title}' contains concatenated metadata substring '{bad}'"
 
 
+def test_sanitize_title_removes_concatenated_dept_location():
+    """
+    Ensure title sanitization strips concatenated department/location with no separator.
+    """
+    provider = OpenAICareersProvider(mode="SNAPSHOT", data_dir="data")
+    raw = "Field EngineerRoboticsSan Francisco"
+    sanitized = provider._sanitize_title(raw, team="Robotics", location="San Francisco")
+    assert sanitized == "Field Engineer", f"Expected 'Field Engineer', got '{sanitized}'"
+
+
 if __name__ == "__main__":
     test_titles_do_not_contain_department_or_location()
