@@ -7,3 +7,30 @@ __pycache__/
 .DS_Store
 data/ashby_cache_json/
 data/ashby_cache/
+data/ashby_cache/
+data/openai_raw_jobs.json
+data/openai_labeled_jobs.json
+data/openai_enriched_jobs.json
+data/openai_ranked_jobs.json
+data/openai_ranked_jobs.csv
+data/jobs_enriched.json
+
+# Secrets
+.env
+
+# Runtime state
+data/state/
+
+# Generated job data artifacts
+data/openai_*_jobs.json
+data/openai_ranked_*.json
+data/openai_ranked_*.csv
+data/openai_shortlist*.md
+
+# Optional: keep snapshots if you want reproducibility; otherwise ignore them too
+# data/openai_snapshots/
+
+# Python junk
+__pycache__/
+*.pyc
+.venv/

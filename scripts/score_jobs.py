@@ -31,6 +31,38 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+def load_profiles(path: str) -> Dict[str, Any]:
+    p = Path(path)
+    if not p.exists():
+        raise SystemExit(f"Profiles config not found: {p}")
+    data = json.loads(p.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise SystemExit("profiles.json must be an object mapping profile_name -> config")
+    return data
+
+
+def apply_profile(profile_name: str, profiles: Dict[str, Any]) -> None:
+    """
+    Overwrite global ROLE_BAND_MULTIPLIERS + PROFILE_WEIGHTS with selected profile settings.
+    """
+    if profile_name not in profiles:
+        raise SystemExit(f"Unknown profile '{profile_name}'. Available: {', '.join(sorted(profiles.keys()))}")
+
+    cfg = profiles[profile_name]
+    rbm = cfg.get("role_band_multipliers")
+    pw = cfg.get("profile_weights")
+
+    if not isinstance(rbm, dict) or not isinstance(pw, dict):
+        raise SystemExit(f"Profile '{profile_name}' must contain role_band_multipliers and profile_weights dicts")
+
+    # overwrite in-place so rest of script doesn't change
+    ROLE_BAND_MULTIPLIERS.clear()
+    ROLE_BAND_MULTIPLIERS.update({str(k): float(v) for k, v in rbm.items()})
+
+    PROFILE_WEIGHTS.clear()
+    PROFILE_WEIGHTS.update({str(k): int(v) for k, v in pw.items()})
+
+
 
 # ------------------------------------------------------------
 # Tunables: role-band multipliers (this is your big lever)
@@ -447,7 +479,11 @@ def main() -> int:
     ap.add_argument("--out_md", default="data/openai_shortlist.md")
     ap.add_argument("--shortlist_score", type=int, default=70)
     ap.add_argument("--us_only", action="store_true", help="Only keep US locations or Remote - US")
+    ap.add_argument("--profile", default="cs", help="Scoring profile (cs|tam|se)")
+    ap.add_argument("--profiles", default="config/profiles.json", help="Path to profiles.json")
     args = ap.parse_args()
+    profiles = load_profiles(args.profiles)
+    apply_profile(args.profile, profiles)
 
     in_path = Path(args.in_path)
     if not in_path.exists():
