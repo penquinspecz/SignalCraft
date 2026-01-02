@@ -35,13 +35,22 @@ __pycache__/
 *.pyc
 .venv/
 
-# local secrets
+# secrets
 .env
 
+# venv
+.venv/
+__pycache__/
+*.pyc
+
 # generated job data
-data/openai_*.json
-data/openai_*.csv
-data/openai_*.md
+data/openai_raw_jobs.json
+data/openai_labeled_jobs.json
+data/openai_enriched_jobs.json
+data/openai_ranked_jobs*.json
+data/openai_ranked_jobs*.csv
+data/openai_ranked_families.json
+data/openai_shortlist*.md
 
 # state
 data/state/

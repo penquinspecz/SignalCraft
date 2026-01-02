@@ -101,9 +101,14 @@ def _diff(
     return new_jobs, changed_jobs
 
 
-def _post_discord(webhook_url: str, message: str) -> None:
+def _post_discord(webhook_url: str, message: str) -> bool:
+    """
+    Returns True if posted successfully, False otherwise.
+    Never raises (so your pipeline still completes).
+    """
     if not webhook_url or "discord.com/api/webhooks/" not in webhook_url:
-        raise SystemExit("DISCORD_WEBHOOK_URL missing or doesn't look like a Discord webhook URL.")
+        print("⚠️ DISCORD_WEBHOOK_URL missing or doesn't look like a Discord webhook URL. Skipping post.")
+        return False
 
     payload = {"content": message}
     data = json.dumps(payload).encode("utf-8")
@@ -115,7 +120,6 @@ def _post_discord(webhook_url: str, message: str) -> None:
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
-            # A realistic UA helps avoid some edge/WAF false positives
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) job-intelligence-engine/1.0",
         },
     )
@@ -123,12 +127,17 @@ def _post_discord(webhook_url: str, message: str) -> None:
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             resp.read()
-            return
+        return True
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
-        print("Discord webhook POST failed:", e.code)
+        print(f"Discord webhook POST failed: {e.code}")
         print(body[:2000])
-        raise
+        if e.code == 404 and "10015" in body:
+            print("⚠️ Discord says: Unknown Webhook (rotated/deleted/wrong URL). Update DISCORD_WEBHOOK_URL in .env.")
+        return False
+    except Exception as e:
+        print(f"Discord webhook POST failed: {e!r}")
+        return False
 
 
 def _resolve_profiles(args: argparse.Namespace) -> List[str]:
@@ -184,6 +193,7 @@ def main() -> int:
             raise SystemExit("DISCORD_WEBHOOK_URL not set (check .env and export).")
         _post_discord(webhook, "test_post ✅ (run_daily)")
         print("✅ test_post sent")
+        
         return 0
 
     profiles = _resolve_profiles(args)
@@ -265,8 +275,11 @@ def main() -> int:
             print(f"Skipping Discord post (--no_post). Message for {profile} would have been:\n")
             print(msg)
         else:
-            _post_discord(webhook, msg)
-            print(f"✅ Discord alert sent ({profile}).")
+            ok = _post_discord(webhook, msg)
+            if ok:
+                print(f"✅ Discord alert sent ({profile}).")
+            else:
+                print("⚠️ Discord alert NOT sent (pipeline still completed).")
 
         print(f"Done ({profile}). Ranked outputs:\n - {ranked_json}\n - {ranked_csv}\n - {shortlist_md}")
 
