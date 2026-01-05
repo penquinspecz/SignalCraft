@@ -7,11 +7,9 @@ __pycache__/
 .DS_Store
 data/ashby_cache_json/
 data/ashby_cache/
-data/ashby_cache/
 data/openai_raw_jobs.json
 data/openai_labeled_jobs.json
 data/openai_enriched_jobs.json
-data/openai_ranked_jobs.json
 data/openai_ranked_jobs.csv
 data/jobs_enriched.json
 
@@ -34,14 +32,6 @@ data/openai_shortlist*.md
 __pycache__/
 *.pyc
 .venv/
-
-# secrets
-.env
-
-# venv
-.venv/
-__pycache__/
-*.pyc
 
 # generated job data
 data/openai_raw_jobs.json
