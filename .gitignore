@@ -63,3 +63,12 @@ config/*.local.*
 
 # allow template env file
 !.env.example
+
+# ---- job-intelligence-engine generated outputs ----
+data/*.json
+data/*.csv
+data/*.md
+data/state/*.json
+
+# Keep snapshots if you want them versioned; comment these out if you want snapshots ignored too
+# data/openai_snapshots/
