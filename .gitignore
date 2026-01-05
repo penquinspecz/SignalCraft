@@ -62,3 +62,6 @@ data/state/*.json
 
 # Keep snapshots if you want them versioned; comment these out if you want snapshots ignored too
 # data/openai_snapshots/
+
+# packaging/build artifacts
+*.egg-info/

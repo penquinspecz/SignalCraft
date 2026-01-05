@@ -6,13 +6,9 @@ ssl module is compiled against LibreSSL (< OpenSSL 1.1.1).
 """
 import warnings
 
-# Primary: filter by warning category if available
-try:
-    from urllib3.exceptions import NotOpenSSLWarning  # type: ignore
-    warnings.filterwarnings("ignore", category=NotOpenSSLWarning)
-except Exception:
-    # Fallback: filter by message pattern (works even if urllib3 isn't importable yet)
-    warnings.filterwarnings(
-        "ignore",
-        message=r"urllib3 v2 only supports OpenSSL 1\.1\.1\+.*",
-    )
+# IMPORTANT:
+# Do NOT import urllib3 here. Importing it can trigger the warning before we filter it.
+warnings.filterwarnings(
+    "ignore",
+    message=r"urllib3 v2 only supports OpenSSL 1\.1\.1\+.*",
+)
