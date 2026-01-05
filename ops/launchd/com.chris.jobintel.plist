@@ -27,8 +27,6 @@
         <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>PYTHONPATH</key>
         <string>/Users/christophermenendez/Projects/job-intelligence-engine/src</string>
-        <key>PYTHONWARNINGS</key>
-        <string>ignore:urllib3 v2 only supports OpenSSL 1.1.1+:urllib3.exceptions.NotOpenSSLWarning</string>
     </dict>
 
     <key>RunAtLoad</key>
