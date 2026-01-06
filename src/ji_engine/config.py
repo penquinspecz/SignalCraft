@@ -12,6 +12,7 @@ SNAPSHOT_DIR = DATA_DIR / "openai_snapshots"
 RAW_JOBS_JSON = DATA_DIR / "openai_raw_jobs.json"
 LABELED_JOBS_JSON = DATA_DIR / "openai_labeled_jobs.json"
 ENRICHED_JOBS_JSON = DATA_DIR / "openai_enriched_jobs.json"
+ASHBY_CACHE_DIR = DATA_DIR / "ashby_cache"
 
 RANKED_FAMILIES_JSON = DATA_DIR / "openai_ranked_families.json"
 
