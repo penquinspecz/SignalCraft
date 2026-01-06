@@ -31,6 +31,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from ji_engine.config import (
+    ENRICHED_JOBS_JSON,
+    LABELED_JOBS_JSON,
+    ranked_families_json,
+    ranked_jobs_csv,
+    ranked_jobs_json,
+    shortlist_md,
+)
+
 def load_profiles(path: str) -> Dict[str, Any]:
     p = Path(path)
     if not p.exists():
@@ -477,12 +486,12 @@ def main() -> int:
 
     ap.add_argument("--profile", default="cs")
     ap.add_argument("--profiles", default="config/profiles.json")
-    ap.add_argument("--in_path", default="data/openai_enriched_jobs.json")
+    ap.add_argument("--in_path", default=str(ENRICHED_JOBS_JSON))
 
-    ap.add_argument("--out_json", default="data/openai_ranked_jobs.cs.json")
-    ap.add_argument("--out_csv", default="data/openai_ranked_jobs.cs.csv")
-    ap.add_argument("--out_families", default="data/openai_ranked_families.json")
-    ap.add_argument("--out_md", default="data/openai_shortlist.cs.md")
+    ap.add_argument("--out_json", default=str(ranked_jobs_json("cs")))
+    ap.add_argument("--out_csv", default=str(ranked_jobs_csv("cs")))
+    ap.add_argument("--out_families", default=str(ranked_families_json("cs")))
+    ap.add_argument("--out_md", default=str(shortlist_md("cs")))
 
     ap.add_argument("--shortlist_score", type=int, default=70)
     ap.add_argument("--us_only", action="store_true")

@@ -23,14 +23,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 from bs4 import BeautifulSoup
 
-from ji_engine.config import ENRICHED_JOBS_JSON, LABELED_JOBS_JSON
+from ji_engine.config import ASHBY_CACHE_DIR, ENRICHED_JOBS_JSON, LABELED_JOBS_JSON
 from ji_engine.integrations.ashby_graphql import fetch_job_posting
 from ji_engine.integrations.html_to_text import html_to_text
 
 DEBUG = os.getenv("JI_DEBUG") == "1"
 
 ORG = "openai"
-CACHE_DIR = Path("data/ashby_cache")  # keep as-is for now; we can promote to config later
+CACHE_DIR = ASHBY_CACHE_DIR
 
 
 def _extract_job_id_from_url(url: str) -> Optional[str]:
