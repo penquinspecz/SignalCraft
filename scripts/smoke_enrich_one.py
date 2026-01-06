@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Smoke test: Fetch one job posting via API and verify cache and data.
 
@@ -8,18 +8,13 @@ Tests the specific job: https://jobs.ashbyhq.com/openai/0c22b805-3976-492e-81f2-
 import sys
 from pathlib import Path
 
-# Add root directory to path for imports
-SCRIPTS_DIR = Path(__file__).resolve().parent
-ROOT = SCRIPTS_DIR.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from scripts.ashby_graphql import fetch_job_posting
-from scripts.html_to_text import html_to_text
+from ji_engine.config import DATA_DIR
+from ji_engine.integrations.ashby_graphql import fetch_job_posting
+from ji_engine.integrations.html_to_text import html_to_text
 
 ORG = "openai"
 JOB_ID = "0c22b805-3976-492e-81f2-7cf91f63a630"
-CACHE_DIR = Path("data/ashby_cache")
+CACHE_DIR = DATA_DIR / "ashby_cache"
 
 
 def main():

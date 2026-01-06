@@ -34,6 +34,17 @@ A second model (e.g. Gemini) is used as a cross-model reviewer for critical modu
 
 The goal is to demonstrate practical, safe use of multi-model workflows for software engineering.
 
+## Local setup (editable install)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -e .
+# Example run (no Discord post):
+python scripts/run_daily.py --profiles cs --us_only --no_post
+```
+
 ## Roadmap
 
 Sprint 0: Repo setup, models, and basic scraper skeleton

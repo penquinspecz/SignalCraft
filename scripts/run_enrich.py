@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 """
 Entry point to run the job enrichment pipeline.
@@ -12,19 +12,14 @@ import json
 import sys
 from pathlib import Path
 
-# Add <repo_root>/src to sys.path so `import ji_engine` works
-ROOT = Path(__file__).resolve().parents[1]
-SRC_PATH = ROOT / "src"
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
-
-from ji_engine.pipeline.enrichment import enrich_jobs  # noqa: E402
+from ji_engine.config import DATA_DIR, ENRICHED_JOBS_JSON, LABELED_JOBS_JSON
+from ji_engine.pipeline.enrichment import enrich_jobs
 
 
 def main() -> None:
     """Load labeled jobs, enrich them, and save results."""
     # Load labeled jobs
-    labeled_path = ROOT / "data" / "openai_labeled_jobs.json"
+    labeled_path = LABELED_JOBS_JSON
     if not labeled_path.exists():
         print(f"Error: Labeled jobs file not found: {labeled_path}")
         print("Run scripts/run_classify.py first to generate labeled jobs.")
@@ -47,7 +42,7 @@ def main() -> None:
         return
 
     # Enrich jobs
-    cache_dir = ROOT / "data" / "ashby_cache"
+    cache_dir = DATA_DIR / "ashby_cache"
     enriched_jobs = enrich_jobs(filtered_jobs, cache_dir, rate_limit=1.0)
 
     # Count successes and failures
@@ -55,7 +50,7 @@ def main() -> None:
     failed = len(enriched_jobs) - successful
 
     # Save enriched jobs
-    output_path = ROOT / "data" / "openai_enriched_jobs.json"
+    output_path = ENRICHED_JOBS_JSON
     output_data = [
         {
             "title": job.get("title"),

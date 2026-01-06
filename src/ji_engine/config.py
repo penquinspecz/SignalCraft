@@ -21,6 +21,9 @@ def ranked_jobs_json(profile: str) -> Path:
 def ranked_jobs_csv(profile: str) -> Path:
     return DATA_DIR / f"openai_ranked_jobs.{profile}.csv"
 
+def ranked_families_json(profile: str) -> Path:
+    return DATA_DIR / f"openai_ranked_families.{profile}.json"
+
 def shortlist_md(profile: str) -> Path:
     return DATA_DIR / f"openai_shortlist.{profile}.md"
 
