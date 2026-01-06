@@ -33,6 +33,7 @@ from ji_engine.config import (
     LOCK_PATH,
     ranked_jobs_json,
     ranked_jobs_csv,
+    ranked_families_json,
     shortlist_md as shortlist_md_path,
     state_last_ranked,
 )
@@ -205,9 +206,9 @@ def _post_discord(webhook_url: str, message: str) -> bool:
         return False
 
 
-def _post_failure(webhook_url: str, stage: str, error: str) -> None:
+def _post_failure(webhook_url: str, stage: str, error: str, no_post: bool) -> None:
     """Best-effort failure notification. Never raises."""
-    if not webhook_url:
+    if no_post or not webhook_url:
         return
 
     msg = (
@@ -267,21 +268,28 @@ def main() -> int:
     _acquire_lock(timeout_sec=0)
     print(f"===== jobintel start {_utcnow_iso()} pid={os.getpid()} =====")
 
+    current_stage = "startup"
+
     try:
         profiles = _resolve_profiles(args)
         us_only_flag = ["--us_only"] if args.us_only else []
 
         # 1) Run pipeline stages ONCE
+        current_stage = "scrape"
         _run([sys.executable, "scripts/run_scrape.py", "--mode", "AUTO"])
+        current_stage = "classify"
         _run([sys.executable, "scripts/run_classify.py"])
+        current_stage = "enrich"
         _run([sys.executable, "-m", "scripts.enrich_jobs"])
 
         # 2–5) For each profile: score -> diff -> state -> optional alert
         for profile in profiles:
             ranked_json = ranked_jobs_json(profile)
             ranked_csv = ranked_jobs_csv(profile)
+            ranked_families = ranked_families_json(profile)
             shortlist_md = shortlist_md_path(profile)
 
+            current_stage = f"score:{profile}"
             cmd = [
                 sys.executable,
                 "scripts/score_jobs.py",
@@ -291,6 +299,8 @@ def main() -> int:
                 str(ranked_json),
                 "--out_csv",
                 str(ranked_csv),
+                "--out_families",
+                str(ranked_families),
                 "--out_md",
                 str(shortlist_md),
             ] + us_only_flag
@@ -358,10 +368,10 @@ def main() -> int:
 
     except subprocess.CalledProcessError as e:
         cmd_str = " ".join(e.cmd) if isinstance(e.cmd, (list, tuple)) else str(e.cmd)
-        _post_failure(webhook, stage="subprocess", error=f"{e}\ncmd={cmd_str}")
+        _post_failure(webhook, stage=current_stage, error=f"{e}\ncmd={cmd_str}", no_post=args.no_post)
         return 1
     except Exception as e:
-        _post_failure(webhook, stage="unexpected", error=repr(e))
+        _post_failure(webhook, stage=current_stage or "unexpected", error=repr(e), no_post=args.no_post)
         return 1
     finally:
         print(f"===== jobintel end {_utcnow_iso()} =====")
