@@ -255,7 +255,15 @@ def main() -> int:
     import argparse
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--max_workers", type=int, default=4, help="Max threads for enrichment")
+    default_max_workers = int(os.getenv("ENRICH_MAX_WORKERS", "4"))
+    default_limit_env = os.getenv("ENRICH_LIMIT")
+    ap.add_argument("--max_workers", type=int, default=default_max_workers, help="Max threads for enrichment")
+    ap.add_argument(
+        "--limit",
+        type=int,
+        default=int(default_limit_env) if default_limit_env else None,
+        help="Limit number of jobs to enrich (for tests/dev).",
+    )
     args = ap.parse_args()
 
     if not LABELED_JOBS_JSON.exists():
@@ -268,6 +276,8 @@ def main() -> int:
     unavailable_reasons: Counter[str] = Counter()
 
     filtered_jobs = [j for j in jobs if j.get("relevance") in ("RELEVANT", "MAYBE")]
+    if args.limit is not None:
+        filtered_jobs = filtered_jobs[: max(0, args.limit)]
 
     logger.info(f"Loaded {len(jobs)} labeled jobs")
     logger.info(f"Filtering for RELEVANT/MAYBE: {len(filtered_jobs)} jobs to enrich\n")
