@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # Base directories
 REPO_ROOT = Path(".")
-DATA_DIR = REPO_ROOT / "data"
+_DEFAULT_DATA_DIR = REPO_ROOT / "data"
+_ENV_DATA_DIR = os.environ.get("JOBINTEL_DATA_DIR")
+DATA_DIR = Path(_ENV_DATA_DIR).expanduser() if _ENV_DATA_DIR else _DEFAULT_DATA_DIR
 STATE_DIR = DATA_DIR / "state"
 SNAPSHOT_DIR = DATA_DIR / "openai_snapshots"
 
