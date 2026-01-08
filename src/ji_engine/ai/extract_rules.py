@@ -4,7 +4,7 @@ import re
 from typing import Any, Dict, List, Tuple
 
 
-RULES_VERSION = "2025-01-AI-EXTRACT-4"
+RULES_VERSION = "2025-01-AI-EXTRACT-5"
 _WS_RE = re.compile(r"\s+")
 
 
@@ -57,7 +57,6 @@ _SKILL_PATTERNS: List[Tuple[str, List[str]]] = [
     ("RAG", [r"\brag\b", r"\bretrieval[- ]augmented\b"]),
     ("Prompting", [r"\bprompt\b", r"\bprompting\b", r"\bprompt engineering\b"]),
     ("APIs", [r"\bapi\b", r"\bapis\b", r"\brest\b"]),
-    ("Security", [r"\bsecurity\b", r"\bthreat\b", r"\bprivacy\b"]),
     # Business / Customer Success (gated; see _CS_TRIGGER_PATTERNS)
     ("Adoption", [r"\badoption\b", r"\bactivation\b", r"\bactivate\b"]),
     ("Onboarding", [r"\bonboarding\b"]),
@@ -121,6 +120,35 @@ _GATED_CS_SKILLS = {
     "Program Management",
     "Renewals",
 }
+
+# Security is common boilerplate; do NOT treat as required by default.
+# Only treat as required when there are strong compliance / clearance requirement triggers.
+_SECURITY_MENTION_PATTERNS: List[str] = [
+    r"\bsecurity\b",
+    r"\bprivacy\b",
+    r"\bthreat\b",
+    r"\binfosec\b",
+    r"\bdata security\b",
+]
+
+_SECURITY_REQUIRED_TRIGGER_PATTERNS: List[str] = [
+    r"\bsecurity clearance required\b",
+    r"\bmust obtain (?:a )?clearance\b",
+    r"\bts/sci\b",
+    r"\btop secret\b",
+    r"\bfedramp\b.*\brequired\b",
+    r"\bsoc\s*2\b.*\brequired\b",
+    r"\biso\s*27001\b.*\brequired\b",
+    r"\bcompliance\b.*\brequire(?:ment|d)\b",
+]
+
+
+def _security_required(text: str) -> bool:
+    return _contains(text, _SECURITY_REQUIRED_TRIGGER_PATTERNS)
+
+
+def _security_mentioned(text: str) -> bool:
+    return _contains(text, _SECURITY_MENTION_PATTERNS)
 
 
 def _hw_trigger_count(text: str) -> int:
@@ -186,9 +214,23 @@ def _role_family(title_text: str, job_text: str) -> str:
     """
     title = title_text or ""
 
-    # TITLE-only business families / explicit mapping
+    # TITLE-only explicit mappings first (highest precedence).
+    # Keep Forward Deployed explicit-only.
+    if re.search(r"\bforward deployed\b", title, flags=re.IGNORECASE):
+        return "Forward Deployed"
+
+    # Value Realization is a Customer Success/business role.
     if re.search(r"\bvalue realization\b", title, flags=re.IGNORECASE):
         return "Customer Success"
+
+    # AI Deployment Manager / Manager, AI Deployment should map to Customer Success.
+    if re.search(r"\b(ai\s+)?deployment manager\b", title, flags=re.IGNORECASE) or re.search(r"\bmanager,\s*ai deployment\b", title, flags=re.IGNORECASE):
+        return "Customer Success"
+
+    # Solutions Architect should win by title even if CS/deployment triggers exist in jd_text.
+    if re.search(r"\b(partner\s+)?solutions architect\b", title, flags=re.IGNORECASE) or re.search(r"\bsolution architect\b", title, flags=re.IGNORECASE):
+        return "Solutions Architect"
+
     if re.search(r"\bcustomer success\b|\bcs\b", title, flags=re.IGNORECASE):
         return "Customer Success"
     # If team/dept/JD explicitly says Customer Success, treat as Customer Success before generic "product" matches.
@@ -265,6 +307,16 @@ def extract_ai_fields(job: Dict[str, Any]) -> Dict[str, Any]:
 
     req_skills = _skills_from_text(req_section) or _skills_from_text(text)
     pref_skills = _skills_from_text(pref_section)
+
+    # Security handling:
+    # - If strong requirement triggers exist anywhere, add to required (and do not add to preferred).
+    # - Otherwise, if mentioned anywhere, add to preferred (not required).
+    if _security_required(text):
+        if "Security" not in req_skills:
+            req_skills.append("Security")
+    else:
+        if _security_mentioned(text) and "Security" not in req_skills and "Security" not in pref_skills:
+            pref_skills.append("Security")
 
     # Remove duplicates between required/preferred while preserving order.
     req_set = set(req_skills)
