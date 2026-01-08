@@ -1,6 +1,7 @@
 FROM python:3.11-slim
 
 WORKDIR /app
+ENV PYTHONPATH=/app/src
 
 # System deps (minimal)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -10,11 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency metadata first for better layer caching
 COPY pyproject.toml /app/pyproject.toml
 COPY requirements.txt /app/requirements.txt
+COPY README.md /app/README.md
+COPY src /app/src
 
 # Install dependencies + dev test deps (no secrets required)
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r /app/requirements.txt \
-    && pip install --no-cache-dir -e ".[dev]"
+    && pip install --no-cache-dir pytest
 
 # Copy project code
 COPY src /app/src
