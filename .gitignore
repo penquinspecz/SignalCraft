@@ -65,3 +65,6 @@ data/state/*.json
 
 # packaging/build artifacts
 *.egg-info/
+
+# Local AI cache
+/data/ai_cache/
