@@ -1,13 +1,29 @@
-.venv/
+# Python junk
 __pycache__/
-.pytest_cache/
-.git/
-docs/_build/
-data/*
-!data/openai_snapshots/**
-!data/candidate_profile.json
 *.pyc
 *.pyo
-*.swp
-.DS_Store
+*.pyd
+*.egg-info/
+.eggs/
+.venv/
+venv/
 
+# Git + editor
+.git/
+.gitignore
+.DS_Store
+.vscode/
+.idea/
+
+# Local outputs
+data/openai_enriched_jobs_ai.json
+data/openai_ranked_jobs*.json
+data/openai_ranked_jobs*.csv
+data/openai_shortlist*.md
+
+# Keep snapshots + profile (needed for offline-ish runs)
+# (DO NOT ignore these)
+!data/openai_snapshots/
+!data/candidate_profile.json
+
+# If you have big raw dumps elsewhere, ignore them explicitly, not with "*"
