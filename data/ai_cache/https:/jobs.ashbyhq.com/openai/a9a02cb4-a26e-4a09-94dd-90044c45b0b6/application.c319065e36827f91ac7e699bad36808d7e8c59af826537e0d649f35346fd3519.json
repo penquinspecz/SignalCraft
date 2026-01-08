@@ -1,13 +1,11 @@
 {
   "summary": "Stub summary for Manager, Forward Deployed Engineering",
   "confidence": 0.0,
-  "notes": "required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/3; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:5; seniority_bonus:0 | required_match:0/1; preferred_match:0/1; role_bonus:5; seniority_bonus:0 | required_match:0/1; preferred_match:0/1; role_bonus:5; seniority_bonus:0",
+  "notes": "required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/3; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:5; seniority_bonus:0 | required_match:0/1; preferred_match:0/1; role_bonus:5; seniority_bonus:0 | required_match:0/1; preferred_match:0/1; role_bonus:5; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:5; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:5; seniority_bonus:0",
   "skills_required": [
     "Python"
   ],
-  "skills_preferred": [
-    "Security"
-  ],
+  "skills_preferred": [],
   "role_family": "Forward Deployed",
   "seniority": "Manager",
   "match_score": 5,
@@ -16,5 +14,5 @@
     "Relocation required",
     "Travel up to 25%"
   ],
-  "rules_version": "2025-01-AI-EXTRACT-5"
+  "rules_version": "2025-01-AI-EXTRACT-6"
 }

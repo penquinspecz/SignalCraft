@@ -23,6 +23,17 @@ def test_invariant_solutions_architect_title_wins_unless_forward_deployed() -> N
     assert out["role_family"] == "Forward Deployed"
 
 
+def test_invariant_solutions_engineer_title_maps_to_solutions_architect() -> None:
+    out = extract_ai_fields(
+        {
+            "title": "Solutions Engineer, Public Sector",
+            "jd_text": "Partner with Product to shape roadmap and launch features.",
+        }
+    )
+    assert out["role_family"] != "Product"
+    assert out["role_family"] == "Solutions Architect"
+
+
 def test_invariant_security_not_required_without_strong_trigger() -> None:
     # Generic mentions of security/privacy should not mark Security as required.
     out = extract_ai_fields(
@@ -67,3 +78,37 @@ def test_invariant_cs_role_has_nonzero_match_score_with_current_profile() -> Non
     score, _notes = compute_match(ai, profile)
     assert score > 0
 
+
+def test_invariant_security_required_if_trigger_before_boilerplate_cutoff() -> None:
+    job = {
+        "title": "Solutions Architect, Gov",
+        "jd_text": """
+        Requirements:
+        - Security clearance required.
+        - Python and APIs.
+
+        About OpenAI
+        This footer should be ignored.
+        """,
+    }
+    out = extract_ai_fields(job)
+    assert "Security" in out["skills_required"]
+
+
+def test_invariant_security_not_required_if_trigger_only_after_boilerplate_cutoff() -> None:
+    job = {
+        "title": "Solutions Architect, Gov",
+        "jd_text": """
+        Requirements:
+        - Python and APIs.
+        - Follow security and privacy best practices.
+
+        About OpenAI
+        Security clearance required.
+        """,
+    }
+    out = extract_ai_fields(job)
+    # Trigger occurs only after cutoff => must not force Security required.
+    assert "Security" not in out["skills_required"]
+    # Generic security mention before cutoff may still place it in preferred.
+    assert "Security" in out["skills_preferred"]

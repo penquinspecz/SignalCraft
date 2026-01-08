@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ji_engine.ai import extract_rules as rules_mod
 from ji_engine.ai.extract_rules import extract_ai_fields
 
 
@@ -124,4 +125,34 @@ def test_solutions_architect_title_wins_over_ai_deployment_trigger() -> None:
     out = extract_ai_fields(job)
     assert out["role_family"] == "Solutions Architect"
     assert out["role_family"] != "Customer Success"
+
+
+def test_strip_boilerplate_cuts_after_about_openai_heading() -> None:
+    text = "Line 1\nLine 2\nAbout OpenAI\nFooter line A\nFooter line B\n"
+    stripped = rules_mod._strip_boilerplate(text)
+    assert stripped == "Line 1\nLine 2"
+
+
+def test_boilerplate_skills_do_not_leak_into_extraction() -> None:
+    job = {
+        "title": "Solutions Architect",
+        "team": "Go To Market, Technical Success",
+        "location": "San Francisco",
+        "jd_text": """
+        Requirements:
+        - Python and APIs
+
+        About OpenAI
+        Security clearance required. Kubernetes. FedRAMP required.
+        OpenAI is an equal opportunity employer.
+        """,
+    }
+    out = extract_ai_fields(job)
+    # Content above cutoff preserved:
+    assert "Python" in out["skills_required"]
+    assert "APIs" in out["skills_required"]
+    # Boilerplate-only content should not influence skills/flags:
+    assert "Kubernetes" not in out["skills_required"]
+    assert "Security" not in out["skills_required"]
+    assert "Security clearance required" not in out["red_flags"]
 
