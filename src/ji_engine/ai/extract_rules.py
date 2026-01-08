@@ -4,8 +4,38 @@ import re
 from typing import Any, Dict, List, Tuple
 
 
-RULES_VERSION = "2025-01-AI-EXTRACT-5"
+RULES_VERSION = "2025-01-AI-EXTRACT-6"
 _WS_RE = re.compile(r"\s+")
+
+
+# Boilerplate cutoff: ignore legal/footer blocks after strong heading markers.
+_BOILERPLATE_MARKERS: List[re.Pattern[str]] = [
+    re.compile(r"^\s*about\s+openai\s*$", flags=re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*background\s+checks?\s*(for\s+applicants?)?\s*$", flags=re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*applicant\s+privacy\s+policy\s*$", flags=re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*openai\s+global\s+applicant\s+privacy\s+policy\s*$", flags=re.IGNORECASE | re.MULTILINE),
+]
+
+
+def _strip_boilerplate(text: str) -> str:
+    """
+    Deterministically strip boilerplate/footer blocks from job description text.
+
+    We discard everything after the first match of a strong heading marker
+    (e.g., "About OpenAI", "Applicant Privacy Policy").
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    earliest: int | None = None
+    for pat in _BOILERPLATE_MARKERS:
+        m = pat.search(text)
+        if not m:
+            continue
+        if earliest is None or m.start() < earliest:
+            earliest = m.start()
+    if earliest is None:
+        return text
+    return text[:earliest].rstrip()
 
 
 def _norm_text(s: str) -> str:
@@ -21,7 +51,7 @@ def _job_text(job: Dict[str, Any]) -> str:
     for k in ("jd_text", "description_text", "description", "text"):
         v = job.get(k)
         if isinstance(v, str) and v.strip():
-            parts.append(v.strip())
+            parts.append(_strip_boilerplate(v).strip())
     return _norm_text("\n".join(parts))
 
 
@@ -230,6 +260,9 @@ def _role_family(title_text: str, job_text: str) -> str:
     # Solutions Architect should win by title even if CS/deployment triggers exist in jd_text.
     if re.search(r"\b(partner\s+)?solutions architect\b", title, flags=re.IGNORECASE) or re.search(r"\bsolution architect\b", title, flags=re.IGNORECASE):
         return "Solutions Architect"
+    # Solutions Engineer maps to Solutions Architect (title-only).
+    if re.search(r"\bsolutions engineer\b", title, flags=re.IGNORECASE):
+        return "Solutions Architect"
 
     if re.search(r"\bcustomer success\b|\bcs\b", title, flags=re.IGNORECASE):
         return "Customer Success"
@@ -333,5 +366,4 @@ def extract_ai_fields(job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 __all__ = ["extract_ai_fields"]
-
 
