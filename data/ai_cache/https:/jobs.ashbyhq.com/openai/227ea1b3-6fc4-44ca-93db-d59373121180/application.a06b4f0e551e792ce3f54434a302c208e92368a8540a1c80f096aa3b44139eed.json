@@ -1,17 +1,23 @@
 {
   "summary": "Stub summary for Manager, AI Deployment - AMER",
   "confidence": 0.0,
-  "notes": "required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0",
+  "notes": "required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/2; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/1; preferred_match:0/0; role_bonus:0; seniority_bonus:0 | required_match:0/5; preferred_match:0/1; role_bonus:0; seniority_bonus:0 | required_match:5/5; preferred_match:0/1; role_bonus:5; seniority_bonus:0 | required_match:5/5; preferred_match:0/1; role_bonus:5; seniority_bonus:0",
   "skills_required": [
+    "Adoption",
+    "Enablement",
+    "Stakeholder Management",
+    "Implementation",
+    "Program Management"
+  ],
+  "skills_preferred": [
     "Security"
   ],
-  "skills_preferred": [],
-  "role_family": "Product",
+  "role_family": "Customer Success",
   "seniority": "Manager",
-  "match_score": 0,
+  "match_score": 75,
   "summary_bullets": [],
   "red_flags": [
     "Travel required"
   ],
-  "rules_version": "2025-01-AI-EXTRACT-3"
+  "rules_version": "2025-01-AI-EXTRACT-5"
 }

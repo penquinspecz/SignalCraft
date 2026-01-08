@@ -21,6 +21,8 @@ def test_extract_ai_fields_skills_and_flags() -> None:
     assert "Python" in out["skills_required"]
     assert "Kubernetes" in out["skills_required"]
     assert "Terraform" in out["skills_required"]
+    # Clearance is a strong requirement trigger: Security should be required (not merely preferred).
+    assert "Security" in out["skills_required"]
     assert out["role_family"] == "Solutions Architect"
     assert out["seniority"] in ("Senior", "Manager", "Staff", "IC")
     assert "Security clearance required" in out["red_flags"]
@@ -70,6 +72,9 @@ def test_value_realization_does_not_emit_hw_skills_without_triggers() -> None:
     out = extract_ai_fields(job)
     assert out["role_family"] == "Customer Success"
     assert out["role_family"] != "Field"
+    # Security mentioned without strong requirement triggers => preferred, not required.
+    assert "Security" not in out["skills_required"]
+    assert "Security" in out["skills_preferred"]
     # Should capture obvious CS/business skills (not just "Security").
     assert "Adoption" in out["skills_required"]
     assert "Onboarding" in out["skills_required"]
@@ -98,10 +103,25 @@ def test_manager_ai_deployment_extracts_cs_skills() -> None:
     out = extract_ai_fields(job)
     assert out["role_family"] == "Customer Success"
     assert out["seniority"] == "Manager"
+    # Security may be mentioned in real postings; when mentioned without strong triggers it should be preferred.
+    assert "Security" not in out["skills_required"]
     assert "Adoption" in out["skills_required"]
     assert "Onboarding" in out["skills_required"]
     assert "Enablement" in out["skills_required"]
     assert "Change Management" in out["skills_required"]
     assert "Implementation" in out["skills_required"]
     assert "Stakeholder Management" in out["skills_required"]
+
+
+def test_solutions_architect_title_wins_over_ai_deployment_trigger() -> None:
+    job = {
+        "title": "Solutions Architect, Generative AI Deployment",
+        "team": "Go To Market, Technical Success",
+        "location": "San Francisco",
+        # Contains the phrase "AI deployment" to ensure the CS shortcut would otherwise trigger.
+        "jd_text": "We drive AI deployment and adoption post-sale. Requirements: Python, APIs, privacy best practices.",
+    }
+    out = extract_ai_fields(job)
+    assert out["role_family"] == "Solutions Architect"
+    assert out["role_family"] != "Customer Success"
 
