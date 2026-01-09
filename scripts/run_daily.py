@@ -458,6 +458,7 @@ def main() -> int:
     ai_path = ENRICHED_JOBS_JSON.with_name("openai_enriched_jobs_ai.json")
     ai_hash = _hash_file(ai_path)
     ai_mtime = _file_mtime(ai_path)
+    score_input_base = LABELED_JOBS_JSON if args.no_enrich else ENRICHED_JOBS_JSON
 
     def _finalize(status: str, extra: Optional[Dict[str, Any]] = None) -> None:
         telemetry["status"] = status
@@ -607,7 +608,7 @@ def main() -> int:
                         "--profile",
                         profile,
                         "--in_path",
-                        str(ai_path if ai_path.exists() else ENRICHED_JOBS_JSON),
+                        str(ai_path if ai_path.exists() else score_input_base),
                         "--out_json",
                         str(ranked_json),
                         "--out_csv",
@@ -659,7 +660,7 @@ def main() -> int:
             shortlist_md = shortlist_md_path(profile)
             # Prefer AI-enriched input if present
             enriched_ai = ENRICHED_JOBS_JSON.with_name("openai_enriched_jobs_ai.json")
-            in_path = enriched_ai if enriched_ai.exists() else ENRICHED_JOBS_JSON
+            in_path = enriched_ai if enriched_ai.exists() else score_input_base
 
             current_stage = f"score:{profile}"
             cmd = [
