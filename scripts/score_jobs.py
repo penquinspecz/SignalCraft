@@ -649,7 +649,8 @@ def build_families(scored: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         entry["family_variants"] = variants.get(fam, [])
         out.append(entry)
 
-    out.sort(key=lambda x: x.get("score", 0), reverse=True)
+    # Stable sort: primary by score desc, secondary by apply_url asc (for deterministic CI/golden-master tests)
+    out.sort(key=lambda x: (-x.get("score", 0), x.get("apply_url", "")))
     return out
 
 
@@ -1006,7 +1007,8 @@ def main() -> int:
     candidate_skills = _candidate_skill_set()
     for j in scored:
         j["explanation"] = _build_explanation(j, candidate_skills)
-    scored.sort(key=lambda x: x.get("score", 0), reverse=True)
+    # Stable sort: primary by score desc, secondary by apply_url asc (for deterministic CI/golden-master tests)
+    scored.sort(key=lambda x: (-x.get("score", 0), x.get("apply_url", "")))
     _print_explain_top(scored, int(args.explain_top or 0))
     if args.family_counts:
         _print_family_counts(scored)
