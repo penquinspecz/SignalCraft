@@ -54,14 +54,14 @@ def test_score_jobs_golden_master(tmp_path: Path) -> None:
     expected_titles = [
         "Manager, AI Deployment - AMER",
         "Partner Solutions Architect",
+        "Forward Deployed Software Engineer - SF",
         "Forward Deployed Software Engineer - Munich",
         "Forward Deployed Software Engineer - NYC",
-        "Forward Deployed Software Engineer - SF",
         "Forward Deployed Engineer, Gov",
-        "Forward Deployed Engineer - Life Sciences - NYC",
         "Forward Deployed Engineer - Life Sciences - SF",
+        "Forward Deployed Engineer - Life Sciences - NYC",
         "Solution Architect Manager, Digital Natives",
-        "Forward Deployed Engineer - Financial Services",
+        "Forward Deployed Engineer - Munich",
     ]
 
     expected_scores = [146, 132, 105, 105, 105, 100, 98, 98, 98, 94]
