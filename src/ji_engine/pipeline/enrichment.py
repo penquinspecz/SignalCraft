@@ -147,7 +147,7 @@ def _fetch_job_data_from_api(job_id: str, api_endpoint: str, cache_dir: Path) ->
         teamNames
       }
     }
-    """
+    """,
     }
 
     headers = {
@@ -258,7 +258,7 @@ def enrich_jobs(
 
         job_id = _extract_job_id_from_url(apply_url)
         if not job_id:
-            print(f"    ⚠️  Cannot extract jobPostingId from URL - not enrichable")
+            print("    ⚠️  Cannot extract jobPostingId from URL - not enrichable")
             print(f"    URL: {apply_url}")
             enriched.append({**job, "jd_text": None, "fetched_at": None})
             continue
@@ -280,11 +280,11 @@ def enrich_jobs(
             if jd_text:
                 print(f"    ✅ Extracted via API: {len(jd_text)} chars")
             else:
-                print(f"    ⚠️  API response missing descriptionHtml (unexpected)")
+                print("    ⚠️  API response missing descriptionHtml (unexpected)")
 
         # HTML fallback only if API failed or missing JD text
         if not jd_text:
-            print(f"    ⚠️  Falling back to HTML parsing")
+            print("    ⚠️  Falling back to HTML parsing")
             html = _fetch_html_no_cache(apply_url)
             if html:
                 jd_text = extract_jd_text_from_html(html)
@@ -295,7 +295,7 @@ def enrich_jobs(
         if jd_text:
             print(f"    ✅ Final JD length: {len(jd_text)} chars")
         else:
-            print(f"    ❌ No JD text extracted")
+            print("    ❌ No JD text extracted")
 
         enriched.append(
             {

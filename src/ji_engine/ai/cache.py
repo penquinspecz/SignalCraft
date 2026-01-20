@@ -38,6 +38,7 @@ class FileSystemAICache(AICache):
         path = self._path(job_id, content_hash)
         atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2))
 
+
 def _get_boto3_client():
     try:
         import boto3  # type: ignore

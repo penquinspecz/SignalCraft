@@ -16,6 +16,7 @@ def job_identity(job: Dict[str, object]) -> str:
     3. title + location (or locationName)
     4. empty string
     """
+
     def _normalize(value: str, *, lower: bool = False) -> str:
         normalized = " ".join(value.split()).strip()
         return normalized.lower() if lower else normalized

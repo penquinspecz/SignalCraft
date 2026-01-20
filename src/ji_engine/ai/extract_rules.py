@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Tuple
 
-
 RULES_VERSION = "2025-01-AI-EXTRACT-7"
 _WS_RE = re.compile(r"\s+")
 
@@ -93,9 +92,24 @@ _SKILL_PATTERNS: List[Tuple[str, List[str]]] = [
     ("Enablement", [r"\benablement\b", r"\btraining\b", r"\bplaybooks?\b"]),
     ("Change Management", [r"\bchange management\b"]),
     ("Stakeholder Management", [r"\bstakeholders?\b", r"\bexecutive\b", r"\bc-?level\b", r"\bsponsors?\b"]),
-    ("Value Measurement", [r"\broi\b", r"\btco\b", r"\bkpis?\b", r"\bdashboards?\b", r"\bvalue reports?\b", r"\bbusiness outcomes?\b"]),
-    ("Implementation", [r"\bimplementation\b", r"\bdeploy(?:ment|ing)?\b", r"\bintegration\b", r"\bconnectors?\b", r"\bcustom gpts?\b"]),
-    ("Program Management", [r"\bprogram management\b", r"\boperating model\b", r"\boperating rhythms?\b", r"\boperating mechanisms?\b"]),
+    (
+        "Value Measurement",
+        [r"\broi\b", r"\btco\b", r"\bkpis?\b", r"\bdashboards?\b", r"\bvalue reports?\b", r"\bbusiness outcomes?\b"],
+    ),
+    (
+        "Implementation",
+        [
+            r"\bimplementation\b",
+            r"\bdeploy(?:ment|ing)?\b",
+            r"\bintegration\b",
+            r"\bconnectors?\b",
+            r"\bcustom gpts?\b",
+        ],
+    ),
+    (
+        "Program Management",
+        [r"\bprogram management\b", r"\boperating model\b", r"\boperating rhythms?\b", r"\boperating mechanisms?\b"],
+    ),
     ("Renewals", [r"\brenewals?\b", r"\bretention\b", r"\bexpansion\b"]),
 ]
 
@@ -193,7 +207,7 @@ def _security_required_reason_match_context(text: str) -> Tuple[str, str, str]:
     for reason, pat in _SECURITY_REQUIRED_TRIGGERS:
         m = re.search(pat, text, flags=re.IGNORECASE)
         if m:
-            match_text = (m.group(0) or "")
+            match_text = m.group(0) or ""
             if len(match_text) > 80:
                 match_text = match_text[:77] + "..."
 
@@ -243,8 +257,8 @@ def _section_slices(text: str) -> Tuple[str, str, str]:
         idxs = [t.find(n) for n in needles if t.find(n) != -1]
         return min(idxs) if idxs else -1
 
-    req_idx = _find_any([m for m in markers[0][1]])
-    pref_idx = _find_any([m for m in markers[1][1]])
+    req_idx = _find_any(markers[0][1])
+    pref_idx = _find_any(markers[1][1])
 
     if req_idx == -1 and pref_idx == -1:
         return "", "", t
@@ -292,11 +306,15 @@ def _role_family(title_text: str, job_text: str) -> str:
         return "Customer Success"
 
     # AI Deployment Manager / Manager, AI Deployment should map to Customer Success.
-    if re.search(r"\b(ai\s+)?deployment manager\b", title, flags=re.IGNORECASE) or re.search(r"\bmanager,\s*ai deployment\b", title, flags=re.IGNORECASE):
+    if re.search(r"\b(ai\s+)?deployment manager\b", title, flags=re.IGNORECASE) or re.search(
+        r"\bmanager,\s*ai deployment\b", title, flags=re.IGNORECASE
+    ):
         return "Customer Success"
 
     # Solutions Architect should win by title even if CS/deployment triggers exist in jd_text.
-    if re.search(r"\b(partner\s+)?solutions architect\b", title, flags=re.IGNORECASE) or re.search(r"\bsolution architect\b", title, flags=re.IGNORECASE):
+    if re.search(r"\b(partner\s+)?solutions architect\b", title, flags=re.IGNORECASE) or re.search(
+        r"\bsolution architect\b", title, flags=re.IGNORECASE
+    ):
         return "Solutions Architect"
     # Solutions Engineer maps to Solutions Architect (title-only).
     if re.search(r"\bsolutions engineer\b", title, flags=re.IGNORECASE):
@@ -305,14 +323,30 @@ def _role_family(title_text: str, job_text: str) -> str:
     if re.search(r"\bcustomer success\b|\bcs\b", title, flags=re.IGNORECASE):
         return "Customer Success"
     # If team/dept/JD explicitly says Customer Success, treat as Customer Success before generic "product" matches.
-    if _contains(job_text, [r"\bcustomer success\b", r"\bai deployment\b", r"\bdeployment and adoption\b", r"\bdeployment & adoption\b"]):
+    if _contains(
+        job_text,
+        [r"\bcustomer success\b", r"\bai deployment\b", r"\bdeployment and adoption\b", r"\bdeployment & adoption\b"],
+    ):
         return "Customer Success"
 
     rules = [
         # Explicit precedence list. Keep "Forward Deployed" explicit-only.
-        ("Solutions Architect", [r"\bsolutions architect\b", r"\bsolution architect\b", r"\bpresales\b", r"\bsales engineer\b"]),
+        (
+            "Solutions Architect",
+            [r"\bsolutions architect\b", r"\bsolution architect\b", r"\bpresales\b", r"\bsales engineer\b"],
+        ),
         ("Forward Deployed", [r"\bforward deployed\b", r"\bforward-deployed\b"]),
-        ("Robotics", [r"\brobotics?\b", r"\bmechatronics?\b", r"\bembedded\b", r"\bfirmware\b", r"\bplc\b", r"\bmotion control\b"]),
+        (
+            "Robotics",
+            [
+                r"\brobotics?\b",
+                r"\bmechatronics?\b",
+                r"\bembedded\b",
+                r"\bfirmware\b",
+                r"\bplc\b",
+                r"\bmotion control\b",
+            ],
+        ),
         ("Product", [r"\bproduct manager\b", r"\bproduct lead\b", r"\bproduct\b"]),
         ("Engineering", [r"\bsoftware engineer\b", r"\bengineer\b", r"\bdeveloper\b"]),
         ("G&A", [r"\bfinance\b", r"\blegal\b", r"\bpeople\b", r"\bhr\b", r"\brecruit\b"]),
@@ -386,7 +420,9 @@ def extract_ai_fields(job: Dict[str, Any]) -> Dict[str, Any]:
     security_required_match = ""
     security_required_context = ""
     if _security_required(text):
-        security_required_reason, security_required_match, security_required_context = _security_required_reason_match_context(text)
+        security_required_reason, security_required_match, security_required_context = (
+            _security_required_reason_match_context(text)
+        )
         if "Security" not in req_skills:
             req_skills.append("Security")
     else:
@@ -411,4 +447,3 @@ def extract_ai_fields(job: Dict[str, Any]) -> Dict[str, Any]:
 
 
 __all__ = ["extract_ai_fields"]
-

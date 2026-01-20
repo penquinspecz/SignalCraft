@@ -56,4 +56,3 @@ def ensure_ai_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "security_required_context": str(payload.get("security_required_context", "")),
         "rules_version": str(payload.get("rules_version", "")),
     }
-
