@@ -9,7 +9,11 @@ _DEFAULT_DATA_DIR = REPO_ROOT / "data"
 _ENV_DATA_DIR = os.environ.get("JOBINTEL_DATA_DIR")
 _STATE_DIR_OVERRIDE = os.environ.get("JOBINTEL_STATE_DIR")
 DATA_DIR = Path(_ENV_DATA_DIR).expanduser() if _ENV_DATA_DIR else _DEFAULT_DATA_DIR
-STATE_DIR = Path(_STATE_DIR_OVERRIDE).expanduser() if _STATE_DIR_OVERRIDE else Path("/app/state" if os.environ.get("CI") else REPO_ROOT / "state")
+STATE_DIR = (
+    Path(_STATE_DIR_OVERRIDE).expanduser()
+    if _STATE_DIR_OVERRIDE
+    else Path("/app/state" if os.environ.get("CI") else REPO_ROOT / "state")
+)
 SNAPSHOT_DIR = DATA_DIR / "openai_snapshots"
 HISTORY_DIR = STATE_DIR / "history"
 RUN_METADATA_DIR = STATE_DIR / "runs"
@@ -28,20 +32,26 @@ EMBED_CACHE_JSON = STATE_DIR / "embed_cache.json"
 
 RANKED_FAMILIES_JSON = DATA_DIR / "openai_ranked_families.json"
 
+
 def ranked_jobs_json(profile: str) -> Path:
     return DATA_DIR / f"openai_ranked_jobs.{profile}.json"
+
 
 def ranked_jobs_csv(profile: str) -> Path:
     return DATA_DIR / f"openai_ranked_jobs.{profile}.csv"
 
+
 def ranked_families_json(profile: str) -> Path:
     return DATA_DIR / f"openai_ranked_families.{profile}.json"
+
 
 def shortlist_md(profile: str) -> Path:
     return DATA_DIR / f"openai_shortlist.{profile}.md"
 
+
 def state_last_ranked(profile: str) -> Path:
     return STATE_DIR / f"last_ranked.{profile}.json"
+
 
 LOCK_PATH = STATE_DIR / "run_daily.lock"
 

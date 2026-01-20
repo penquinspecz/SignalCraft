@@ -17,7 +17,10 @@ _SKILL_ALIASES: List[Tuple[str, List[str]]] = [
     ("enablement", [r"\benablement\b", r"\bfield enablement\b", r"\btraining\b"]),
     ("adoption", [r"\badoption\b", r"\bactivation\b"]),
     ("change management", [r"\bchange management\b"]),
-    ("stakeholder management", [r"\bstakeholder management\b", r"\bstakeholders?\b", r"\bexecutive\b", r"\bc-?level\b"]),
+    (
+        "stakeholder management",
+        [r"\bstakeholder management\b", r"\bstakeholders?\b", r"\bexecutive\b", r"\bc-?level\b"],
+    ),
     ("implementation", [r"\bimplementation\b", r"\bdeploy(?:ment|ing)?\b", r"\bintegration\b"]),
     ("program management", [r"\bprogram management\b"]),
     ("value measurement", [r"\bvalue measurement\b", r"\broi\b", r"\btco\b", r"\bkpis?\b", r"\bdashboards?\b"]),
@@ -115,4 +118,3 @@ def compute_match(ai_payload: Dict[str, Any], candidate_profile: Dict[str, Any])
 
 
 # TODO: extend with richer weighting once real AI payload fields stabilize.
-

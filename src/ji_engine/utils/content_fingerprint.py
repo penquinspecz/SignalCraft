@@ -18,11 +18,7 @@ def content_fingerprint(job: Dict[str, Any]) -> str:
     Excludes scores, timestamps, and run metadata.
     """
     description = (
-        job.get("description_text")
-        or job.get("jd_text")
-        or job.get("description")
-        or job.get("descriptionHtml")
-        or ""
+        job.get("description_text") or job.get("jd_text") or job.get("description") or job.get("descriptionHtml") or ""
     )
     desc_hash = hashlib.sha256(str(description).encode("utf-8")).hexdigest()
     payload = {

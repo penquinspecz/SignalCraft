@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Dict, List, Optional
-
-import urllib.request
 import urllib.error
+import urllib.request
+from typing import List
 
 from ji_engine.embeddings.simple import hash_embed
 
@@ -82,4 +81,3 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
 
 
 __all__ = ["EmbeddingProvider", "StubEmbeddingProvider", "OpenAIEmbeddingProvider"]
-

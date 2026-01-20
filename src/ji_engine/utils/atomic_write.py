@@ -34,4 +34,3 @@ def atomic_write_with(path: Path, writer: Callable[[Path], None]) -> None:
                 tmp_path.unlink()
             except Exception:
                 pass
-

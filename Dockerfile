@@ -27,15 +27,18 @@ COPY scripts /app/scripts
 COPY config /app/config
 COPY docs /app/docs
 COPY tests /app/tests
-# Ensure runtime user can write only to /app/data and /app/state (and ashby_cache)
-RUN mkdir -p /app/data /app/state /app/data/ashby_cache \
-    && chown app:app /app/data /app/state /app/data/ashby_cache
 # Optionally bake snapshots for offline/snapshot runs (other data excluded by .dockerignore)
 COPY --chown=app:app data/openai_snapshots /app/data/openai_snapshots
 COPY --chown=app:app data/candidate_profile.json /app/data/candidate_profile.json
 
 # Run tests during build (deterministic, offline)
 RUN python -m pytest -q
+
+# Ensure runtime user can write only to /app/data and /app/state (and ashby_cache)
+RUN mkdir -p /app/data /app/state /app/data/ashby_cache /app/state/runs \
+    && chown -R app:app /app/data /app/state \
+    && chmod -R u+rwX,g+rwX /app/data /app/state \
+    && ls -ld /app/data /app/state /app/state/runs /app/data/ashby_cache
 
 # Expect /app/data and /app/state to be mounted; runtime code will ensure dirs
 VOLUME ["/app/data", "/app/state"]

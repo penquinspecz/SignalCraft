@@ -62,10 +62,7 @@ class OpenAICareersProvider(BaseJobProvider):
 
         if not snapshot_file.exists():
             print(f"[OpenAICareersProvider] ❌ Snapshot not found at {snapshot_file}")
-            print(
-                "Save https://openai.com/careers/search/ as 'index.html' in "
-                "data/openai_snapshots/ and rerun."
-            )
+            print("Save https://openai.com/careers/search/ as 'index.html' in data/openai_snapshots/ and rerun.")
             return []
 
         print(f"[OpenAICareersProvider] 📂 Using snapshot {snapshot_file}")
@@ -81,9 +78,7 @@ class OpenAICareersProvider(BaseJobProvider):
         }
         resp = requests.get(CAREERS_SEARCH_URL, headers=headers, timeout=20)
         if resp.status_code != 200:
-            raise RuntimeError(
-                f"Live scrape failed with status {resp.status_code} at {CAREERS_SEARCH_URL}"
-            )
+            raise RuntimeError(f"Live scrape failed with status {resp.status_code} at {CAREERS_SEARCH_URL}")
         return resp.text
 
     # ---------- Core HTML parsing ----------
@@ -100,16 +95,11 @@ class OpenAICareersProvider(BaseJobProvider):
         job_cards = soup.find_all(
             ["li", "div", "article", "section"],
             class_=lambda c: c
-            and any(
-                keyword in c.lower()
-                for keyword in ["job", "card", "posting", "position", "role", "listing"]
-            ),
+            and any(keyword in c.lower() for keyword in ["job", "card", "posting", "position", "role", "listing"]),
         )
 
         if not job_cards:
-            apply_links = soup.find_all(
-                "a", href=lambda h: h and "jobs.ashbyhq.com/openai/" in h
-            )
+            apply_links = soup.find_all("a", href=lambda h: h and "jobs.ashbyhq.com/openai/" in h)
             for link in apply_links:
                 if not isinstance(link, Tag):
                     continue
@@ -121,9 +111,7 @@ class OpenAICareersProvider(BaseJobProvider):
             if not isinstance(card, Tag):
                 continue
 
-            apply_link = card.find(
-                "a", href=lambda h: h and "jobs.ashbyhq.com/openai/" in h
-            )
+            apply_link = card.find("a", href=lambda h: h and "jobs.ashbyhq.com/openai/" in h)
             if not apply_link or not isinstance(apply_link, Tag):
                 continue
 

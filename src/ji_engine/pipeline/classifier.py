@@ -3,7 +3,8 @@ Improved relevance scoring for job titles based on candidate profile.
 Uses weighted scoring, location gating, and negative filters to reduce false positives.
 """
 
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 from ji_engine.models import RawJobPosting
 from ji_engine.profile_loader import CandidateProfile
 
@@ -15,9 +16,20 @@ def _location_is_valid_us(job: RawJobPosting, profile: CandidateProfile) -> bool
 
     # Hard reject clearly non-US
     foreign_markers = [
-        "tokyo", "japan", "india", "sydney", "australia",
-        "dublin", "london", "uk", "singapore", "paris",
-        "berlin", "amsterdam", "zurich", "hong kong"
+        "tokyo",
+        "japan",
+        "india",
+        "sydney",
+        "australia",
+        "dublin",
+        "london",
+        "uk",
+        "singapore",
+        "paris",
+        "berlin",
+        "amsterdam",
+        "zurich",
+        "hong kong",
     ]
     if any(f in loc for f in foreign_markers):
         return False
@@ -41,31 +53,54 @@ def score_title_relevance(job: RawJobPosting, profile: CandidateProfile) -> str:
       3) Adjacent TPM / GTM as MAYBE
     """
     title = (job.title or "").lower()
-    loc_field = (job.location or "").lower()
     # Some locations are baked into the title text, so combine them
     location_text = f"{job.title or ''} {job.location or ''}".lower()
 
     # ---- 1. HARD LOCATION FILTER ----
     foreign_markers = [
-        "tokyo", "japan", "india", "delhi",
-        "sydney", "australia",
-        "dublin", "london", "uk", "united kingdom",
-        "singapore", "paris", "berlin",
-        "amsterdam", "zurich", "hong kong"
+        "tokyo",
+        "japan",
+        "india",
+        "delhi",
+        "sydney",
+        "australia",
+        "dublin",
+        "london",
+        "uk",
+        "united kingdom",
+        "singapore",
+        "paris",
+        "berlin",
+        "amsterdam",
+        "zurich",
+        "hong kong",
     ]
     if any(f in location_text for f in foreign_markers):
         return "IRRELEVANT"
 
     # ---- 2. HARD KILL WORDS ----
     kill_words = [
-        "audiovisual", "a/v", "events engineer",
-        "it support", "helpdesk", "desktop support",
-        "technician", "datacenter technician",
-        "payroll", "legal", "counsel",
+        "audiovisual",
+        "a/v",
+        "events engineer",
+        "it support",
+        "helpdesk",
+        "desktop support",
+        "technician",
+        "datacenter technician",
+        "payroll",
+        "legal",
+        "counsel",
         "security guard",
-        "intern", "university", "residency",
-        "hr", "talent", "recruiter",
-        "account executive", "sales development", "seller"
+        "intern",
+        "university",
+        "residency",
+        "hr",
+        "talent",
+        "recruiter",
+        "account executive",
+        "sales development",
+        "seller",
     ]
     if any(kw in title for kw in kill_words):
         return "IRRELEVANT"
@@ -81,32 +116,40 @@ def score_title_relevance(job: RawJobPosting, profile: CandidateProfile) -> str:
     # ---- 3. ROLE / TYPE SCORING ----
     # Tier A: CS / deployment / adoption / value / TAM / CSM
     cs_terms = [
-        "customer success", "ai deployment", "ai adoption",
-        "deployment manager", "adoption manager",
-        "value realization", "value realisation",
-        "csm", "customer success manager",
-        "technical account manager", "tam",
-        "customer engineer", "customer engineering"
+        "customer success",
+        "ai deployment",
+        "ai adoption",
+        "deployment manager",
+        "adoption manager",
+        "value realization",
+        "value realisation",
+        "csm",
+        "customer success manager",
+        "technical account manager",
+        "tam",
+        "customer engineer",
+        "customer engineering",
     ]
     if any(t in title for t in cs_terms):
         score += 15
 
     # Tier B: solutions / forward deployed / partner engineer
     sa_terms = [
-        "solutions architect", "solution architect",
-        "solutions engineer", "solution engineer",
-        "forward deployed", "forward-deployed",
-        "partner engineer", "field engineer"
+        "solutions architect",
+        "solution architect",
+        "solutions engineer",
+        "solution engineer",
+        "forward deployed",
+        "forward-deployed",
+        "partner engineer",
+        "field engineer",
     ]
     has_sa = any(t in title for t in sa_terms)
     if has_sa:
         score += 10
 
     # Tier C: adjacent leadership / TPM / GTM-ish
-    tpm_terms = [
-        "program manager", "technical program manager",
-        "tpm", "product operations", "g tm", "go-to-market"
-    ]
+    tpm_terms = ["program manager", "technical program manager", "tpm", "product operations", "g tm", "go-to-market"]
     if any(t in title for t in tpm_terms):
         score += 5
 
@@ -136,7 +179,8 @@ def score_title_relevance(job: RawJobPosting, profile: CandidateProfile) -> str:
         score += 2
 
     # ---- 6. SA OVERRIDE FOR US-BASED ROLES ----
-    # If it's a Solutions/Forward-Deployed style role and looks US-based, treat as relevant even if score is a bit lower.
+    # If it's a Solutions/Forward-Deployed style role and looks US-based, treat as relevant
+    # even if score is a bit lower.
     if has_sa and score >= 12:
         return "RELEVANT"
 

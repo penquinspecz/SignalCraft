@@ -22,7 +22,7 @@ class StubProvider(AIProvider):
     def extract(self, job: Dict[str, Any]) -> Dict[str, Any]:
         return ensure_ai_payload(
             {
-                "summary": f"Stub summary for {job.get('title','(untitled)')}",
+                "summary": f"Stub summary for {job.get('title', '(untitled)')}",
                 "confidence": 0.0,
                 "notes": "",
                 "skills_required": [],
@@ -40,7 +40,7 @@ class StubProvider(AIProvider):
         # Deterministic, realistic placeholders; keep structure stable for tests/fixtures.
         return {
             "resume_bullets": [
-                f"Drove adoption of an AI/ML solution aligned to {title}, quantifying business impact.",
+                (f"Drove adoption of an AI/ML solution aligned to {title}, quantifying business impact."),
                 "Partnered with product/eng to ship iterative improvements based on user feedback.",
                 "Built customer-facing demos that reduced time-to-value and increased retention.",
                 "Documented runbooks and playbooks to scale delivery and onboarding.",
@@ -58,11 +58,15 @@ class StubProvider(AIProvider):
                 "Discuss a postmortem you led and the follow-up actions you drove.",
             ],
             "star_prompts": [
-                "Situation/Task: customer blocked on integration; Action: triage, ship fix; Result: uptime/retention gains.",
-                "Situation/Task: unclear scope; Action: align stakeholders, define MVP; Result: on-time launch.",
-                "Situation/Task: low adoption; Action: build demo + enablement; Result: increased usage.",
-                "Situation/Task: perf issue; Action: profile, optimize; Result: latency/error-rate reduction.",
-                "Situation/Task: security concern; Action: coordinate fix/review; Result: risk mitigated.",
+                (
+                    "Situation/Task: customer blocked on integration; "
+                    "Action: triage, ship fix; "
+                    "Result: uptime/retention gains."
+                ),
+                ("Situation/Task: unclear scope; Action: align stakeholders, define MVP; Result: on-time launch."),
+                ("Situation/Task: low adoption; Action: build demo + enablement; Result: increased usage."),
+                ("Situation/Task: perf issue; Action: profile, optimize; Result: latency/error-rate reduction."),
+                ("Situation/Task: security concern; Action: coordinate fix/review; Result: risk mitigated."),
             ],
             "gap_plan": [
                 "Day 1: Read team charters and recent postmortems; note top risks.",
@@ -93,7 +97,7 @@ class OpenAIProvider(AIProvider):
         # TODO: implement real OpenAI call; for now return a deterministic placeholder
         return ensure_ai_payload(
             {
-                "summary": f"Live summary for {job.get('title','(untitled)')}",
+                "summary": f"Live summary for {job.get('title', '(untitled)')}",
                 "confidence": 0.5,
                 "notes": "live_ai_stub",
             }
@@ -111,4 +115,3 @@ class OpenAIProvider(AIProvider):
 
 
 # Future: register additional providers (e.g., Anthropic) as needed.
-

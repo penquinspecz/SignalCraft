@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from pathlib import Path
 from typing import List, Optional
 
 from ji_engine.config import REPO_ROOT
@@ -35,4 +34,3 @@ def run_pipeline(argv: Optional[List[str]] = None, *, use_subprocess: bool = Tru
 
 
 __all__ = ["run_pipeline"]
-

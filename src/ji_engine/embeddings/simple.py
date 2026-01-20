@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
-import re
-import hashlib
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
-
 
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 
@@ -136,4 +135,3 @@ __all__ = [
     "text_hash",
     "build_profile_text",
 ]
-

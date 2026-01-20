@@ -73,8 +73,7 @@ def load_candidate_profile(path: str = "data/candidate_profile.json") -> Candida
 
     if not profile_path.exists():
         raise FileNotFoundError(
-            f"Candidate profile file not found: {path}. "
-            "Please ensure the file exists and the path is correct."
+            f"Candidate profile file not found: {path}. Please ensure the file exists and the path is correct."
         )
 
     try:

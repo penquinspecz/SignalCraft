@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from typing import Any, Dict
 
 from ji_engine.ai.cache import FileSystemAICache
@@ -26,7 +25,8 @@ def load_cached_ai(job_id: str, content_hash: str, cache: FileSystemAICache | No
     return ensure_ai_payload(cached) if cached else None
 
 
-def save_cached_ai(job_id: str, content_hash: str, payload: Dict[str, Any], cache: FileSystemAICache | None = None) -> None:
+def save_cached_ai(
+    job_id: str, content_hash: str, payload: Dict[str, Any], cache: FileSystemAICache | None = None
+) -> None:
     cache = cache or FileSystemAICache()
     cache.put(job_id, content_hash, ensure_ai_payload(payload))
-
