@@ -13,6 +13,7 @@ from bs4.element import Tag
 
 from ji_engine.models import JobSource, RawJobPosting
 from ji_engine.providers.base import BaseJobProvider
+from jobintel.snapshots.validate import validate_snapshot_file
 
 _ASHBY_JOB_ID_RE = re.compile(r"/([0-9a-f-]{36})/application", re.IGNORECASE)
 
@@ -46,6 +47,9 @@ class AshbyProvider(BaseJobProvider):
         if not snapshot_file.exists():
             print(f"[AshbyProvider] ❌ Snapshot not found at {snapshot_file}")
             return []
+        ok, reason = validate_snapshot_file(self.provider_id, snapshot_file)
+        if not ok:
+            raise RuntimeError(f"Invalid snapshot for {self.provider_id} at {snapshot_file}: {reason}")
         html = snapshot_file.read_text(encoding="utf-8")
         return self._parse_html(html)
 

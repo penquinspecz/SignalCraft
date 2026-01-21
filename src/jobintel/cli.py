@@ -11,8 +11,8 @@ from typing import Dict, List, Optional
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
 
-from .snapshots.refresh import DEFAULT_MIN_BYTES, refresh_snapshot
-from .snapshots.validate import validate_snapshots
+from .snapshots.refresh import refresh_snapshot
+from .snapshots.validate import MIN_BYTES_DEFAULT, validate_snapshots
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROVIDERS_CONFIG = REPO_ROOT / "config" / "providers.json"
@@ -104,7 +104,6 @@ def _validate_snapshots(args: argparse.Namespace) -> int:
     results = validate_snapshots(
         providers,
         data_dir=Path(args.data_dir) if args.data_dir else None,
-        min_bytes=DEFAULT_MIN_BYTES,
     )
     failures = [result for result in results if not result.ok]
     for result in results:
@@ -186,7 +185,7 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--out", help="Override snapshot path (file).")
     refresh.add_argument("--force", action="store_true", help="Write snapshot even if validation fails.")
     refresh.add_argument("--timeout", type=float, default=20.0)
-    refresh.add_argument("--min-bytes", type=int, default=DEFAULT_MIN_BYTES)
+    refresh.add_argument("--min-bytes", type=int, default=MIN_BYTES_DEFAULT)
     refresh.add_argument("--user-agent", default="job-intelligence-engine/0.1 (+snapshot-refresh)")
     refresh.add_argument(
         "--providers-config",

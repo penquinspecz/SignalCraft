@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -14,6 +15,9 @@ def _ensure_src_on_path() -> None:
 
 
 _ensure_src_on_path()
+
+# Allow tiny snapshot fixtures in tests; individual tests can override.
+os.environ.setdefault("JOBINTEL_SNAPSHOT_MIN_BYTES", "0")
 
 
 def pytest_addoption(parser) -> None:
