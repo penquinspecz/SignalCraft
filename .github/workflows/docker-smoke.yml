@@ -33,6 +33,7 @@ jobs:
           container_name="jobintel_smoke"
           docker rm -f "$container_name" >/dev/null 2>&1 || true
           docker create --name "$container_name" \
+            --user "$(id -u):$(id -g)" \
             -e JOBINTEL_DATA_DIR=/app/data \
             -e JOBINTEL_STATE_DIR=/app/state \
             -v "$PWD/ci_data:/app/data" \
@@ -49,7 +50,9 @@ jobs:
         if: always()
         run: |
           mkdir -p ci_data ci_state ci_artifacts
-          chmod -R a+rwX ci_data ci_state ci_artifacts
+          sudo chown -R "$(id -u):$(id -g)" ci_data ci_state 2>/dev/null || true
+          chmod -R u+rwX,go+rX ci_data ci_state 2>/dev/null || true
+          chmod -R u+rwX,go+rX ci_artifacts 2>/dev/null || true
           find ci_data -maxdepth 2 -type f -print | sort > ci_artifacts/ci_data_files.txt
           find ci_state -maxdepth 3 -type f -print | sort > ci_artifacts/ci_state_files.txt
           (ls -la . ci_data ci_state ci_state/runs 2>/dev/null || true) > ci_artifacts/ls_la.txt
