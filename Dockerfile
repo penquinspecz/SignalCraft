@@ -28,7 +28,7 @@ COPY config /app/config
 COPY docs /app/docs
 COPY tests /app/tests
 # Optionally bake snapshots for offline/snapshot runs (other data excluded by .dockerignore)
-COPY --chown=app:app data/openai_snapshots /app/data/openai_snapshots
+COPY --chown=app:app data/*_snapshots /app/data/
 COPY --chown=app:app data/candidate_profile.json /app/data/candidate_profile.json
 
 # Run tests during build (deterministic, offline)
