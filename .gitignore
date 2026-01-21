@@ -8,6 +8,7 @@ __pycache__/
 ci_data/
 ci_state/
 ci_artifacts/
+smoke_artifacts/
 data/ashby_cache_json/
 data/ashby_cache/
 data/openai_raw_jobs.json

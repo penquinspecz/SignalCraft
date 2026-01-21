@@ -45,6 +45,7 @@ for path in /app/data/openai_labeled_jobs.json /app/data/openai_ranked_jobs.cs.j
   fi
 done
 
+rm -rf "$ARTIFACT_DIR/state_runs"
 if docker cp "$CONTAINER_NAME:/app/state/runs" "$ARTIFACT_DIR/state_runs" 2>/dev/null; then
   run_report="$(ls -1 "$ARTIFACT_DIR"/state_runs/*.json 2>/dev/null | sort | tail -n 1)"
   if [ -n "$run_report" ]; then
@@ -57,6 +58,10 @@ if [ "$missing" -ne 0 ]; then
   docker cp "$CONTAINER_NAME:/app/data" "$ARTIFACT_DIR/data" 2>/dev/null || true
   ls -la "$ARTIFACT_DIR/data" 2>/dev/null || true
 fi
+
+PYTHON=${PYTHON:-python3}
+echo "==> Smoke contract check"
+$PYTHON scripts/smoke_contract_check.py "$ARTIFACT_DIR"
 
 if [ "$status" -ne 0 ] || [ "$missing" -ne 0 ]; then
   echo "Smoke failed (exit_code=$status, missing_outputs=$missing)"

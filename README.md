@@ -216,6 +216,20 @@ CONTAINER_NAME=jobintel_smoke_alt ./scripts/smoke_docker.sh
 ARTIFACT_DIR=smoke_out ./scripts/smoke_docker.sh
 ```
 
+## Smoke contract
+
+The smoke contract check validates deterministic properties of smoke artifacts so CI stays stable:
+- `openai_labeled_jobs.json` exists and is non-empty
+- `openai_ranked_jobs.cs.json` has at least N items (default 5)
+- `openai_ranked_jobs.cs.csv` row count matches ranked JSON
+- `run_report.json` includes provider=openai, scrape_mode=SNAPSHOT, and classified_job_count matches labeled length
+
+To adjust thresholds intentionally, pass a new minimum:
+
+```bash
+python3 scripts/smoke_contract_check.py smoke_artifacts --min-ranked 10
+```
+
 ## Dev commands
 
 ```bash
