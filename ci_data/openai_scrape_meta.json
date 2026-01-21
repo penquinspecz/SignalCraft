@@ -1,9 +1,0 @@
-{
-  "error": null,
-  "live_status_code": null,
-  "parsed_job_count": 456,
-  "provider": "openai",
-  "scrape_mode": "snapshot",
-  "snapshot_path": "/app/data/openai_snapshots/index.html",
-  "snapshot_sha256": "c6738df1b5bf5e9bf45c38a9924bfd36067f8c244ea1d5504a93ce2182695d29"
-}
