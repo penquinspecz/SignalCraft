@@ -475,6 +475,17 @@ def _persist_run_metadata(
     provider_scoring_selection = scoring_input_selection_by_provider or {"openai": scoring_input_selection_by_profile}
     provider_outputs = outputs_by_provider or {"openai": outputs_by_profile}
 
+    selection = {"scrape_provenance": provenance_by_provider or {}}
+    classified_by_provider = _classified_counts_by_provider(provider_list)
+    if classified_by_provider:
+        selection["classified_job_count_by_provider"] = classified_by_provider
+        if "openai" in classified_by_provider:
+            selection["classified_job_count"] = classified_by_provider["openai"]
+        else:
+            primary_provider = provider_list[0]
+            if primary_provider in classified_by_provider:
+                selection["classified_job_count"] = classified_by_provider[primary_provider]
+
     payload = {
         "run_report_schema_version": run_report_schema_version,
         "run_id": run_id,
@@ -489,7 +500,7 @@ def _persist_run_metadata(
         "stage_durations": telemetry.get("stages", {}),
         "diff_counts": diff_counts,
         "provenance_by_provider": provenance_by_provider or {},
-        "selection": {"scrape_provenance": provenance_by_provider or {}},
+        "selection": selection,
         "inputs": inputs,
         "scoring_inputs_by_profile": scoring_inputs_by_profile,
         "scoring_input_selection_by_profile": scoring_input_selection_by_profile,
@@ -520,6 +531,28 @@ def _hash_file(path: Path) -> Optional[str]:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     except Exception:
         return None
+
+
+def _count_jobs(path: Path) -> Optional[int]:
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if isinstance(data, list):
+        return len(data)
+    return None
+
+
+def _classified_counts_by_provider(providers: List[str]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for provider in providers:
+        path = _provider_labeled_jobs_json(provider)
+        count = _count_jobs(path)
+        if count is not None:
+            counts[provider] = count
+    return counts
 
 
 def _file_metadata(path: Path) -> Dict[str, Optional[str]]:
