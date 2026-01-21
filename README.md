@@ -121,6 +121,12 @@ Use the CLI snapshot refresh to fetch and validate HTML before overwriting snaps
 # Refresh all known providers (from config/providers.json)
 .venv/bin/python -m src.jobintel.cli snapshots refresh --provider all
 
+# Use Playwright for snapshot fetch
+.venv/bin/python -m src.jobintel.cli snapshots refresh --provider openai --fetch playwright
+
+# Use Playwright via env
+JOBINTEL_SNAPSHOT_FETCH=playwright .venv/bin/python -m src.jobintel.cli snapshots refresh --provider openai
+
 # Refresh snapshots, then run offline
 .venv/bin/python -m src.jobintel.cli snapshots refresh --provider openai
 .venv/bin/python -m src.jobintel.cli run --offline --role cs --providers openai --no_post --no_enrich
