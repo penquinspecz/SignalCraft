@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+try:
+    import _bootstrap  # type: ignore
+except ModuleNotFoundError:
+    from scripts import _bootstrap  # noqa: F401
 
 """
 Deterministic audit of AI payloads (offline/stub) to quantify extractor changes.
@@ -243,4 +247,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
