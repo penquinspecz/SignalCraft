@@ -5,6 +5,9 @@ __pycache__/
 .env.*
 *.sqlite
 .DS_Store
+ci_data/
+ci_state/
+ci_artifacts/
 data/ashby_cache_json/
 data/ashby_cache/
 data/openai_raw_jobs.json

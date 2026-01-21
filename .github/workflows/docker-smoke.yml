@@ -12,6 +12,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Guard against tracked CI artifacts
+        run: |
+          tracked="$(git ls-files ci_data ci_state ci_artifacts)"
+          if [ -n "$tracked" ]; then
+            echo "Tracked CI artifacts detected (ci_data/ ci_state/ ci_artifacts/)."
+            echo "These directories must not be committed. Remove them from git and add to .gitignore."
+            echo "$tracked"
+            exit 1
+          fi
+
       - name: Build image
         run: docker build -t jobintel:local .
 
