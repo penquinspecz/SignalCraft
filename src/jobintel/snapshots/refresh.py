@@ -1,20 +1,14 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
-import requests
-
+from .fetch import FetchMethod, fetch_html
 from .validate import MIN_BYTES_DEFAULT, validate_snapshot_bytes
-
-
-def fetch_html(url: str, headers: dict[str, str], timeout: float) -> Tuple[bytes, int, Optional[str]]:
-    resp = requests.get(url, headers=headers, timeout=timeout)
-    content_type = resp.headers.get("Content-Type")
-    return resp.content, resp.status_code, content_type
 
 
 def write_snapshot(path: Path, payload: bytes) -> None:
@@ -32,6 +26,11 @@ def write_snapshot(path: Path, payload: bytes) -> None:
             pass
 
 
+def _write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def refresh_snapshot(
     provider_id: str,
     url: str,
@@ -40,6 +39,7 @@ def refresh_snapshot(
     force: bool = False,
     timeout: float = 20.0,
     min_bytes: int = MIN_BYTES_DEFAULT,
+    fetch_method: FetchMethod = "requests",
     headers: Optional[dict[str, str]] = None,
     logger: Optional[logging.Logger] = None,
 ) -> int:
@@ -52,29 +52,59 @@ def refresh_snapshot(
 
     logger.info("Refreshing snapshot for %s from %s", provider_id, url)
 
+    meta_path = out_path.parent / "index.fetch.json"
     try:
-        content, status_code, _content_type = fetch_html(url, req_headers, timeout)
-    except requests.RequestException as exc:
-        logger.error("Fetch failed for %s: %s", provider_id, exc)
-        return 1
+        html, meta = fetch_html(
+            url,
+            method=fetch_method,
+            timeout_s=timeout,
+            user_agent=req_headers.get("User-Agent"),
+            headers=req_headers,
+        )
+    except RuntimeError as exc:
+        meta = {
+            "method": fetch_method,
+            "url": url,
+            "final_url": None,
+            "status_code": None,
+            "fetched_at": None,
+            "bytes_len": 0,
+            "error": str(exc),
+        }
+        _write_json(meta_path, meta)
+        raise
 
-    if status_code != 200:
+    _write_json(meta_path, meta)
+
+    raw_path = out_path.parent / "index.raw.html"
+    if html:
+        write_snapshot(raw_path, html.encode("utf-8"))
+
+    if meta.get("error"):
+        message = f"Snapshot fetch failed for {provider_id}: {meta['error']}"
+        logger.error(message)
+        raise RuntimeError(message)
+
+    status_code = meta.get("status_code")
+    if status_code and status_code != 200:
         reason = f"http status {status_code}"
         if not force:
-            logger.error("Snapshot fetch failed for %s: %s", provider_id, reason)
-            return 1
+            message = f"Snapshot fetch failed for {provider_id}: {reason}"
+            logger.error(message)
+            raise RuntimeError(message)
         logger.warning("Forcing snapshot write despite %s", reason)
 
     if min_bytes != MIN_BYTES_DEFAULT:
         os.environ["JOBINTEL_SNAPSHOT_MIN_BYTES"] = str(min_bytes)
-    valid, reason = validate_snapshot_bytes(provider_id, content)
+    valid, reason = validate_snapshot_bytes(provider_id, html.encode("utf-8"))
     if not valid and not force:
-        logger.error("Invalid snapshot for %s: %s", provider_id, reason)
-        return 1
+        message = f"Invalid snapshot for {provider_id} at {out_path}: {reason}"
+        logger.error(message)
+        raise RuntimeError(message)
     if not valid and force:
         logger.warning("Forcing snapshot write despite invalid content: %s", reason)
 
-    write_snapshot(out_path, content)
-    size_bytes = len(content)
+    write_snapshot(out_path, html.encode("utf-8"))
+    size_bytes = len(html.encode("utf-8"))
     logger.info("Wrote snapshot for %s to %s (%d bytes)", provider_id, out_path, size_bytes)
     return 0

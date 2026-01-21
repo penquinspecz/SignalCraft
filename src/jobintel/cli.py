@@ -76,16 +76,21 @@ def _refresh_snapshots(args: argparse.Namespace) -> int:
         if not out_value:
             raise SystemExit(f"Missing snapshot path for provider '{provider_id}'.")
         out_path = Path(out_value)
+        fetch_method = (args.fetch or os.environ.get("JOBINTEL_SNAPSHOT_FETCH") or "requests").lower()
 
-        exit_code = refresh_snapshot(
-            provider_id,
-            url,
-            out_path,
-            force=args.force,
-            timeout=args.timeout,
-            min_bytes=args.min_bytes,
-            headers={"User-Agent": args.user_agent},
-        )
+        try:
+            exit_code = refresh_snapshot(
+                provider_id,
+                url,
+                out_path,
+                force=args.force,
+                timeout=args.timeout,
+                min_bytes=args.min_bytes,
+                fetch_method=fetch_method,
+                headers={"User-Agent": args.user_agent},
+            )
+        except RuntimeError as exc:
+            raise SystemExit(str(exc)) from exc
         if exit_code != 0:
             status = exit_code
     return status
@@ -184,6 +189,7 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--provider", required=True, help="Provider id or 'all'.")
     refresh.add_argument("--out", help="Override snapshot path (file).")
     refresh.add_argument("--force", action="store_true", help="Write snapshot even if validation fails.")
+    refresh.add_argument("--fetch", choices=["requests", "playwright"], default="requests")
     refresh.add_argument("--timeout", type=float, default=20.0)
     refresh.add_argument("--min-bytes", type=int, default=MIN_BYTES_DEFAULT)
     refresh.add_argument("--user-agent", default="job-intelligence-engine/0.1 (+snapshot-refresh)")
