@@ -11,6 +11,7 @@ from bs4.element import Tag
 from ji_engine.config import SNAPSHOT_DIR
 from ji_engine.models import JobSource, RawJobPosting
 from ji_engine.providers.base import BaseJobProvider
+from jobintel.snapshots.validate import validate_snapshot_file
 
 CAREERS_SEARCH_URL = "https://openai.com/careers/search/"
 
@@ -64,6 +65,10 @@ class OpenAICareersProvider(BaseJobProvider):
             print(f"[OpenAICareersProvider] ❌ Snapshot not found at {snapshot_file}")
             print("Save https://openai.com/careers/search/ as 'index.html' in data/openai_snapshots/ and rerun.")
             return []
+
+        ok, reason = validate_snapshot_file("openai", snapshot_file)
+        if not ok:
+            raise RuntimeError(f"Invalid snapshot for openai at {snapshot_file}: {reason}")
 
         print(f"[OpenAICareersProvider] 📂 Using snapshot {snapshot_file}")
         html = snapshot_file.read_text(encoding="utf-8")
