@@ -9,8 +9,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     env:
-      JOBINTEL_DATA_DIR: data
-      JOBINTEL_STATE_DIR: state
+      JOBINTEL_DATA_DIR: ${{ github.workspace }}/ci_data
+      JOBINTEL_STATE_DIR: ${{ github.workspace }}/ci_state
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python

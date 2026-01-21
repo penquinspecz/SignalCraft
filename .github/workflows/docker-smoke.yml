@@ -27,10 +27,10 @@ jobs:
           container_name="jobintel_smoke"
           docker rm -f "$container_name" >/dev/null 2>&1 || true
           docker create --name "$container_name" \
-            -e JOBINTEL_DATA_DIR=/ci_data \
-            -e JOBINTEL_STATE_DIR=/ci_state \
-            -v "$PWD/ci_data:/ci_data" \
-            -v "$PWD/ci_state:/ci_state" \
+            -e JOBINTEL_DATA_DIR=/app/data \
+            -e JOBINTEL_STATE_DIR=/app/state \
+            -v "$PWD/ci_data:/app/data" \
+            -v "$PWD/ci_state:/app/state" \
             jobintel:local --providers openai --profiles cs --no_post --no_enrich >/dev/null
           docker start -a "$container_name"
           status=$?

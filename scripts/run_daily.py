@@ -128,7 +128,6 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 load_dotenv()  # loads .env if present; won't override exported env vars
-ensure_dirs()
 
 
 def _utcnow_iso() -> str:
@@ -1135,6 +1134,7 @@ def _resolve_profiles(args: argparse.Namespace) -> List[str]:
 
 
 def main() -> int:
+    ensure_dirs()
     ap = argparse.ArgumentParser()
 
     ap.add_argument("--profile", default="cs", help="Scoring profile name (cs|tam|se)")
