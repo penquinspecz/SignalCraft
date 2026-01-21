@@ -126,6 +126,15 @@ Use the CLI snapshot refresh to fetch and validate HTML before overwriting snaps
 .venv/bin/python -m src.jobintel.cli run --offline --role cs --providers openai --no_post --no_enrich
 ```
 
+## Snapshot validation
+
+Validate committed snapshots before running offline/CI:
+
+```bash
+.venv/bin/python -m src.jobintel.cli snapshots validate --all
+.venv/bin/python -m src.jobintel.cli snapshots validate --provider openai --data-dir ci_data
+```
+
 Legacy option (stdlib `urllib`):
 
 ```bash

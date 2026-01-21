@@ -12,6 +12,7 @@ from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
 
 from .snapshots.refresh import DEFAULT_MIN_BYTES, refresh_snapshot
+from .snapshots.validate import validate_snapshots
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PROVIDERS_CONFIG = REPO_ROOT / "config" / "providers.json"
@@ -90,6 +91,34 @@ def _refresh_snapshots(args: argparse.Namespace) -> int:
     return status
 
 
+def _validate_snapshots(args: argparse.Namespace) -> int:
+    providers_config = Path(args.providers_config)
+    provider_map = _load_provider_map(providers_config) if providers_config.exists() else {}
+
+    if args.all:
+        providers = sorted(provider_map.keys())
+    else:
+        provider = (args.provider or "openai").lower().strip()
+        providers = [provider]
+
+    results = validate_snapshots(
+        providers,
+        data_dir=Path(args.data_dir) if args.data_dir else None,
+        min_bytes=DEFAULT_MIN_BYTES,
+    )
+    failures = [result for result in results if not result.ok]
+    for result in results:
+        status = "OK" if result.ok else "FAIL"
+        print(f"[snapshots] {status} {result.provider}: {result.path} ({result.reason})")
+
+    if failures:
+        print("Snapshot validation failed:")
+        for result in failures:
+            print(f"- {result.provider}: {result.path} ({result.reason})")
+        return 1
+    return 0
+
+
 def _split_csv(value: Optional[str]) -> list[str]:
     if not value:
         return []
@@ -165,6 +194,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to providers config JSON.",
     )
     refresh.set_defaults(func=_refresh_snapshots)
+
+    validate_cmd = snapshots_sub.add_parser("validate", help="Validate provider snapshots")
+    validate_cmd.add_argument("--provider", help="Provider id to validate (default: openai).")
+    validate_cmd.add_argument("--all", action="store_true", help="Validate all known providers.")
+    validate_cmd.add_argument("--data-dir", help="Base data directory (default: JOBINTEL_DATA_DIR or data).")
+    validate_cmd.add_argument(
+        "--providers-config",
+        default=str(DEFAULT_PROVIDERS_CONFIG),
+        help="Path to providers config JSON.",
+    )
+    validate_cmd.set_defaults(func=_validate_snapshots)
 
     run_cmd = subparsers.add_parser("run", help="Run pipeline helpers")
     run_cmd.add_argument("--role", help="Profile role name (e.g. cs).")
