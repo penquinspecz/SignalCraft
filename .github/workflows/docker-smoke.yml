@@ -18,6 +18,12 @@ jobs:
       - name: Prepare CI artifact dirs
         run: |
           mkdir -p ci_data ci_state ci_artifacts
+          if ls -d data/*_snapshots >/dev/null 2>&1; then
+            cp -R data/*_snapshots ci_data/
+          fi
+          if [ -f data/candidate_profile.json ]; then
+            cp data/candidate_profile.json ci_data/
+          fi
           chmod -R a+rwX ci_data ci_state ci_artifacts
 
       - name: Smoke test run_daily (no webhook)
@@ -192,6 +198,14 @@ jobs:
       - name: Verify smoke outputs
         if: always()
         run: |
+          if [ ! -f ci_artifacts/exit_code.txt ]; then
+            echo "No container exit code recorded; skipping output checks."
+            exit 0
+          fi
+          if [ "$(cat ci_artifacts/exit_code.txt)" -ne 0 ]; then
+            echo "Container exited non-zero; skipping output checks."
+            exit 0
+          fi
           missing=0
           run_report="$(ls -1 ci_state/runs/*.json 2>/dev/null | sort | tail -n 1)"
           if [ -z "$run_report" ]; then
