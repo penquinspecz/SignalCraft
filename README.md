@@ -112,14 +112,24 @@ Notes:
 
 ## Updating provider snapshots
 
-Use `scripts/update_snapshots.py` to refresh provider snapshots (uses stdlib `urllib`).
+Use the CLI snapshot refresh to fetch and validate HTML before overwriting snapshots.
 
 ```bash
 # Refresh OpenAI snapshot with defaults
-.venv/bin/python scripts/update_snapshots.py --provider openai
+.venv/bin/python -m src.jobintel.cli snapshots refresh --provider openai
 
-# Custom target directory / user agent
-.venv/bin/python scripts/update_snapshots.py --provider openai --out_dir data/openai_snapshots --user_agent "jobintel/1.0"
+# Refresh all known providers (from config/providers.json)
+.venv/bin/python -m src.jobintel.cli snapshots refresh --provider all
+
+# Refresh snapshots, then run offline
+.venv/bin/python -m src.jobintel.cli snapshots refresh --provider openai
+.venv/bin/python -m src.jobintel.cli run --offline --role cs --providers openai --no_post --no_enrich
+```
+
+Legacy option (stdlib `urllib`):
+
+```bash
+.venv/bin/python scripts/update_snapshots.py --provider openai
 ```
 
 Canonical entrypoint:

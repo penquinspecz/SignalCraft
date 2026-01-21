@@ -1159,6 +1159,7 @@ def main() -> int:
     )
     ap.add_argument("--us_only", action="store_true")
     ap.add_argument("--min_alert_score", type=int, default=85)
+    ap.add_argument("--offline", action="store_true", help="Force snapshot mode (no live scraping).")
     ap.add_argument("--no_post", action="store_true", help="Run pipeline but do not send Discord webhook")
     ap.add_argument("--test_post", action="store_true", help="Send a test message to Discord and exit")
     ap.add_argument("--no_enrich", action="store_true", help="Skip enrichment step (CI / offline safe)")
@@ -1570,11 +1571,12 @@ def main() -> int:
 
         # 1) Run pipeline stages ONCE (scrape supports multi-provider).
         current_stage = _stage_label("scrape")
+        scrape_mode = "SNAPSHOT" if args.offline else "AUTO"
         scrape_cmd = [
             sys.executable,
             str(REPO_ROOT / "scripts" / "run_scrape.py"),
             "--mode",
-            "AUTO",
+            scrape_mode,
             "--providers",
             ",".join(providers),
             "--providers-config",
