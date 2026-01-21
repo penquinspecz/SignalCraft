@@ -24,87 +24,14 @@ jobs:
             exit 1
           fi
 
-      - name: Build image
-        run: docker build -t jobintel:local .
-
-      - name: Validate baked-in snapshots
+      - name: Smoke test (scripted)
         run: |
-          docker run --rm jobintel:local \
-            python -m src.jobintel.cli snapshots validate --all --data-dir /app/data
+          bash scripts/smoke_docker.sh
 
-      - name: Smoke test run_daily (no webhook)
-        continue-on-error: true
+      - name: Tail smoke logs on failure
+        if: failure()
         run: |
-          set +e
-          mkdir -p smoke_artifacts
-          docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-          docker create --name "$CONTAINER_NAME" \
-            --user "$(id -u):$(id -g)" \
-            -e JOBINTEL_DATA_DIR=/app/data \
-            -e JOBINTEL_STATE_DIR=/app/state \
-            jobintel:local --providers openai --profiles cs --offline --no_post --no_enrich >/dev/null
-          docker start -a "$CONTAINER_NAME" 2>&1 | tee smoke_artifacts/container.log
-          status=${PIPESTATUS[0]}
-          echo "$status" > smoke_artifacts/exit_code.txt
-          if [ "$status" -ne 0 ]; then
-            echo "Container failed; last 80 lines of logs:"
-            tail -n 80 smoke_artifacts/container.log || true
-          fi
-
-      - name: Assert smoke outputs
-        if: always()
-        run: |
-          set -e
-          mkdir -p smoke_artifacts
-          missing=0
-          for path in /app/data/openai_labeled_jobs.json /app/data/openai_ranked_jobs.cs.json /app/data/openai_ranked_jobs.cs.csv; do
-            if ! docker cp "$CONTAINER_NAME:$path" "smoke_artifacts/$(basename "$path")" 2>/dev/null; then
-              echo "Missing output: $path"
-              missing=1
-            fi
-          done
-          if [ "$missing" -ne 0 ]; then
-            echo "Available /app/data contents:"
-            docker cp "$CONTAINER_NAME:/app/data" smoke_artifacts/data 2>/dev/null || true
-            ls -la smoke_artifacts/data 2>/dev/null || true
-            echo "Last 80 lines of container logs:"
-            tail -n 80 smoke_artifacts/container.log || true
-            exit 1
-          fi
-
-      - name: Collect smoke artifacts
-        if: always()
-        run: |
-          mkdir -p smoke_artifacts
-          run_report="$(docker exec "$CONTAINER_NAME" sh -c 'ls -1 /app/state/runs/*.json 2>/dev/null | sort | tail -n 1')"
-          if [ -n "$run_report" ]; then
-            docker cp "$CONTAINER_NAME:$run_report" smoke_artifacts/run_report.json 2>/dev/null || true
-          fi
-          ls -la smoke_artifacts || true
-
-      - name: Fail if smoke failed
-        if: always()
-        run: |
-          code=1
-          if [ -f smoke_artifacts/exit_code.txt ]; then
-            code="$(cat smoke_artifacts/exit_code.txt)"
-          fi
-          missing=0
-          for file in openai_labeled_jobs.json openai_ranked_jobs.cs.json openai_ranked_jobs.cs.csv; do
-            if [ ! -f "smoke_artifacts/$file" ]; then
-              echo "Missing artifact: smoke_artifacts/$file"
-              missing=1
-            fi
-          done
-          if [ "$code" -ne 0 ] || [ "$missing" -ne 0 ]; then
-            echo "Smoke failed (exit_code=$code, missing_outputs=$missing)"
-            exit 1
-          fi
-
-      - name: Cleanup smoke container
-        if: always()
-        run: |
-          docker rm "$CONTAINER_NAME" >/dev/null 2>&1 || true
+          tail -n 80 smoke_artifacts/container.log || true
 
       - name: Upload smoke artifacts
         if: always()
