@@ -31,6 +31,10 @@ jobs:
           ls -la ci_data/anthropic_snapshots/index.html || true
           chmod -R a+rwX ci_data ci_state ci_artifacts
 
+      - name: Validate snapshots
+        run: |
+          python -m src.jobintel.cli snapshots validate --all --data-dir ci_data
+
       - name: Smoke test run_daily (no webhook)
         run: |
           set +e
@@ -49,6 +53,26 @@ jobs:
           echo "$status" > ci_artifacts/exit_code.txt
           docker rm "$container_name" >/dev/null 2>&1 || true
           exit "$status"
+
+      - name: Assert smoke outputs
+        if: always()
+        run: |
+          set -e
+          run_report="$(ls -1 ci_state/runs/*.json 2>/dev/null | sort | tail -n 1)"
+          if [ -z "$run_report" ]; then
+            echo "Missing run report in ci_state/runs/ (looked for ci_state/runs/*.json)"
+            echo "ci_state contents:"
+            ls -la ci_state || true
+            echo "ci_state/runs contents:"
+            ls -la ci_state/runs || true
+            exit 1
+          fi
+          if ! ls -1 ci_data/*ranked_jobs*.json >/dev/null 2>&1; then
+            echo "Missing ranked jobs JSON in ci_data/ (looked for ci_data/*ranked_jobs*.json)"
+            echo "ci_data contents:"
+            ls -la ci_data || true
+            exit 1
+          fi
 
       - name: Collect smoke artifacts
         if: always()
