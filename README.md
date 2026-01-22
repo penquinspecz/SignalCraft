@@ -297,6 +297,16 @@ JOBINTEL_IMAGE_TAG=jobintel:dev make smoke-fast
 Smoke preflight uses `--entrypoint` so the image ENTRYPOINT does not hijack
 `python -V`.
 
+## Daily use
+
+```bash
+make daily
+JOBINTEL_MODE=LIVE make daily
+JOBINTEL_IMAGE_TAG=jobintel:dev make daily
+```
+
+Alerts are written to `data/<provider>_alerts.<profile>.md`.
+
 ## Delta summary
 
 Each run report includes a `delta_summary` section with per-provider/profile deltas between the current run and the latest available baseline. When no baseline is available, `baseline_run_id` and `baseline_run_path` are null and all delta counts are zero (unchanged is zero).
