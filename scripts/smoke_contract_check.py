@@ -4,16 +4,21 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import sys
-from pathlib import Path
 import os
+from pathlib import Path
 from typing import Any, List
 
 try:
-    from schema_validate import resolve_schema_path, validate_report
+    from schema_validate import resolve_named_schema_path, resolve_schema_path, validate_payload, validate_report
 except ImportError:  # pragma: no cover - fallback for module execution
-    from scripts.schema_validate import resolve_schema_path, validate_report
+    from scripts.schema_validate import (
+        resolve_named_schema_path,
+        resolve_schema_path,
+        validate_payload,
+        validate_report,
+    )
 
+from ji_engine.utils.job_identity import job_identity
 
 SMOKE_CONTRACT_VERSION = 1
 
@@ -206,6 +211,49 @@ def _validate_run_report(
                 raise RuntimeError(
                     f"{ranked_csv_path.name} rows {csv_rows} != ranked JSON length {len(ranked_jobs)}"
                 )
+
+            alerts_json = artifacts / f"{provider}_alerts.{profile}.json"
+            if provider == "openai":
+                alerts_json = artifacts / f"openai_alerts.{profile}.json"
+            if alerts_json.exists():
+                schema_path = resolve_named_schema_path("alerts", 1)
+                schema = _load_json(schema_path)
+                if not isinstance(schema, dict):
+                    raise RuntimeError(f"Alerts schema is not an object: {schema_path}")
+                alerts_payload = _load_json(alerts_json)
+                if not isinstance(alerts_payload, dict):
+                    raise RuntimeError(f"{alerts_json.name} must be an object")
+                errors = validate_payload(alerts_payload, schema)
+                if errors:
+                    msg = "; ".join(errors[:6])
+                    raise RuntimeError(f"{alerts_json.name} failed schema validation: {msg}")
+
+                counts = alerts_payload.get("counts") or {}
+                expected = {
+                    "new": len(alerts_payload.get("new_jobs", [])),
+                    "removed": len(alerts_payload.get("removed_jobs", [])),
+                    "score_changes": len(alerts_payload.get("score_changes", [])),
+                    "title_or_location_changes": len(alerts_payload.get("title_or_location_changes", [])),
+                }
+                for key, expected_len in expected.items():
+                    if counts.get(key) != expected_len:
+                        raise RuntimeError(
+                            f"{alerts_json.name} counts.{key}={counts.get(key)} expected {expected_len}"
+                        )
+
+                ranked_ids = {job_identity(job) for job in ranked_jobs}
+                for group in ("new_jobs", "score_changes", "title_or_location_changes"):
+                    for item in alerts_payload.get(group, []):
+                        jid = item.get("job_id")
+                        if jid and jid not in ranked_ids:
+                            raise RuntimeError(
+                                f"{alerts_json.name} {group} contains job_id not in ranked: {jid}"
+                            )
+                for jid in alerts_payload.get("removed_jobs", []):
+                    if jid in ranked_ids:
+                        raise RuntimeError(
+                            f"{alerts_json.name} removed_jobs contains job_id still ranked: {jid}"
+                        )
 
 
 def main(argv: List[str] | None = None) -> int:

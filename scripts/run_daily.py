@@ -12,6 +12,7 @@ Examples:
 """
 
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
@@ -20,24 +21,44 @@ except ModuleNotFoundError:
 import argparse
 import atexit
 import hashlib
+import importlib
 import json
 import logging
 import os
+import runpy
 import shutil
 import subprocess
 import sys
 import time
-import runpy
-import importlib
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Tuple, Optional
 import urllib.error
 import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
+from ji_engine.config import (
+    DATA_DIR,
+    ENRICHED_JOBS_JSON,
+    HISTORY_DIR,
+    LABELED_JOBS_JSON,
+    LOCK_PATH,
+    RAW_JOBS_JSON,
+    REPO_ROOT,
+    RUN_METADATA_DIR,
+    SNAPSHOT_DIR,
+    STATE_DIR,
+    ensure_dirs,
+    ranked_families_json,
+    ranked_jobs_csv,
+    ranked_jobs_json,
+    state_last_ranked,
+)
+from ji_engine.config import (
+    shortlist_md as shortlist_md_path,
+)
+from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.dotenv import load_dotenv
 from ji_engine.utils.job_identity import job_identity
-from ji_engine.utils.content_fingerprint import content_fingerprint
 from jobintel.alerts import (
     build_last_seen,
     compute_alerts,
@@ -47,24 +68,8 @@ from jobintel.alerts import (
     write_last_seen,
 )
 from jobintel.delta import compute_delta
-from ji_engine.config import (
-    DATA_DIR,
-    STATE_DIR,
-    HISTORY_DIR,
-    RUN_METADATA_DIR,
-    LOCK_PATH,
-    ranked_jobs_json,
-    ranked_jobs_csv,
-    ranked_families_json,
-    shortlist_md as shortlist_md_path,
-    state_last_ranked,
-    ensure_dirs,
-    REPO_ROOT,
-    SNAPSHOT_DIR,
-    ENRICHED_JOBS_JSON,
-    RAW_JOBS_JSON,
-    LABELED_JOBS_JSON,
-)
+
+
 def _unavailable_summary_for(provider: str) -> str:
     enriched_path = _provider_enriched_jobs_json(provider)
     try:
@@ -1033,21 +1038,21 @@ def format_changes_section(
     - Removed: url asc
     """
     lines: List[str] = ["", "## Changes since last run"]
-    
+
     if not prev_exists:
         lines.append("No previous run to diff against.")
         return "\n".join(lines)
-    
+
     # Filter by min_alert_score (new/changed only; removed always included)
     filtered_new = [j for j in new_jobs if j.get("score", 0) >= min_alert_score]
     filtered_changed = [j for j in changed_jobs if j.get("score", 0) >= min_alert_score]
     filtered_removed = removed_jobs  # Always include all removed
-    
+
     # Sort deterministically
     filtered_new_sorted = sorted(filtered_new, key=_sort_key_score_url)[:limit]
     filtered_changed_sorted = sorted(filtered_changed, key=_sort_key_score_url)[:limit]
     filtered_removed_sorted = sorted(filtered_removed, key=_sort_key_url)[:limit]
-    
+
     # New section
     lines.append(f"### New ({len(filtered_new)}) list items")
     if not filtered_new_sorted:
@@ -1057,9 +1062,9 @@ def format_changes_section(
             title = job.get("title") or "Untitled"
             url = job.get("apply_url") or job.get("detail_url") or job_identity(job) or "—"
             lines.append(f"- {title} — {url}")
-    
+
     lines.append("")
-    
+
     # Changed section
     lines.append(f"### Changed ({len(filtered_changed)}) list items")
     if not filtered_changed_sorted:
@@ -1073,9 +1078,9 @@ def format_changes_section(
             prev_job = prev_map.get(key)
             change_desc = _format_before_after(job, prev_job, diff_labels)
             lines.append(f"- {title} — {url} (changed: {change_desc})")
-    
+
     lines.append("")
-    
+
     # Removed section (always include all, no score filtering)
     lines.append(f"### Removed ({len(removed_jobs)}) list items")
     if not filtered_removed_sorted:
@@ -1085,7 +1090,7 @@ def format_changes_section(
             title = job.get("title") or "Untitled"
             url = job.get("apply_url") or job.get("detail_url") or job_identity(job) or "—"
             lines.append(f"- {title} — {url}")
-    
+
     return "\n".join(lines)
 
 
