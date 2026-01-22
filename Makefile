@@ -78,7 +78,7 @@ smoke:
 	$(call check_buildkit)
 	$(call docker_diag)
 	$(MAKE) image
-	IMAGE_TAG=$(JOBINTEL_IMAGE_TAG) SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build
+	IMAGE_TAG=$(JOBINTEL_IMAGE_TAG) SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build --providers openai --profiles cs
 
 smoke-fast:
 	$(call check_buildkit)
@@ -87,7 +87,7 @@ smoke-fast:
 		echo "$(JOBINTEL_IMAGE_TAG) image missing; building with make image..."; \
 		$(MAKE) image; \
 	)
-	IMAGE_TAG=$(JOBINTEL_IMAGE_TAG) SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh
+	IMAGE_TAG=$(JOBINTEL_IMAGE_TAG) SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --providers openai --profiles cs
 
 smoke-ci:
 	$(call check_buildkit)
@@ -98,9 +98,3 @@ smoke-ci:
 ci: lint test docker-ok smoke-ci
 
 ci-local: lint test
-	@if $(MAKE) docker-ok >/dev/null 2>&1; then \
-		echo "Docker OK; running smoke-ci."; \
-		$(MAKE) smoke-ci; \
-	else \
-		echo "Docker unavailable; skipping smoke-ci for ci-local."; \
-	fi

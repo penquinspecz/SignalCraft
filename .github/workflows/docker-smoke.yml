@@ -24,8 +24,9 @@ jobs:
             exit 1
           fi
 
-      - name: Docker diagnostics
+      - name: Docker Diagnostics
         run: |
+          echo "Image tag: ${JOBINTEL_IMAGE_TAG:-jobintel:local}"
           docker context show || true
           docker version || true
           docker info || true
