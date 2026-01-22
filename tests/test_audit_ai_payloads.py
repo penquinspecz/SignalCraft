@@ -35,4 +35,3 @@ def test_security_required_reason_table_order_and_counts(tmp_path: Path) -> None
     assert lines[idx + 1] == "security_required_reason\tcount"
     assert lines[idx + 2] == "security clearance\t2"
     assert lines[idx + 3] == "fedramp required\t1"
-

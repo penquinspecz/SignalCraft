@@ -5,7 +5,7 @@ import json
 import sys
 from hashlib import sha256
 from pathlib import Path
-from typing import Any, Dict
+from typing import Dict
 
 
 def _sha256(path: Path) -> str:
@@ -80,6 +80,8 @@ def test_pipeline_multi_provider_golden_e2e(tmp_path: Path, monkeypatch, request
             "--no_enrich",
             "--profiles",
             "cs",
+            "--min_score",
+            "70",
             "--providers",
             "openai,anthropic",
             "--providers-config",

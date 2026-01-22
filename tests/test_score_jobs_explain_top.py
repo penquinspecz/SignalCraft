@@ -57,4 +57,3 @@ def test_explain_top_prints_expected_columns(tmp_path: Path) -> None:
             "ai_influenced",
         ]
     )
-

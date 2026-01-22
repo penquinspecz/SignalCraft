@@ -136,4 +136,3 @@ def test_skill_alias_training_field_enablement_matches_enablement() -> None:
     score, notes = compute_match(ai_payload, profile)
     assert score == 70
     assert any("required_match:1/1" in n for n in notes)
-

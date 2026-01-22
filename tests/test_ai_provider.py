@@ -92,4 +92,3 @@ def test_invalid_provider_output_is_normalized(monkeypatch, tmp_path: Path):
     assert isinstance(ai["skills_required"], list)
     assert isinstance(ai["match_score"], int)
     assert 0 <= ai["match_score"] <= 100
-

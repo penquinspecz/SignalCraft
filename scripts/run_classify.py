@@ -7,6 +7,7 @@ Usage (from repo root, with venv active):
 """
 
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
@@ -15,16 +16,14 @@ except ModuleNotFoundError:
 import argparse
 import json
 import logging
-import sys
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from ji_engine.config import LABELED_JOBS_JSON, RAW_JOBS_JSON, EMBED_CACHE_JSON
-from ji_engine.models import JobSource, RawJobPosting
-from ji_engine.profile_loader import load_candidate_profile
-from ji_engine.pipeline.classifier import label_jobs
+from ji_engine.config import EMBED_CACHE_JSON, LABELED_JOBS_JSON, RAW_JOBS_JSON
+from ji_engine.embeddings.provider import EmbeddingProvider, OpenAIEmbeddingProvider, StubEmbeddingProvider
 from ji_engine.embeddings.simple import (
     build_profile_text,
     cosine_similarity,
@@ -32,7 +31,9 @@ from ji_engine.embeddings.simple import (
     save_cache,
     text_hash,
 )
-from ji_engine.embeddings.provider import EmbeddingProvider, StubEmbeddingProvider, OpenAIEmbeddingProvider
+from ji_engine.models import JobSource, RawJobPosting
+from ji_engine.pipeline.classifier import label_jobs
+from ji_engine.profile_loader import load_candidate_profile
 
 logger = logging.getLogger(__name__)
 

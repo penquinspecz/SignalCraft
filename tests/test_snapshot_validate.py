@@ -9,6 +9,7 @@ def test_validate_snapshot_missing_file(tmp_path: Path) -> None:
     assert ok is False
     assert reason == "missing file"
 
+
 def test_validate_snapshot_too_small(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_SNAPSHOT_MIN_BYTES_OPENAI", "100")
     path = tmp_path / "index.html"
@@ -16,6 +17,7 @@ def test_validate_snapshot_too_small(tmp_path: Path, monkeypatch) -> None:
     ok, reason = validate_snapshot_file("openai", path)
     assert ok is False
     assert "too small" in reason
+
 
 def test_validate_snapshot_blocked_marker(tmp_path: Path) -> None:
     path = tmp_path / "index.html"

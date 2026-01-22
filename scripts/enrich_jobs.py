@@ -11,6 +11,7 @@ Usage:
 """
 
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
@@ -21,20 +22,20 @@ import json
 import logging
 import os
 import sys
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from bs4 import BeautifulSoup
 
-from ji_engine.config import ASHBY_CACHE_DIR, ENRICHED_JOBS_JSON, LABELED_JOBS_JSON
+from ji_engine.config import ASHBY_CACHE_DIR, ENRICHED_JOBS_JSON, LABELED_JOBS_JSON, SNAPSHOT_DIR
 from ji_engine.integrations.ashby_graphql import fetch_job_posting
 from ji_engine.integrations.html_to_text import html_to_text
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.job_id import extract_job_id_from_url
-from collections import Counter
 
 logger = logging.getLogger(__name__)
 
@@ -54,15 +55,12 @@ def _extract_job_id_from_url(url: str) -> Optional[str]:
 
 def _derive_fallback_url(apply_url: str) -> str:
     """Derive base posting URL (without /application) for HTML fallback."""
-    return apply_url[:-len("/application")] if apply_url.endswith("/application") else apply_url
+    return apply_url[: -len("/application")] if apply_url.endswith("/application") else apply_url
 
 
 def _fetch_html_fallback(url: str) -> Optional[str]:
     headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) "
-            "Gecko/20100101 Firefox/146.0"
-        ),
+        "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) Gecko/20100101 Firefox/146.0"),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
     }
@@ -101,6 +99,71 @@ def _extract_jd_from_html(html: str) -> Optional[str]:
         tag.decompose()
     text = soup.get_text(separator="\n", strip=True)
     return text if text and len(text) > 200 else None
+
+
+def _snapshot_job_path(job_id: str) -> Path:
+    return SNAPSHOT_DIR / "jobs" / f"{job_id}.html"
+
+
+def _openai_job_snapshots_present() -> bool:
+    jobs_dir = SNAPSHOT_DIR / "jobs"
+    if not jobs_dir.exists():
+        return False
+    return any(jobs_dir.glob("*.html"))
+
+
+def _load_snapshot_detail_html(job_id: str) -> Optional[str]:
+    snapshot_path = _snapshot_job_path(job_id)
+    if not snapshot_path.exists():
+        logger.info(f" ⚠️ Snapshot not found: {snapshot_path}")
+        return None
+    html = snapshot_path.read_text(encoding="utf-8", errors="ignore")
+    html_lower = html.lower()
+    if "<html" not in html_lower and "<!doctype" not in html_lower:
+        return None
+    return html
+
+
+def _extract_jd_from_ashby_html(html: str) -> Optional[str]:
+    soup = BeautifulSoup(html, "html.parser")
+
+    selectors = [
+        "div[data-testid='jobPostingDescription']",
+        "section[data-testid='jobPostingDescription']",
+        "div[data-testid='jobDescription']",
+        "section[data-testid='jobDescription']",
+        "#jobPostingDescription",
+    ]
+    for selector in selectors:
+        container = soup.select_one(selector)
+        if container:
+            for tag in container.find_all(["script", "style"]):
+                tag.decompose()
+            text = container.get_text(separator="\n", strip=True)
+            if text and len(text) > 200:
+                return text
+
+    candidates = soup.select("main, article, [role='main']")
+    longest_text = ""
+    for node in candidates:
+        for tag in node.find_all(["script", "style"]):
+            tag.decompose()
+        text = node.get_text(separator="\n", strip=True)
+        if text and len(text) > len(longest_text):
+            longest_text = text
+
+    if longest_text and len(longest_text) > 200:
+        return longest_text
+    return None
+
+
+def _is_offline_mode() -> bool:
+    mode = os.environ.get("JOBINTEL_MODE", "").upper()
+    if mode in {"SNAPSHOT", "OFFLINE"}:
+        return True
+    if os.environ.get("CAREERS_MODE") == "SNAPSHOT":
+        return True
+    return os.environ.get("JOBINTEL_OFFLINE") == "1"
 
 
 def _apply_api_response(
@@ -180,6 +243,7 @@ def _enrich_single(
     status_key in {"enriched", "unavailable", "failed"} for stats aggregation.
     """
     apply_url = job.get("apply_url", "")
+    detail_url = job.get("detail_url", "")
     job_id = job.get("job_id") or _extract_job_id_from_url(apply_url)
     if not apply_url:
         logger.info(f" [{index}/{total}] Skipping - no apply_url")
@@ -212,22 +276,26 @@ def _enrich_single(
         logger.info(" ⚠️ Falling back to HTML parsing")
         if DEBUG:
             logger.info(f" fallback_url: {fallback_url}")
-        html = _fetch_html_fallback(fallback_url)
-        if html:
-            jd_text = _extract_jd_from_html(html)
-            if jd_text:
-                logger.info(f" ✅ Extracted from HTML: {len(jd_text)} chars")
-                updated_job["jd_text"] = jd_text
-                updated_job["enrich_status"] = "enriched"
-                updated_job["enrich_reason"] = updated_job.get("enrich_reason") or "html_fallback"
-            else:
-                logger.info(" ❌ HTML extraction failed (empty text)")
-                updated_job["enrich_status"] = "unavailable"
-                updated_job["enrich_reason"] = "empty_description"
+        html: Optional[str] = None
+        if ORG == "openai" and job_id:
+            html = _load_snapshot_detail_html(job_id)
+            if html:
+                jd_text = _extract_jd_from_ashby_html(html)
+
+        if not jd_text and not (ORG == "openai" and _is_offline_mode()):
+            html = _fetch_html_fallback(fallback_url)
+            if html:
+                jd_text = _extract_jd_from_html(html)
+
+        if jd_text:
+            logger.info(f" ✅ Extracted from HTML: {len(jd_text)} chars")
+            updated_job["jd_text"] = jd_text
+            updated_job["enrich_status"] = "enriched"
+            updated_job["enrich_reason"] = updated_job.get("enrich_reason") or "html_fallback"
         else:
-            logger.info(" ❌ HTML fetch failed")
-            updated_job["enrich_status"] = updated_job.get("enrich_status") or "failed"
-            updated_job["enrich_reason"] = updated_job.get("enrich_reason") or "html_fetch_failed"
+            logger.info(" ❌ HTML extraction failed (empty text)")
+            updated_job["enrich_status"] = "unavailable"
+            updated_job["enrich_reason"] = "empty_description"
 
     if updated_job.get("enrich_status") == "unavailable":
         jd_text = None
@@ -287,6 +355,40 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     logger.info(f"Loaded {len(jobs)} labeled jobs")
     logger.info(f"Filtering for RELEVANT/MAYBE: {len(filtered_jobs)} jobs to enrich\n")
+
+    if ORG == "openai" and filtered_jobs and not _openai_job_snapshots_present():
+        logger.info(
+            "OpenAI job detail snapshots not found; skipping offline enrichment. "
+            "Run update_snapshots.py with network access to enable."
+        )
+        for job in filtered_jobs:
+            job_id = job.get("job_id") or _extract_job_id_from_url(job.get("apply_url", ""))
+            updated_job = {
+                **job,
+                "job_id": job_id,
+                "jd_text": None,
+                "fetched_at": None,
+                "enrich_status": "unavailable",
+                "enrich_reason": "missing_job_snapshots",
+            }
+            enriched.append(updated_job)
+            stats["unavailable"] += 1
+            unavailable_reasons["missing_job_snapshots"] += 1
+
+        out_path = Path(args.out_path) if args.out_path else ENRICHED_JOBS_JSON
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(out_path, json.dumps(enriched, ensure_ascii=False, indent=2))
+
+        logger.info("\n" + "=" * 60)
+        logger.info("Enrichment Summary:")
+        logger.info(f" Total processed: {len(enriched)}")
+        logger.info(f" Enriched: {stats['enriched']}")
+        logger.info(f" Unavailable: {stats['unavailable']}")
+        logger.info(f" Failed: {stats['failed']}")
+        logger.info(" Unavailable reason: missing_job_snapshots (run update_snapshots.py with network access)")
+        logger.info(f" Output: {out_path}")
+        logger.info("=" * 60)
+        return 0
 
     with ThreadPoolExecutor(max_workers=max(1, args.max_workers)) as pool:
         futures = []

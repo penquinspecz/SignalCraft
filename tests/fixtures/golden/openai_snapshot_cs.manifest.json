@@ -1,16 +1,16 @@
 {
   "files": {
     "openai_ranked_families.cs.json": {
-      "bytes": 802662,
-      "sha256": "5902d6fbb9bc2796508d0c2e511b34e5356e9b2175dc00d4d9d47d40917c77a7"
+      "bytes": 866675,
+      "sha256": "6709ce65bb2b7800eea8341b11f44d89920803857a09f8bda82b08a1d071f25f"
     },
     "openai_ranked_jobs.cs.csv": {
-      "bytes": 148045,
-      "sha256": "9be0363fe2e0e8517b799ca25f6758ecbefd20d69f2a734c0af6741ab5440432"
+      "bytes": 168001,
+      "sha256": "fe7f1ab26578fc5cf6b4fa3a6c4be8a10a729696ca7f7d8ae15933a6ffb316a5"
     },
     "openai_ranked_jobs.cs.json": {
-      "bytes": 747976,
-      "sha256": "94e44d481a12bca40f8831b269be9912321e81fbb9173be875522e24b78529d9"
+      "bytes": 821537,
+      "sha256": "3f79bed77828143b0888379c64a57e714c6ed8cbae7ce9265f3f1c2e1e612c69"
     },
     "openai_shortlist.cs.md": {
       "bytes": 98,

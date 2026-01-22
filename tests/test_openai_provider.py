@@ -1,7 +1,8 @@
 """Unit tests for OpenAI provider snapshot parser."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
+
 import pytest
 
 # Add src to path

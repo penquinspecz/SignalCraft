@@ -1,8 +1,8 @@
 from pathlib import Path
 
 from ji_engine.providers.openai_provider import OpenAICareersProvider
-from ji_engine.utils.job_id import extract_job_id_from_url
 from ji_engine.providers.registry import load_providers_config
+from ji_engine.utils.job_id import extract_job_id_from_url
 
 
 def test_openai_snapshot_contract() -> None:

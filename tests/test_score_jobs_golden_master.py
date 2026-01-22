@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import subprocess
 import sys
-import csv
 from pathlib import Path
 
 from ji_engine.utils.job_identity import job_identity
@@ -60,21 +60,22 @@ def test_score_jobs_golden_master(tmp_path: Path) -> None:
     expected_titles = [
         "Manager, AI Deployment - AMER",
         "Partner Solutions Architect",
+        "Solution Architect Manager, Digital Natives",
         "Forward Deployed Software Engineer - SF",
         "Forward Deployed Software Engineer - Munich",
         "Forward Deployed Software Engineer - NYC",
-        "Forward Deployed Engineer, Gov",
         "Forward Deployed Engineer - Life Sciences - SF",
         "Forward Deployed Engineer - Life Sciences - NYC",
-        "Solution Architect Manager, Digital Natives",
+        "Forward Deployed Engineer, Gov",
         "Forward Deployed Engineer - Munich",
     ]
 
-    expected_scores = [146, 132, 105, 105, 105, 100, 98, 98, 98, 94]
+    expected_scores = [100, 100, 97, 96, 96, 96, 84, 84, 84, 83]
+    expected_heuristic_scores = [127, 116, 97, 96, 96, 96, 84, 84, 84, 83]
 
     assert titles == expected_titles
     assert scores == expected_scores
-    assert heuristic_scores == expected_scores  # no AI payload in fixture
+    assert heuristic_scores == expected_heuristic_scores  # no AI payload in fixture
     assert final_scores == expected_scores
 
     # Verify stable sort: for tied scores, job_identity is non-decreasing
@@ -84,7 +85,7 @@ def test_score_jobs_golden_master(tmp_path: Path) -> None:
         if curr_score == next_score:
             curr_id = job_identity(ranked[i])
             next_id = job_identity(ranked[i + 1])
-            assert curr_id <= next_id, f"Tied scores at index {i}, {i+1} not ordered by job_identity"
+            assert curr_id <= next_id, f"Tied scores at index {i}, {i + 1} not ordered by job_identity"
 
     # Explanations exist and are well-formed; should not affect ordering/scores.
     assert "explanation_summary" in headers

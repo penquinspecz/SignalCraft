@@ -162,7 +162,7 @@ docker run --rm -v "$PWD/data:/app/data" jobintel:local --profiles cs --us_only 
   - `./state` → `/app/state` (history, metadata, user_state)
 - Run report schema version is recorded in run metadata as `run_report_schema_version`.
 - Env vars:
-  - `DISCORD_WEBHOOK_URL` (optional; if unset, alerts are skipped)
+  - `DISCORD_WEBHOOK_URL` (optional; if unset, alerts are skipped). Set to enable run summaries and alerts.
   - `CAREERS_MODE` (optional; defaults to AUTO)
   - `JOBINTEL_S3_BUCKET` (optional) + `JOBINTEL_S3_PREFIX` (optional): when set, AI cache and embedding cache use S3; defaults remain filesystem.
   - Any profile/flag overrides via CLI args to `scripts/run_daily.py`.
@@ -256,6 +256,26 @@ CI runs the same script and uploads `smoke_artifacts/` even on failure. Check
 
 `make image` builds without tests (fast). Use `make image-ci` or
 `docker build -t jobintel:local --build-arg RUN_TESTS=1 .` to force tests.
+
+### Debugging snapshots in the container
+
+Use the helper target to inspect baked-in snapshot fixtures inside the image:
+
+```bash
+make debug-snapshots
+```
+
+Manual equivalent:
+
+```bash
+docker run --rm --entrypoint sh jobintel:local -lc 'ls -la /app/data/openai_snapshots | head; ls -la /app/data/openai_snapshots/jobs | head; ls -la /app/data/openai_snapshots/jobs | wc -l'
+```
+
+If you want explainability, run smoke then:
+
+```bash
+make explain-smoke
+```
 
 ## Smoke contract
 

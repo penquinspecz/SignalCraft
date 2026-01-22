@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from unittest import mock
 
 from ji_engine.integrations.ashby_graphql import fetch_job_posting
@@ -30,4 +29,3 @@ def test_jobposting_null_not_cached(tmp_path):
     assert result is None
     cache_file = cache_dir / f"{job_id}.json"
     assert not cache_file.exists()
-

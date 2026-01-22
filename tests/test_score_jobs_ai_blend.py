@@ -62,4 +62,3 @@ def test_ai_blend_affects_order(tmp_path: Path) -> None:
     # Explanation should reference the effective blend config used.
     cfg = ranked[0].get("explanation", {}).get("ai_blend_config") or {}
     assert cfg.get("weight_used") == 0.35
-

@@ -4,7 +4,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 
 def _raw_job(title: str, url: str) -> Dict[str, Any]:

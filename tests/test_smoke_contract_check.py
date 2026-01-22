@@ -288,9 +288,9 @@ def test_smoke_contract_check_min_schema_version(tmp_path: Path) -> None:
         },
     )
 
-    assert smoke_contract_check.main(
-        [str(artifacts), "--require-schema-version", "0", "--min-schema-version", "1"]
-    ) == 0
+    assert (
+        smoke_contract_check.main([str(artifacts), "--require-schema-version", "0", "--min-schema-version", "1"]) == 0
+    )
 
 
 def test_smoke_contract_check_alerts_validation(tmp_path: Path) -> None:

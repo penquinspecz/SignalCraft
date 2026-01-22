@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
-from typing import Any, List
+from typing import List
 
 import scripts.score_jobs as score_mod
 from ji_engine.ai.provider import AIProvider
@@ -50,4 +49,3 @@ def test_application_kit_uses_cache(tmp_path: Path, monkeypatch) -> None:
     assert provider.calls == ["u1"]
     content = out_md.read_text(encoding="utf-8")
     assert "Resume bullets" in content
-

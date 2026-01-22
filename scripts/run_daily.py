@@ -68,6 +68,19 @@ from jobintel.alerts import (
     write_last_seen,
 )
 from jobintel.delta import compute_delta
+from jobintel.discord_notify import build_run_summary_message, post_discord, resolve_webhook
+
+try:
+    import scripts.publish_s3 as publish_s3  # type: ignore
+except ModuleNotFoundError:  # pragma: no cover - fallback for direct script execution
+    import importlib.util
+
+    _spec = importlib.util.spec_from_file_location("publish_s3", REPO_ROOT / "scripts" / "publish_s3.py")
+    if _spec and _spec.loader:
+        publish_s3 = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(publish_s3)
+    else:
+        raise
 
 
 def _unavailable_summary_for(provider: str) -> str:
@@ -88,6 +101,7 @@ def _unavailable_summary_for(provider: str) -> str:
 
 def _unavailable_summary() -> str:
     return _unavailable_summary_for("openai")
+
 
 logger = logging.getLogger(__name__)
 USE_SUBPROCESS = True
@@ -145,6 +159,7 @@ class JsonFormatter(logging.Formatter):
             "msg": record.getMessage(),
         }
         return json.dumps(payload, ensure_ascii=False)
+
 
 load_dotenv()  # loads .env if present; won't override exported env vars
 
@@ -286,6 +301,19 @@ def _write_json(path: Path, obj: Any) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _update_run_metadata_s3(path: Path, s3_meta: Dict[str, Any]) -> None:
+    if not path.exists():
+        return
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return
+    payload["s3_bucket"] = s3_meta.get("bucket")
+    payload["s3_prefixes"] = s3_meta.get("prefixes")
+    payload["uploaded_files_count"] = s3_meta.get("uploaded_files_count")
+    payload["dashboard_url"] = s3_meta.get("dashboard_url")
+    _write_json(path, payload)
+
+
 def _score_meta_path(ranked_json: Path) -> Path:
     return ranked_json.with_suffix(".score_meta.json")
 
@@ -404,6 +432,10 @@ def _provider_shortlist_md(provider: str, profile: str) -> Path:
     return DATA_DIR / f"{provider}_shortlist.{profile}.md"
 
 
+def _provider_top_md(provider: str, profile: str) -> Path:
+    return DATA_DIR / f"{provider}_top.{profile}.md"
+
+
 def _state_last_ranked(provider: str, profile: str) -> Path:
     if provider == "openai":
         return state_last_ranked(profile)
@@ -429,6 +461,99 @@ def _copy_artifact(src: Path, dest: Path) -> None:
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, dest)
+
+
+def _run_registry_dir(run_id: str) -> Path:
+    return RUN_METADATA_DIR / _sanitize_run_id(run_id)
+
+
+def _write_run_registry(
+    run_id: str,
+    providers: List[str],
+    profiles: List[str],
+    run_metadata_path: Path,
+    diff_counts_by_provider: Dict[str, Dict[str, Dict[str, int]]],
+    telemetry: Dict[str, Any],
+) -> Path:
+    run_dir = _run_registry_dir(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    artifacts: Dict[str, str] = {}
+    run_report_dest = run_dir / "run_report.json"
+    _copy_artifact(run_metadata_path, run_report_dest)
+    artifacts[run_report_dest.name] = run_report_dest.relative_to(run_dir).as_posix()
+
+    providers_payload: Dict[str, Any] = {}
+    for provider in providers:
+        provider_dir = run_dir / provider
+        provider_payload: Dict[str, Any] = {"profiles": {}, "artifacts": {}}
+        provider_inputs = [
+            _provider_raw_jobs_json(provider),
+            _provider_labeled_jobs_json(provider),
+            _provider_enriched_jobs_json(provider),
+            _provider_ai_jobs_json(provider),
+        ]
+        for src in provider_inputs:
+            if not src.exists():
+                continue
+            dest = provider_dir / src.name
+            _copy_artifact(src, dest)
+            rel = dest.relative_to(run_dir).as_posix()
+            provider_payload["artifacts"][src.name] = rel
+            artifacts.setdefault(src.name, rel)
+
+        for profile in profiles:
+            profile_dir = provider_dir / profile
+            profile_payload = {
+                "diff_counts": diff_counts_by_provider.get(provider, {}).get(
+                    profile, {"new": 0, "changed": 0, "removed": 0}
+                ),
+                "artifacts": {},
+            }
+            for src in (run_dir / f"ai_insights.{profile}.json", run_dir / f"ai_insights.{profile}.md"):
+                if src.exists():
+                    rel = src.relative_to(run_dir).as_posix()
+                    profile_payload["artifacts"][src.name] = rel
+                    artifacts.setdefault(src.name, rel)
+            for src in (run_dir / f"ai_job_briefs.{profile}.json", run_dir / f"ai_job_briefs.{profile}.md"):
+                if src.exists():
+                    rel = src.relative_to(run_dir).as_posix()
+                    profile_payload["artifacts"][src.name] = rel
+                    artifacts.setdefault(src.name, rel)
+            profile_artifacts = [
+                _provider_ranked_jobs_json(provider, profile),
+                _provider_ranked_jobs_csv(provider, profile),
+                _provider_ranked_families_json(provider, profile),
+                _provider_shortlist_md(provider, profile),
+                _provider_top_md(provider, profile),
+            ]
+            alerts_json, alerts_md = _alerts_paths(provider, profile)
+            profile_artifacts.extend([alerts_json, alerts_md])
+
+            for src in profile_artifacts:
+                if not src.exists():
+                    continue
+                dest = profile_dir / src.name
+                _copy_artifact(src, dest)
+                rel = dest.relative_to(run_dir).as_posix()
+                profile_payload["artifacts"][src.name] = rel
+                artifacts.setdefault(src.name, rel)
+
+            provider_payload["profiles"][profile] = profile_payload
+
+        providers_payload[provider] = provider_payload
+
+    payload = {
+        "run_id": run_id,
+        "timestamp": telemetry.get("ended_at"),
+        "providers": providers_payload,
+        "artifacts": artifacts,
+        "run_report_path": artifacts.get("run_report.json"),
+    }
+
+    index_path = run_dir / "index.json"
+    index_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    return index_path
 
 
 def _archive_profile_artifacts(
@@ -460,6 +585,7 @@ def _archive_profile_artifacts(
     # keep run_metadata per run for history and single copy for latest
     _copy_artifact(run_metadata_path, history_dir / run_metadata_path.name)
     _copy_artifact(run_metadata_path, latest_dir / "run_metadata.json")
+
 
 def _persist_run_metadata(
     run_id: str,
@@ -494,6 +620,7 @@ def _persist_run_metadata(
             "ranked_csv": _output_metadata(ranked_jobs_csv(profile)),
             "ranked_families_json": _output_metadata(ranked_families_json(profile)),
             "shortlist_md": _output_metadata(shortlist_md_path(profile)),
+            "top_md": _output_metadata(_provider_top_md("openai", profile)),
         }
 
     provider_list = providers or ["openai"]
@@ -698,9 +825,7 @@ def _normalize_exit_code(code: Any) -> int:
     return 1
 
 
-def _resolve_score_input_path_for(
-    args: argparse.Namespace, provider: str
-) -> Tuple[Optional[Path], Optional[str]]:
+def _resolve_score_input_path_for(args: argparse.Namespace, provider: str) -> Tuple[Optional[Path], Optional[str]]:
     """
     Decide which input file to feed into score_jobs based on CLI flags.
     Returns (path, error_message). If error_message is not None, caller should abort.
@@ -728,8 +853,7 @@ def _resolve_score_input_path_for(
             if m_enriched > m_labeled:
                 return enriched_path, None
             logger.warning(
-                "Enriched input is older than labeled; using labeled for scoring. "
-                "enriched_mtime=%s labeled_mtime=%s",
+                "Enriched input is older than labeled; using labeled for scoring. enriched_mtime=%s labeled_mtime=%s",
                 m_enriched,
                 m_labeled,
             )
@@ -748,10 +872,7 @@ def _resolve_score_input_path_for(
     if enriched_path.exists():
         return enriched_path, None
 
-    return None, (
-        f"Scoring input not found: {enriched_path}. "
-        "Re-run without --no_enrich to produce enrichment output."
-    )
+    return None, (f"Scoring input not found: {enriched_path}. Re-run without --no_enrich to produce enrichment output.")
 
 
 def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -> Dict[str, Any]:
@@ -762,11 +883,14 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
     labeled_meta = _candidate_metadata(labeled_path)
     ai_meta = _candidate_metadata(ai_path)
     candidates = [ai_meta, enriched_meta, labeled_meta]
+    candidate_paths_considered = candidates
     flags = {"no_enrich": bool(args.no_enrich), "ai": bool(args.ai), "ai_only": bool(args.ai_only)}
 
     decision: Dict[str, Any] = {"flags": flags, "comparisons": {}}
     selected_path: Optional[Path] = None
     reason = ""
+    selection_reason = ""
+    comparison_details: Dict[str, Any] = {}
 
     def _ai_note() -> str:
         if args.ai and not args.ai_only:
@@ -777,9 +901,14 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
         decision["rule"] = "ai_only"
         reason = "ai_only requires AI-enriched input"
         selected_path = ai_path if ai_path.exists() else None
+        selection_reason = "ai_only"
         decision["reason"] = reason
         return {
             "selected": _file_metadata(selected_path) if selected_path else None,
+            "selected_path": str(selected_path) if selected_path else None,
+            "candidate_paths_considered": candidate_paths_considered,
+            "selection_reason": selection_reason,
+            "comparison_details": comparison_details,
             "candidates": candidates,
             "decision": decision,
         }
@@ -792,28 +921,42 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
             labeled_mtime = _file_mtime(labeled_path)
             comparisons["enriched_mtime"] = enriched_mtime
             comparisons["labeled_mtime"] = labeled_mtime
+            comparison_details["newer_by_seconds"] = (enriched_mtime or 0) - (labeled_mtime or 0)
             if (enriched_mtime or 0) > (labeled_mtime or 0):
                 selected_path = enriched_path
                 reason = "enriched newer than labeled"
+                selection_reason = "no_enrich_enriched_newer"
                 comparisons["winner"] = "enriched"
             else:
                 selected_path = labeled_path
                 reason = "labeled newer or same mtime as enriched"
+                selection_reason = "no_enrich_labeled_newer_or_equal"
                 comparisons["winner"] = "labeled"
         elif enriched_path.exists():
             selected_path = enriched_path
             reason = "enriched exists and labeled missing"
+            selection_reason = "no_enrich_enriched_only"
             comparisons["winner"] = "enriched"
         elif labeled_path.exists():
             selected_path = labeled_path
             reason = "labeled exists and enriched missing"
+            selection_reason = "no_enrich_labeled_only"
             comparisons["winner"] = "labeled"
         else:
             reason = "no_enrich requires labeled or enriched input"
+            selection_reason = "no_enrich_missing"
         decision["comparisons"] = comparisons
         decision["reason"] = reason + _ai_note()
+        if selected_path == enriched_path and args.ai and ai_path.exists():
+            selection_reason = "prefer_ai_enriched"
+            selected_path = ai_path
+            comparison_details["prefer_ai"] = True
         return {
             "selected": _file_metadata(selected_path) if selected_path else None,
+            "selected_path": str(selected_path) if selected_path else None,
+            "candidate_paths_considered": candidate_paths_considered,
+            "selection_reason": selection_reason,
+            "comparison_details": comparison_details,
             "candidates": candidates,
             "decision": decision,
         }
@@ -822,11 +965,21 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
     if enriched_path.exists():
         selected_path = enriched_path
         reason = "default requires enriched input"
+        selection_reason = "default_enriched_required"
     else:
         reason = "enriched input missing"
+        selection_reason = "default_enriched_missing"
     decision["reason"] = reason + _ai_note()
+    if selected_path == enriched_path and args.ai and ai_path.exists():
+        selection_reason = "prefer_ai_enriched"
+        selected_path = ai_path
+        comparison_details["prefer_ai"] = True
     return {
         "selected": _file_metadata(selected_path) if selected_path else None,
+        "selected_path": str(selected_path) if selected_path else None,
+        "candidate_paths_considered": candidate_paths_considered,
+        "selection_reason": selection_reason,
+        "comparison_details": comparison_details,
         "candidates": candidates,
         "decision": decision,
     }
@@ -921,11 +1074,7 @@ def _job_key(job: Dict[str, Any]) -> str:
 
 def _job_description_text(job: Dict[str, Any]) -> str:
     return (
-        job.get("description_text")
-        or job.get("jd_text")
-        or job.get("description")
-        or job.get("descriptionHtml")
-        or ""
+        job.get("description_text") or job.get("jd_text") or job.get("description") or job.get("descriptionHtml") or ""
     )
 
 
@@ -1027,12 +1176,12 @@ def format_changes_section(
 ) -> str:
     """
     Pure helper: returns markdown for "Changes since last run" section.
-    
+
     Filtering rules:
     - Include items where job.score >= min_alert_score OR the item is removed.
     - For changed items, show before/after for title, location, team, score.
     - For description changes, just note "description_text" (no content dump).
-    
+
     Sorting rules (deterministic):
     - New/Changed: score desc, url asc
     - Removed: url asc
@@ -1154,15 +1303,11 @@ def _dispatch_alerts(
         return
 
     if not webhook:
-        logger.info(
-            f"ℹ️ No alerts ({profile}) (new={len(new_jobs)}, changed={len(changed_jobs)}; webhook=unset)."
-        )
+        logger.info(f"ℹ️ No alerts ({profile}) (new={len(new_jobs)}, changed={len(changed_jobs)}; webhook=unset).")
         return
 
     if not (interesting_new or interesting_changed):
-        logger.info(
-            f"ℹ️ No alerts ({profile}) (new={len(new_jobs)}, changed={len(changed_jobs)}; webhook=set)."
-        )
+        logger.info(f"ℹ️ No alerts ({profile}) (new={len(new_jobs)}, changed={len(changed_jobs)}; webhook=set).")
         return
 
     msg_lines = list(lines)
@@ -1177,9 +1322,7 @@ def _dispatch_alerts(
 
     msg = "\n".join(msg_lines)
     ok = _post_discord(webhook, msg)
-    logger.info(
-        f"✅ Discord alert sent ({profile})." if ok else "⚠️ Discord alert NOT sent (pipeline still completed)."
-    )
+    logger.info(f"✅ Discord alert sent ({profile})." if ok else "⚠️ Discord alert NOT sent (pipeline still completed).")
 
 
 def _post_discord(webhook_url: str, message: str) -> bool:
@@ -1214,14 +1357,18 @@ def _post_discord(webhook_url: str, message: str) -> bool:
         logger.error(f"Discord webhook POST failed: {e.code}")
         logger.error(body[:2000])
         if e.code == 404 and "10015" in body:
-            logger.warning("⚠️ Discord says: Unknown Webhook (rotated/deleted/wrong URL). Update DISCORD_WEBHOOK_URL in .env.")
+            logger.warning(
+                "⚠️ Discord says: Unknown Webhook (rotated/deleted/wrong URL). Update DISCORD_WEBHOOK_URL in .env."
+            )
         return False
     except Exception as e:
         logger.error(f"Discord webhook POST failed: {e!r}")
         return False
 
 
-def _post_failure(webhook_url: str, stage: str, error: str, no_post: bool, *, stdout: str = "", stderr: str = "") -> None:
+def _post_failure(
+    webhook_url: str, stage: str, error: str, no_post: bool, *, stdout: str = "", stderr: str = ""
+) -> None:
     """Best-effort failure notification. Never raises."""
     if no_post or not webhook_url:
         return
@@ -1238,6 +1385,55 @@ def _post_failure(webhook_url: str, stage: str, error: str, no_post: bool, *, st
         f"\n\n**stdout (tail)**:\n```{stdout_tail}```"
     )
     _post_discord(webhook_url, msg)
+
+
+def _post_run_summary(
+    provider: str,
+    profile: str,
+    ranked_json: Path,
+    diff_counts: Dict[str, int],
+    min_score: int,
+    *,
+    no_post: bool,
+    extra_lines: Optional[List[str]] = None,
+) -> str:
+    if no_post:
+        return "disabled"
+    webhook = resolve_webhook(profile)
+    if not webhook:
+        logger.info("Discord webhook unset; skipping run summary alert.")
+        return "unset"
+    if "discord.com/api/webhooks/" not in webhook:
+        logger.warning("⚠️ DISCORD_WEBHOOK_URL missing or doesn't look like a Discord webhook URL. Skipping post.")
+        return "invalid"
+    message = build_run_summary_message(
+        provider=provider,
+        profile=profile,
+        ranked_json=ranked_json,
+        diff_counts=diff_counts,
+        min_score=min_score,
+        extra_lines=extra_lines,
+    )
+    ok = post_discord(webhook, message)
+    return "ok" if ok else "failed"
+
+
+def _briefs_status_line(run_id: str, profile: str) -> Optional[str]:
+    run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
+    path = run_dir / f"ai_job_briefs.{profile}.json"
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    count = len(payload.get("briefs") or [])
+    status = payload.get("status") or "unknown"
+    if status != "ok":
+        return f"AI briefs: {status}"
+    return f"AI briefs: generated for top {count}"
 
 
 def _resolve_profiles(args: argparse.Namespace) -> List[str]:
@@ -1283,6 +1479,7 @@ def main() -> int:
     )
     ap.add_argument("--us_only", action="store_true")
     ap.add_argument("--min_alert_score", type=int, default=85)
+    ap.add_argument("--min_score", type=int, default=40, help="Shortlist minimum score threshold.")
     ap.add_argument("--offline", action="store_true", help="Force snapshot mode (no live scraping).")
     ap.add_argument("--no_post", action="store_true", help="Run pipeline but do not send Discord webhook")
     ap.add_argument("--test_post", action="store_true", help="Send a test message to Discord and exit")
@@ -1354,6 +1551,7 @@ def main() -> int:
     scoring_inputs_by_provider: Dict[str, Dict[str, Dict[str, Optional[str]]]] = {}
     scoring_input_selection_by_provider: Dict[str, Dict[str, Dict[str, Any]]] = {}
     provenance_by_provider: Dict[str, Dict[str, Any]] = {}
+    discord_status_by_provider: Dict[str, Dict[str, str]] = {}
     flag_payload = {
         "profile": args.profile,
         "profiles": args.profiles,
@@ -1362,6 +1560,8 @@ def main() -> int:
         "no_enrich": args.no_enrich,
         "ai": args.ai,
         "ai_only": args.ai_only,
+        "min_score": args.min_score,
+        "min_alert_score": args.min_alert_score,
     }
 
     def _finalize(status: str, extra: Optional[Dict[str, Any]] = None) -> None:
@@ -1412,6 +1612,7 @@ def main() -> int:
                     "ranked_csv": _output_metadata(_provider_ranked_jobs_csv(provider, profile)),
                     "ranked_families_json": _output_metadata(_provider_ranked_families_json(provider, profile)),
                     "shortlist_md": _output_metadata(_provider_shortlist_md(provider, profile)),
+                    "top_md": _output_metadata(_provider_top_md(provider, profile)),
                 }
             provider_outputs[provider] = outputs_for_provider
 
@@ -1472,6 +1673,29 @@ def main() -> int:
                         provider=provider,
                     )
 
+        _write_run_registry(
+            run_id,
+            providers,
+            profiles_list,
+            run_metadata_path,
+            diff_counts_by_provider,
+            telemetry,
+        )
+
+        s3_meta: Dict[str, Any] = {"status": "disabled"}
+        if os.environ.get("S3_PUBLISH_ENABLED", "0").strip() == "1":
+            dry_run = os.environ.get("S3_PUBLISH_DRY_RUN", "0").strip() == "1"
+            require_s3 = os.environ.get("S3_PUBLISH_REQUIRE", "0").strip() == "1"
+            s3_meta = publish_s3.publish_run(
+                run_id=run_id,
+                bucket=None,
+                prefix=None,
+                dry_run=dry_run,
+                require_s3=require_s3,
+            )
+            if isinstance(s3_meta, dict) and s3_meta.get("status") == "ok":
+                _update_run_metadata_s3(run_metadata_path, s3_meta)
+
         if os.environ.get("JOBINTEL_PRUNE") == "1":
             try:
                 from scripts import prune_state as prune_state
@@ -1479,6 +1703,35 @@ def main() -> int:
                 prune_state.main(["--apply"])
             except Exception as e:
                 logger.warning("Prune step failed (JOBINTEL_PRUNE=1): %r", e)
+
+        s3_prefixes = s3_meta.get("prefixes") if isinstance(s3_meta, dict) else None
+        dashboard_url = None
+        if isinstance(s3_meta, dict):
+            dashboard_url = s3_meta.get("dashboard_url")
+        if not dashboard_url:
+            env_dashboard = os.environ.get("JOBINTEL_DASHBOARD_URL", "").strip().rstrip("/")
+            if env_dashboard:
+                dashboard_url = f"{env_dashboard}/runs/{run_id}"
+
+        logger.info(
+            "RUN SUMMARY\n"
+            "run_id=%s\n"
+            "providers=%s\n"
+            "profiles=%s\n"
+            "s3_status=%s\n"
+            "s3_bucket=%s\n"
+            "s3_prefixes=%s\n"
+            "dashboard_url=%s\n"
+            "discord_status=%s",
+            run_id,
+            ",".join(providers),
+            ",".join(profiles_list),
+            s3_meta.get("status", "unknown") if isinstance(s3_meta, dict) else "unknown",
+            s3_meta.get("bucket") if isinstance(s3_meta, dict) else None,
+            json.dumps(s3_prefixes, sort_keys=True) if s3_prefixes else None,
+            dashboard_url,
+            json.dumps(discord_status_by_provider, sort_keys=True) if discord_status_by_provider else None,
+        )
 
     current_stage = "startup"
 
@@ -1594,7 +1847,8 @@ def main() -> int:
 
             curr_ai_mtime_iso = _file_mtime_iso(ai_path)
             ai_fresh = bool(ai_path.exists()) and (
-                (ai_hash is not None and ai_hash == prev_ai_hash) or (curr_ai_mtime_iso is not None and curr_ai_mtime_iso == prev_ai_mtime)
+                (ai_hash is not None and ai_hash == prev_ai_hash)
+                or (curr_ai_mtime_iso is not None and curr_ai_mtime_iso == prev_ai_mtime)
             )
 
             if ai_fresh and prev_ai_ran and _ranked_up_to_date():
@@ -1616,7 +1870,9 @@ def main() -> int:
                 telemetry["ai_ran"] = True
                 record_stage(
                     current_stage,
-                    lambda: _run([sys.executable, str(REPO_ROOT / "scripts" / "run_ai_augment.py")], stage=current_stage),
+                    lambda: _run(
+                        [sys.executable, str(REPO_ROOT / "scripts" / "run_ai_augment.py")], stage=current_stage
+                    ),
                 )
                 ai_mtime = _file_mtime(ai_path)
                 ai_hash = _hash_file(ai_path)
@@ -1627,16 +1883,21 @@ def main() -> int:
                 ranked_csv = ranked_jobs_csv(profile)
                 ranked_families = ranked_families_json(profile)
                 shortlist_md = shortlist_md_path(profile)
+                top_md = DATA_DIR / f"openai_top.{profile}.md"
 
                 scoring_input_selection_by_profile[profile] = _score_input_selection_detail(args)
                 score_in, score_err = _resolve_score_input_path(args)
-                scoring_inputs_by_profile[profile] = _file_metadata(score_in) if score_in else {
-                    "path": None,
-                    "mtime_iso": None,
-                    "sha256": None,
-                }
+                scoring_inputs_by_profile[profile] = (
+                    _file_metadata(score_in)
+                    if score_in
+                    else {
+                        "path": None,
+                        "mtime_iso": None,
+                        "sha256": None,
+                    }
+                )
 
-                need_score = (not ranked_json.exists())
+                need_score = not ranked_json.exists()
                 if ai_mtime is not None:
                     need_score = need_score or ((_file_mtime(ranked_json) or 0) < ai_mtime)
                 else:
@@ -1650,21 +1911,25 @@ def main() -> int:
                         return 2
 
                 cmd = [
-                        sys.executable,
-                        str(REPO_ROOT / "scripts" / "score_jobs.py"),
-                        "--profile",
-                        profile,
-                        "--in_path",
-                        str(score_in),
-                        "--out_json",
-                        str(ranked_json),
-                        "--out_csv",
-                        str(ranked_csv),
-                        "--out_families",
-                        str(ranked_families),
-                        "--out_md",
-                        str(shortlist_md),
-                    ] + us_only_flag
+                    sys.executable,
+                    str(REPO_ROOT / "scripts" / "score_jobs.py"),
+                    "--profile",
+                    profile,
+                    "--in_path",
+                    str(score_in),
+                    "--out_json",
+                    str(ranked_json),
+                    "--out_csv",
+                    str(ranked_csv),
+                    "--out_families",
+                    str(ranked_families),
+                    "--out_md",
+                    str(shortlist_md),
+                    "--min_score",
+                    str(args.min_score),
+                    "--out_md_top_n",
+                    str(top_md),
+                ] + us_only_flag
                 if args.ai or args.ai_only:
                     cmd.append("--prefer_ai")
                     record_stage(current_stage, lambda cmd=cmd: _run(cmd, stage=current_stage))
@@ -1786,6 +2051,7 @@ def main() -> int:
                 ranked_csv = _provider_ranked_jobs_csv(provider, profile)
                 ranked_families = _provider_ranked_families_json(provider, profile)
                 shortlist_md = _provider_shortlist_md(provider, profile)
+                top_md = DATA_DIR / f"{provider}_top.{profile}.md"
 
                 if openai_only and provider == "openai":
                     selection = _score_input_selection_detail(args)
@@ -1795,17 +2061,13 @@ def main() -> int:
                     in_path, score_err = _resolve_score_input_path_for(args, provider)
                 scoring_input_selection_by_provider.setdefault(provider, {})[profile] = selection
                 scoring_inputs_by_provider.setdefault(provider, {})[profile] = (
-                    _file_metadata(in_path)
-                    if in_path
-                    else {"path": None, "mtime_iso": None, "sha256": None}
+                    _file_metadata(in_path) if in_path else {"path": None, "mtime_iso": None, "sha256": None}
                 )
 
                 if provider == "openai":
                     scoring_input_selection_by_profile[profile] = selection
                     scoring_inputs_by_profile[profile] = (
-                        _file_metadata(in_path)
-                        if in_path
-                        else {"path": None, "mtime_iso": None, "sha256": None}
+                        _file_metadata(in_path) if in_path else {"path": None, "mtime_iso": None, "sha256": None}
                     )
 
                 # Validate scoring prerequisites
@@ -1831,6 +2093,10 @@ def main() -> int:
                     str(ranked_families),
                     "--out_md",
                     str(shortlist_md),
+                    "--min_score",
+                    str(args.min_score),
+                    "--out_md_top_n",
+                    str(top_md),
                 ] + us_only_flag
                 if args.ai or args.ai_only:
                     cmd.append("--prefer_ai")
@@ -1846,6 +2112,7 @@ def main() -> int:
                         ranked_csv,
                         ranked_families,
                         shortlist_md,
+                        top_md,
                         _state_last_ranked(provider, profile),
                     ],
                     context=warn_context,
@@ -1870,8 +2137,7 @@ def main() -> int:
                         "suppressed": True,
                         "reason": "us_only_fallback",
                         "note": (
-                            "US-only filter removed all jobs under --no_enrich; "
-                            "changelog suppressed to avoid noise."
+                            "US-only filter removed all jobs under --no_enrich; changelog suppressed to avoid noise."
                         ),
                     }
                     diff_counts_by_provider.setdefault(provider, {})[profile] = diff_counts
@@ -1879,6 +2145,15 @@ def main() -> int:
                         diff_counts_by_profile[profile] = diff_counts
                     logger.info("Changelog (%s) suppressed due to US-only fallback.", label)
                     _write_json(state_path, curr)
+                    discord_status = _post_run_summary(
+                        provider,
+                        profile,
+                        ranked_json,
+                        diff_counts,
+                        args.min_score,
+                        no_post=args.no_post,
+                    )
+                    discord_status_by_provider.setdefault(provider, {})[profile] = discord_status
                     if unavailable_summary:
                         logger.info("Unavailable reasons: %s", unavailable_summary)
                     logger.info(
@@ -1923,7 +2198,66 @@ def main() -> int:
                 if provider == "openai":
                     diff_counts_by_profile[profile] = diff_counts
 
+                if provider in providers and os.environ.get("AI_ENABLED", "0").strip() == "1":
+                    current_stage = _stage_label("ai_insights", provider, profile)
+                    prev_path_arg = str(state_path) if state_exists else ""
+                    cmd = [
+                        sys.executable,
+                        str(REPO_ROOT / "scripts" / "run_ai_insights.py"),
+                        "--provider",
+                        provider,
+                        "--profile",
+                        profile,
+                        "--ranked_path",
+                        str(ranked_json),
+                        "--run_id",
+                        run_id,
+                    ]
+                    if prev_path_arg:
+                        cmd.extend(["--prev_path", prev_path_arg])
+                    record_stage(current_stage, lambda cmd=cmd: _run(cmd, stage=current_stage))
+
+                if (
+                    provider in providers
+                    and os.environ.get("AI_ENABLED", "0").strip() == "1"
+                    and os.environ.get("AI_JOB_BRIEFS_ENABLED", "0").strip() == "1"
+                ):
+                    current_stage = _stage_label("ai_job_briefs", provider, profile)
+                    cmd = [
+                        sys.executable,
+                        str(REPO_ROOT / "scripts" / "run_ai_job_briefs.py"),
+                        "--provider",
+                        provider,
+                        "--profile",
+                        profile,
+                        "--ranked_path",
+                        str(ranked_json),
+                        "--run_id",
+                        run_id,
+                        "--max_jobs",
+                        os.environ.get("AI_JOB_BRIEFS_MAX_JOBS", "10"),
+                        "--max_tokens_per_job",
+                        os.environ.get("AI_JOB_BRIEFS_MAX_TOKENS", "400"),
+                        "--total_budget",
+                        os.environ.get("AI_JOB_BRIEFS_TOTAL_BUDGET", "2000"),
+                    ]
+                    record_stage(current_stage, lambda cmd=cmd: _run(cmd, stage=current_stage))
+
                 _write_json(state_path, curr)
+                extra_lines: List[str] = []
+                briefs_line = _briefs_status_line(run_id, profile)
+                if briefs_line:
+                    extra_lines.append(briefs_line)
+                discord_status = _post_run_summary(
+                    provider,
+                    profile,
+                    ranked_json,
+                    diff_counts,
+                    args.min_score,
+                    no_post=args.no_post,
+                    extra_lines=extra_lines or None,
+                )
+                discord_status_by_provider.setdefault(provider, {})[profile] = discord_status
 
                 interesting_new = [j for j in new_jobs if j.get("score", 0) >= args.min_alert_score]
                 interesting_changed = [j for j in changed_jobs if j.get("score", 0) >= args.min_alert_score]
@@ -2037,9 +2371,7 @@ def main() -> int:
         if exit_code == 0:
             raise
         err_msg = str(e) if str(e) else f"Stage '{current_stage}' exited"
-        logger.error(
-            f"Stage '{current_stage}' raised SystemExit({exit_code}): {err_msg}"
-        )
+        logger.error(f"Stage '{current_stage}' raised SystemExit({exit_code}): {err_msg}")
         _post_failure(
             webhook,
             stage=current_stage,

@@ -67,7 +67,9 @@ def test_us_only_fallback_suppresses_changelog_and_alerts(tmp_path, monkeypatch)
 
     monkeypatch.setattr(run_daily, "_dispatch_alerts", fake_dispatch)
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--no_enrich", "--profiles", "cs", "--us_only"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--no_enrich", "--profiles", "cs", "--us_only"]
+    )
     rc = run_daily.main()
 
     assert rc == 0

@@ -121,7 +121,9 @@ def test_ai_runs_and_scoring_when_needed(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(run_daily, "ranked_jobs_csv", lambda profile: tmp_path / "ranked.csv")
     monkeypatch.setattr(run_daily, "ranked_families_json", lambda profile: tmp_path / "families.json")
     monkeypatch.setattr(run_daily, "shortlist_md_path", lambda profile: tmp_path / "shortlist.md")
-    monkeypatch.setattr(run_daily, "state_last_ranked", lambda profile: tmp_path / "state" / f"last_ranked.{profile}.json")
+    monkeypatch.setattr(
+        run_daily, "state_last_ranked", lambda profile: tmp_path / "state" / f"last_ranked.{profile}.json"
+    )
 
     fake_run, counters = _fake_run_factory(ai_path, ranked)
     monkeypatch.setattr(run_daily, "_run", fake_run)
@@ -190,4 +192,3 @@ def test_ai_runs_and_scoring_when_needed(tmp_path: Path, monkeypatch) -> None:
     data3 = json.loads(last_run.read_text())
     assert data3["status"] == "success"
     assert counters3["score"] == 1
-

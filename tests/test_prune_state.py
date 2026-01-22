@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 
 import scripts.prune_state as prune_state
@@ -76,7 +75,9 @@ def test_prune_state_profile_limits_history(tmp_path: Path, monkeypatch) -> None
         p.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(state_dir))
-    rc = prune_state.main(["--apply", "--keep-history", "1", "--keep-runs", "1", "--max-age-days", "0", "--profile", "cs"])
+    rc = prune_state.main(
+        ["--apply", "--keep-history", "1", "--keep-runs", "1", "--max-age-days", "0", "--profile", "cs"]
+    )
     assert rc == 0
 
     assert not cs_old.exists()

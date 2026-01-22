@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
     from scripts import _bootstrap  # noqa: F401
 
 import argparse
-import json
 import os
 import shutil
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 from ji_engine.config import (
     DEFAULT_KEEP_HISTORY_SNAPSHOTS_PER_PROFILE,

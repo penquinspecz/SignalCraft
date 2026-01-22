@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import scripts.run_daily as run_daily
+from scripts.schema_validate import resolve_schema_path, validate_report
 
 
 def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> None:
@@ -13,7 +14,7 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     enriched_path = tmp_path / "openai_enriched_jobs.json"
     ai_path = tmp_path / "openai_enriched_jobs_ai.json"
     raw_path.write_text('{"raw": true}', encoding="utf-8")
-    labeled_path.write_text('{"labeled": true}', encoding="utf-8")
+    labeled_path.write_text("[]", encoding="utf-8")
     enriched_path.write_text('{"enriched": true}', encoding="utf-8")
     ai_path.write_text('{"ai": true}', encoding="utf-8")
     os.utime(raw_path, (ts, ts))
@@ -73,6 +74,14 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     scoring_input_selection_by_profile = {
         "cs": {
             "selected": run_daily._file_metadata(enriched_path),
+            "selected_path": str(enriched_path),
+            "candidate_paths_considered": [
+                run_daily._candidate_metadata(ai_path),
+                run_daily._candidate_metadata(enriched_path),
+                run_daily._candidate_metadata(labeled_path),
+            ],
+            "selection_reason": "default_enriched_required",
+            "comparison_details": {"newer_by_seconds": 0, "prefer_ai": False},
             "candidates": [
                 run_daily._candidate_metadata(ai_path),
                 run_daily._candidate_metadata(enriched_path),
@@ -87,6 +96,14 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         },
         "tam": {
             "selected": run_daily._file_metadata(labeled_path),
+            "selected_path": str(labeled_path),
+            "candidate_paths_considered": [
+                run_daily._candidate_metadata(ai_path),
+                run_daily._candidate_metadata(enriched_path),
+                run_daily._candidate_metadata(labeled_path),
+            ],
+            "selection_reason": "no_enrich_labeled_newer_or_equal",
+            "comparison_details": {"newer_by_seconds": 0, "prefer_ai": False},
             "candidates": [
                 run_daily._candidate_metadata(ai_path),
                 run_daily._candidate_metadata(enriched_path),
@@ -145,5 +162,9 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert data["outputs_by_provider"]["openai"]["tam"]["ranked_csv"]["path"] == str(_ranked_csv("tam"))
     assert data["scoring_input_selection_by_profile"]["cs"]["decision"]["rule"] == "default_enriched_required"
     assert data["scoring_input_selection_by_profile"]["tam"]["decision"]["rule"] == "no_enrich_compare"
-    assert data["scoring_input_selection_by_provider"]["openai"]["cs"]["decision"]["rule"] == "default_enriched_required"
+    assert (
+        data["scoring_input_selection_by_provider"]["openai"]["cs"]["decision"]["rule"] == "default_enriched_required"
+    )
     assert path1.name == "20260101T000000Z.json"
+    schema = json.loads(resolve_schema_path(1).read_text(encoding="utf-8"))
+    assert validate_report(data, schema) == []

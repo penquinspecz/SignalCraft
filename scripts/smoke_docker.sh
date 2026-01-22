@@ -8,6 +8,8 @@ SMOKE_SKIP_BUILD=${SMOKE_SKIP_BUILD:-0}
 SMOKE_PROVIDERS=${SMOKE_PROVIDERS:-openai}
 SMOKE_PROFILES=${SMOKE_PROFILES:-cs}
 SMOKE_NO_ENRICH=-e
+SMOKE_UPDATE_SNAPSHOTS=${SMOKE_UPDATE_SNAPSHOTS:-0}
+SMOKE_MIN_SCORE=${SMOKE_MIN_SCORE:-40}
 PROVIDERS=${PROVIDERS:-$SMOKE_PROVIDERS}
 PROFILES=${PROFILES:-$SMOKE_PROFILES}
 SMOKE_TAIL_LINES=${SMOKE_TAIL_LINES:-0}
@@ -82,6 +84,10 @@ if [ "$SMOKE_SKIP_BUILD" = "1" ]; then
   fi
   echo "==> Using existing image ($IMAGE_TAG)"
 else
+  if [ "$SMOKE_UPDATE_SNAPSHOTS" = "1" ] && echo "$PROVIDERS" | grep -q "openai"; then
+    echo "==> Update OpenAI snapshots (host)"
+    python scripts/update_snapshots.py --provider openai
+  fi
   echo "==> Build image ($IMAGE_TAG)"
   docker build -t "$IMAGE_TAG" .
 fi
@@ -117,12 +123,24 @@ echo "==> Validate baked-in snapshots"
 docker run --rm --entrypoint python "$IMAGE_TAG" \
   -m src.jobintel.cli snapshots validate --all --data-dir /app/data
 
+echo "==> Check job detail snapshots (OpenAI)"
+set +e
+jobs_count="$(docker run --rm --entrypoint sh "$IMAGE_TAG" -c 'ls -1 /app/data/openai_snapshots/jobs/*.html 2>/dev/null | wc -l' 2>/dev/null)"
+set -e
+if [ -n "$jobs_count" ] && [ "$jobs_count" -gt 0 ]; then
+  echo "OpenAI job snapshots present: $jobs_count"
+else
+  echo "Warning: no OpenAI job snapshots found in /app/data/openai_snapshots/jobs/."
+  echo "Generate with: ./scripts/update_snapshots.py --provider openai --out_dir data/openai_snapshots"
+  echo "Then rebuild (or set SMOKE_UPDATE_SNAPSHOTS=1 with SMOKE_SKIP_BUILD=0)."
+fi
+
 echo "==> Run smoke container ($CONTAINER_NAME)"
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
 set +e
 docker create --name "$CONTAINER_NAME" \
-  "$IMAGE_TAG" --providers "$PROVIDERS" --profiles "$PROFILES" --offline --no_post \
+  "$IMAGE_TAG" --providers "$PROVIDERS" --profiles "$PROFILES" --offline --no_post --min_score "$SMOKE_MIN_SCORE" \
   $(if [ "$SMOKE_NO_ENRICH" = "1" ]; then echo "--no_enrich"; fi) >/dev/null
 create_status=$?
 set -e
@@ -172,7 +190,9 @@ for provider in "${provider_list[@]}"; do
   if [ -z "$provider_trimmed" ]; then
     continue
   fi
+  copy_from_container "/app/data/${provider_trimmed}_raw_jobs.json" 0
   copy_from_container "/app/data/${provider_trimmed}_labeled_jobs.json" 1
+  copy_from_container "/app/data/${provider_trimmed}_enriched_jobs.json" 0
   for profile in "${profile_list[@]}"; do
     profile_trimmed="$(echo "$profile" | xargs)"
     if [ -z "$profile_trimmed" ]; then
@@ -181,6 +201,7 @@ for provider in "${provider_list[@]}"; do
     copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" 1
     copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" 1
     copy_from_container "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" 0
+    copy_from_container "/app/data/${provider_trimmed}_top.${profile_trimmed}.md" 0
     copy_from_container "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" 0
     copy_from_container "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.json" 0
     copy_from_container "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.md" 0
