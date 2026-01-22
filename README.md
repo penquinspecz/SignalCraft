@@ -306,6 +306,7 @@ JOBINTEL_IMAGE_TAG=jobintel:dev make daily
 ```
 
 Alerts are written to `data/<provider>_alerts.<profile>.md`.
+Last-seen state is stored under `state/runs/last_seen/`; delete that directory to reset alert baselines.
 
 ## Delta summary
 
