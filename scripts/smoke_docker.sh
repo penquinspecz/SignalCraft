@@ -11,6 +11,11 @@ SMOKE_TAIL_LINES=${SMOKE_TAIL_LINES:-0}
 container_created=0
 status=1
 
+if [ "${DOCKER_BUILDKIT:-1}" = "0" ]; then
+  echo "BuildKit is required (Dockerfile uses RUN --mount=type=cache). Set DOCKER_BUILDKIT=1."
+  exit 1
+fi
+
 write_exit_code() {
   mkdir -p "$ARTIFACT_DIR"
   echo "$status" > "$ARTIFACT_DIR/exit_code.txt"

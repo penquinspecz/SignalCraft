@@ -133,7 +133,7 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert data["providers"] == ["openai"]
     assert data["diff_counts"]["cs"]["new"] == 1
     assert data["stage_durations"] == telemetry["stages"]
-    assert data["run_report_schema_version"] == "1"
+    assert data["run_report_schema_version"] == 1
     assert data["git_sha"] == "deadbeef"
     assert data["image_tag"] == "jobintel:test"
     assert data["inputs"]["raw_jobs_json"]["path"] == str(raw_path)

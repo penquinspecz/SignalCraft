@@ -9,6 +9,13 @@ endif
 PROFILE ?= cs
 LIMIT ?= 15
 
+define check_buildkit
+	@if [ "$${DOCKER_BUILDKIT:-1}" = "0" ]; then \
+		echo "BuildKit is required (Dockerfile uses RUN --mount=type=cache). Set DOCKER_BUILDKIT=1."; \
+		exit 1; \
+	fi
+endef
+
 test:
 	$(PY) -m pytest -q
 
@@ -21,11 +28,13 @@ format-check:
 gates: format-check lint test
 
 docker-build:
+	$(call check_buildkit)
 	docker build -t jobintel:local --build-arg RUN_TESTS=0 .
 
 image: docker-build
 
 image-ci:
+	$(call check_buildkit)
 	docker build -t jobintel:local --build-arg RUN_TESTS=1 .
 
 docker-run-local:
@@ -50,10 +59,12 @@ snapshot:
 	$(PY) scripts/update_snapshots.py --provider $(provider)
 
 smoke:
+	$(call check_buildkit)
 	$(MAKE) image
 	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build
 
 smoke-fast:
+	$(call check_buildkit)
 	@docker image inspect jobintel:local >/dev/null 2>&1 || ( \
 		echo "jobintel:local image missing; building with make image..."; \
 		$(MAKE) image; \
@@ -61,5 +72,6 @@ smoke-fast:
 	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh
 
 smoke-ci:
+	$(call check_buildkit)
 	$(MAKE) image-ci
 	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build --providers openai --profiles cs
