@@ -35,4 +35,3 @@ def test_warns_on_non_writable_artifacts(monkeypatch: Any, tmp_path: Path, caplo
 
     assert "Non-writable pipeline artifacts detected" in caplog.text
     assert "Fix ownership/permissions" in caplog.text
-

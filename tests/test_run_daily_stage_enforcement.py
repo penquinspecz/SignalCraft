@@ -12,9 +12,9 @@ import importlib
 import json
 import logging
 import os
-import time
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -36,18 +36,18 @@ def test_default_run_includes_all_stages(tmp_path: Path, monkeypatch: Any) -> No
     state_dir = tmp_path / "state"
     data_dir.mkdir()
     state_dir.mkdir()
-    
+
     # Create snapshot
     snapshot_dir = data_dir / "openai_snapshots"
     snapshot_dir.mkdir()
     (snapshot_dir / "index.html").write_text("<html>test</html>")
-    
+
     # Create minimal inputs
     (data_dir / "openai_raw_jobs.json").write_text("[]")
     (data_dir / "openai_labeled_jobs.json").write_text("[]")
     (data_dir / "openai_enriched_jobs.json").write_text("[]")
     (data_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}')
-    
+
     # Run with --no_subprocess to capture stage execution
     result = subprocess.run(
         [
@@ -63,17 +63,19 @@ def test_default_run_includes_all_stages(tmp_path: Path, monkeypatch: Any) -> No
         capture_output=True,
         text=True,
     )
-    
+
     # Should succeed
-    assert result.returncode == 0, f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-    
+    assert result.returncode == 0, (
+        f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
     # Check that all stages ran (by checking for stage names in output or telemetry)
     last_run = state_dir / "last_run.json"
     assert last_run.exists(), "last_run.json should exist"
-    
+
     telemetry = json.loads(last_run.read_text())
     stages = telemetry.get("stages", {})
-    
+
     # Default run should include scrape, classify, enrich (if not --no_enrich), and score
     assert "scrape" in stages, "scrape stage should have run"
     assert "classify" in stages, "classify stage should have run"
@@ -376,7 +378,9 @@ def test_no_enrich_uses_labeled_input_even_if_ai_exists(tmp_path: Path, monkeypa
                 path.write_text("[]", encoding="utf-8")
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--no_post", "--no_enrich", "--profiles", "cs"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--no_post", "--no_enrich", "--profiles", "cs"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -468,7 +472,9 @@ def test_short_circuit_scoring_uses_labeled_input(tmp_path: Path, monkeypatch: A
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
 
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--no_post", "--no_enrich", "--ai", "--profiles", "cs"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--no_post", "--no_enrich", "--ai", "--profiles", "cs"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -537,7 +543,9 @@ def test_score_input_selection_no_enrich_prefers_newer_enriched(tmp_path: Path, 
                 path.write_text("[]", encoding="utf-8")
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--no_post", "--profiles", "cs", "--no_enrich"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--no_post", "--profiles", "cs", "--no_enrich"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -557,18 +565,18 @@ def test_no_enrich_reaches_score_when_fixtures_exist(tmp_path: Path, monkeypatch
     state_dir = tmp_path / "state"
     data_dir.mkdir()
     state_dir.mkdir()
-    
+
     # Create snapshot
     snapshot_dir = data_dir / "openai_snapshots"
     snapshot_dir.mkdir()
     (snapshot_dir / "index.html").write_text("<html>test</html>")
-    
+
     # Create minimal inputs (including enriched data)
     (data_dir / "openai_raw_jobs.json").write_text("[]")
     (data_dir / "openai_labeled_jobs.json").write_text("[]")
     (data_dir / "openai_enriched_jobs.json").write_text("[]")
     (data_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}')
-    
+
     # Run with --no_enrich and --no_subprocess
     result = subprocess.run(
         [
@@ -585,17 +593,19 @@ def test_no_enrich_reaches_score_when_fixtures_exist(tmp_path: Path, monkeypatch
         capture_output=True,
         text=True,
     )
-    
+
     # Should succeed
-    assert result.returncode == 0, f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-    
+    assert result.returncode == 0, (
+        f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
     # Check telemetry
     last_run = state_dir / "last_run.json"
     assert last_run.exists(), "last_run.json should exist"
-    
+
     telemetry = json.loads(last_run.read_text())
     stages = telemetry.get("stages", {})
-    
+
     # Should include scrape, classify, and score (but not enrich)
     assert "scrape" in stages, "scrape stage should have run"
     assert "classify" in stages, "classify stage should have run"
@@ -606,7 +616,7 @@ def test_no_enrich_reaches_score_when_fixtures_exist(tmp_path: Path, monkeypatch
 def test_missing_scoring_prerequisites_fail_with_exit_code_2(tmp_path: Path, monkeypatch: Any) -> None:
     """
     Verify that the prerequisite check in run_daily.py works correctly.
-    
+
     Note: In the normal pipeline flow, classify always creates labeled_jobs.json before
     scoring runs, making it difficult to trigger the prerequisite check failure.
     This test verifies the check exists and has a clear error message by testing
@@ -618,17 +628,17 @@ def test_missing_scoring_prerequisites_fail_with_exit_code_2(tmp_path: Path, mon
     state_dir = tmp_path / "state"
     data_dir.mkdir()
     state_dir.mkdir()
-    
+
     # Create snapshot
     snapshot_dir = data_dir / "openai_snapshots"
     snapshot_dir.mkdir()
     (snapshot_dir / "index.html").write_text("<html>test</html>")
-    
+
     # Create all required files
     (data_dir / "openai_raw_jobs.json").write_text("[]")
     (data_dir / "openai_labeled_jobs.json").write_text("[]")
     (data_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}')
-    
+
     # Run with --no_enrich (scoring will use labeled as input)
     result = subprocess.run(
         [
@@ -645,14 +655,16 @@ def test_missing_scoring_prerequisites_fail_with_exit_code_2(tmp_path: Path, mon
         capture_output=True,
         text=True,
     )
-    
+
     # Should succeed when prerequisites exist
-    assert result.returncode == 0, f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-    
+    assert result.returncode == 0, (
+        f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
     # Verify scoring ran
     last_run = state_dir / "last_run.json"
     assert last_run.exists(), "last_run.json should exist"
-    
+
     telemetry = json.loads(last_run.read_text())
     stages = telemetry.get("stages", {})
     assert any(k.startswith("score:") for k in stages), "score stage should have run"
@@ -668,16 +680,16 @@ def test_scrape_only_flag_exits_after_scrape(tmp_path: Path, monkeypatch: Any) -
     state_dir = tmp_path / "state"
     data_dir.mkdir()
     state_dir.mkdir()
-    
+
     # Create snapshot
     snapshot_dir = data_dir / "openai_snapshots"
     snapshot_dir.mkdir()
     (snapshot_dir / "index.html").write_text("<html>test</html>")
-    
+
     # Create minimal inputs
     (data_dir / "openai_raw_jobs.json").write_text("[]")
     (data_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}')
-    
+
     # Run with --scrape_only
     result = subprocess.run(
         [
@@ -692,17 +704,19 @@ def test_scrape_only_flag_exits_after_scrape(tmp_path: Path, monkeypatch: Any) -
         capture_output=True,
         text=True,
     )
-    
+
     # Should succeed
-    assert result.returncode == 0, f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
-    
+    assert result.returncode == 0, (
+        f"Expected success, got {result.returncode}\nstdout: {result.stdout}\nstderr: {result.stderr}"
+    )
+
     # Check telemetry
     last_run = state_dir / "last_run.json"
     assert last_run.exists(), "last_run.json should exist"
-    
+
     telemetry = json.loads(last_run.read_text())
     stages = telemetry.get("stages", {})
-    
+
     # Should only include scrape
     assert "scrape" in stages, "scrape stage should have run"
     assert "classify" not in stages, "classify stage should NOT have run with --scrape_only"
@@ -872,7 +886,9 @@ def test_systemexit_zero_stage_allows_pipeline_to_continue(tmp_path: Path, monke
             raise SystemExit(0)
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_enrich", "--no_post"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_enrich", "--no_post"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -914,7 +930,9 @@ def test_scrape_only_writes_history_summary(tmp_path: Path, monkeypatch: Any) ->
             (data_dir / "openai_raw_jobs.json").write_text("[]")
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--scrape_only", "--profiles", "cs", "--no_post"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--scrape_only", "--profiles", "cs", "--no_post"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -973,7 +991,9 @@ def test_score_input_selection_no_enrich(tmp_path: Path, monkeypatch: Any) -> No
                 path.write_text("[]", encoding="utf-8")
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--no_enrich", "--profiles", "cs", "--no_post"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--no_enrich", "--profiles", "cs", "--no_post"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -991,7 +1011,9 @@ def test_score_input_selection_no_enrich(tmp_path: Path, monkeypatch: Any) -> No
     lock_path = state_dir / "run_daily.lock"
     if lock_path.exists():
         lock_path.unlink()
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--no_enrich", "--profiles", "cs", "--no_post"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--no_enrich", "--profiles", "cs", "--no_post"]
+    )
     rc2 = run_daily.main()
     assert rc2 == 2
 
@@ -1046,7 +1068,9 @@ def test_score_input_selection_ai_only(tmp_path: Path, monkeypatch: Any) -> None
                 path.write_text("[]", encoding="utf-8")
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--ai_only", "--ai", "--profiles", "cs", "--no_post"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--ai_only", "--ai", "--profiles", "cs", "--no_post"]
+    )
 
     rc = run_daily.main()
     assert rc == 0
@@ -1062,7 +1086,9 @@ def test_score_input_selection_ai_only(tmp_path: Path, monkeypatch: Any) -> None
     lock_path = state_dir / "run_daily.lock"
     if lock_path.exists():
         lock_path.unlink()
-    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--ai_only", "--ai", "--profiles", "cs", "--no_post"])
+    monkeypatch.setattr(
+        sys, "argv", ["run_daily.py", "--no_subprocess", "--ai_only", "--ai", "--profiles", "cs", "--no_post"]
+    )
     rc2 = run_daily.main()
     assert rc2 == 2
 

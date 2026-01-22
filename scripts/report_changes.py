@@ -3,14 +3,13 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
+import scripts.run_daily as run_daily
 from ji_engine.config import HISTORY_DIR, USER_STATE_DIR
 from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.user_state import load_user_state
-import scripts.run_daily as run_daily
 
 
 def _list_runs(profile: str) -> List[Dict[str, object]]:

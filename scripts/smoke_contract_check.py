@@ -113,9 +113,7 @@ def _validate_delta_summary(
 
             if baseline_id is None:
                 if any(val != 0 for val in (new_count, removed_count, changed_count, unchanged_count, field_sum)):
-                    raise RuntimeError(
-                        f"delta_summary expected zero counts for baseline-missing {provider}/{profile}"
-                    )
+                    raise RuntimeError(f"delta_summary expected zero counts for baseline-missing {provider}/{profile}")
             else:
                 if new_count + changed_count + unchanged_count != len(ranked_jobs):
                     raise RuntimeError(
@@ -127,6 +125,7 @@ def _validate_delta_summary(
                         f"delta_summary change_fields sum {field_sum} < changed_job_count {changed_count} "
                         f"for {provider}/{profile}"
                     )
+
 
 def _validate_run_report(
     report: dict,
@@ -153,14 +152,9 @@ def _validate_run_report(
     classified_total = selection.get("classified_job_count")
     if not isinstance(classified_total, int):
         raise RuntimeError("run_report.json missing classified_job_count")
-    expected_total = sum(
-        int(classified_by_provider.get(provider, 0)) for provider in providers
-    )
+    expected_total = sum(int(classified_by_provider.get(provider, 0)) for provider in providers)
     if classified_total != expected_total:
-        raise RuntimeError(
-            "classified_job_count mismatch: "
-            f"report={classified_total} expected_sum={expected_total}"
-        )
+        raise RuntimeError(f"classified_job_count mismatch: report={classified_total} expected_sum={expected_total}")
 
     for provider in providers:
         meta = provenance.get(provider) or {}
@@ -180,9 +174,7 @@ def _validate_run_report(
             raise RuntimeError(f"{labeled_path.name} must be a non-empty list")
 
         if provider not in classified_by_provider:
-            raise RuntimeError(
-                f"run_report.json missing classified_job_count_by_provider.{provider}"
-            )
+            raise RuntimeError(f"run_report.json missing classified_job_count_by_provider.{provider}")
         if int(classified_by_provider[provider]) != len(labeled_jobs):
             raise RuntimeError(
                 f"classified_job_count mismatch for {provider}: "
@@ -202,15 +194,11 @@ def _validate_run_report(
             if not isinstance(ranked_jobs, list):
                 raise RuntimeError(f"{ranked_json_path.name} must be a list")
             if len(ranked_jobs) < min_ranked:
-                raise RuntimeError(
-                    f"{ranked_json_path.name} has {len(ranked_jobs)} items (min {min_ranked})"
-                )
+                raise RuntimeError(f"{ranked_json_path.name} has {len(ranked_jobs)} items (min {min_ranked})")
 
             csv_rows = _count_csv_rows(ranked_csv_path)
             if csv_rows != len(ranked_jobs):
-                raise RuntimeError(
-                    f"{ranked_csv_path.name} rows {csv_rows} != ranked JSON length {len(ranked_jobs)}"
-                )
+                raise RuntimeError(f"{ranked_csv_path.name} rows {csv_rows} != ranked JSON length {len(ranked_jobs)}")
 
             alerts_json = artifacts / f"{provider}_alerts.{profile}.json"
             if provider == "openai":
@@ -237,23 +225,17 @@ def _validate_run_report(
                 }
                 for key, expected_len in expected.items():
                     if counts.get(key) != expected_len:
-                        raise RuntimeError(
-                            f"{alerts_json.name} counts.{key}={counts.get(key)} expected {expected_len}"
-                        )
+                        raise RuntimeError(f"{alerts_json.name} counts.{key}={counts.get(key)} expected {expected_len}")
 
                 ranked_ids = {job_identity(job) for job in ranked_jobs}
                 for group in ("new_jobs", "score_changes", "title_or_location_changes"):
                     for item in alerts_payload.get(group, []):
                         jid = item.get("job_id")
                         if jid and jid not in ranked_ids:
-                            raise RuntimeError(
-                                f"{alerts_json.name} {group} contains job_id not in ranked: {jid}"
-                            )
+                            raise RuntimeError(f"{alerts_json.name} {group} contains job_id not in ranked: {jid}")
                 for jid in alerts_payload.get("removed_jobs", []):
                     if jid in ranked_ids:
-                        raise RuntimeError(
-                            f"{alerts_json.name} removed_jobs contains job_id still ranked: {jid}"
-                        )
+                        raise RuntimeError(f"{alerts_json.name} removed_jobs contains job_id still ranked: {jid}")
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -299,13 +281,9 @@ def main(argv: List[str] | None = None) -> int:
         )
     if args.require_schema_version:
         if schema_version != args.require_schema_version:
-            raise RuntimeError(
-                f"run_report_schema_version {schema_version} != required {args.require_schema_version}"
-            )
+            raise RuntimeError(f"run_report_schema_version {schema_version} != required {args.require_schema_version}")
     elif schema_version < args.min_schema_version:
-        raise RuntimeError(
-            f"run_report_schema_version {schema_version} < minimum {args.min_schema_version}"
-        )
+        raise RuntimeError(f"run_report_schema_version {schema_version} < minimum {args.min_schema_version}")
 
     schema_path = resolve_schema_path(schema_version)
     schema = _load_json(schema_path)

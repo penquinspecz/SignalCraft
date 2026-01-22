@@ -1,5 +1,5 @@
-import importlib
 import hashlib
+import importlib
 from pathlib import Path
 
 import ji_engine.config as config
@@ -46,13 +46,9 @@ def test_history_paths_and_latest(tmp_path: Path, monkeypatch) -> None:
     latest_dir = run_daily._latest_profile_dir(profile)
 
     for key, src in dataset.items():
-        assert (history_dir / src.name).read_text(encoding="utf-8") == src.read_text(
-            encoding="utf-8"
-        )
+        assert (history_dir / src.name).read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
         if key != "metadata":
-            assert (latest_dir / src.name).read_text(encoding="utf-8") == src.read_text(
-                encoding="utf-8"
-            )
+            assert (latest_dir / src.name).read_text(encoding="utf-8") == src.read_text(encoding="utf-8")
     run_meta_name = dataset["metadata"].name
     assert (history_dir / run_meta_name).exists()
     assert (latest_dir / "run_metadata.json").exists()
@@ -76,7 +72,13 @@ def test_short_circuit_history_summary(tmp_path: Path, monkeypatch) -> None:
         {profile: {"new": 0, "changed": 0, "removed": 0}},
         None,
         {profile: {"path": None, "mtime_iso": None, "sha256": None}},
-        {profile: {"selected": None, "candidates": [], "decision": {"rule": "default_enriched_required", "flags": {}, "comparisons": {}, "reason": ""}}},
+        {
+            profile: {
+                "selected": None,
+                "candidates": [],
+                "decision": {"rule": "default_enriched_required", "flags": {}, "comparisons": {}, "reason": ""},
+            }
+        },
     )
 
     summary_payload = {
@@ -96,9 +98,6 @@ def test_short_circuit_history_summary(tmp_path: Path, monkeypatch) -> None:
 def test_short_circuit_history_dir(tmp_path: Path, monkeypatch):
     override = tmp_path / "custom_state"
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(override))
-    import importlib
-
-    import ji_engine.config as config
 
     importlib.reload(config)
     importlib.reload(run_daily)
@@ -114,7 +113,13 @@ def test_short_circuit_history_dir(tmp_path: Path, monkeypatch):
         {profile: {"new": 0, "changed": 0, "removed": 0}},
         None,
         {profile: {"path": None, "mtime_iso": None, "sha256": None}},
-        {profile: {"selected": None, "candidates": [], "decision": {"rule": "default_enriched_required", "flags": {}, "comparisons": {}, "reason": ""}}},
+        {
+            profile: {
+                "selected": None,
+                "candidates": [],
+                "decision": {"rule": "default_enriched_required", "flags": {}, "comparisons": {}, "reason": ""},
+            }
+        },
     )
 
     summary_payload = {

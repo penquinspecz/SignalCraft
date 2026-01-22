@@ -35,6 +35,10 @@ def _join(path: str, key: str) -> str:
 
 
 def _validate_node(value: Any, schema: Dict[str, Any], path: str, errors: List[str]) -> None:
+    if "enum" in schema:
+        if value not in schema["enum"]:
+            errors.append(f"{path or 'root'}: value {value!r} not in enum")
+            return
     expected_type = schema.get("type")
     if expected_type and not _type_ok(value, expected_type):
         errors.append(f"{path or 'root'}: expected {expected_type}")

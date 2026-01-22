@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from scripts.score_jobs import write_application_kit_md
-from ji_engine.ai.provider import StubProvider
 from ji_engine.ai.cache import FileSystemAICache
+from ji_engine.ai.provider import StubProvider
 from ji_engine.ai.schema import ensure_ai_payload
+from scripts.score_jobs import write_application_kit_md
 
 
 def test_application_kit_md_sections(tmp_path: Path) -> None:
@@ -38,4 +37,3 @@ def test_application_kit_md_sections(tmp_path: Path) -> None:
     # Ensure deterministic count expectations
     assert content.count("Day 1:") == 1
     assert content.count("Day 14:") == 1
-

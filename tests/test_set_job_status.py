@@ -12,9 +12,7 @@ def test_set_job_status_create_update_remove(tmp_path: Path, monkeypatch) -> Non
     user_state_dir = tmp_path / "state" / "user_state"
     monkeypatch.setattr(set_job_status, "USER_STATE_DIR", user_state_dir)
 
-    rc = set_job_status.main(
-        ["--profile", "cs", "--job-id", "job-1", "--status", "applied", "--note", "first note"]
-    )
+    rc = set_job_status.main(["--profile", "cs", "--job-id", "job-1", "--status", "applied", "--note", "first note"])
     assert rc == 0
     path = user_state_dir / "cs.json"
     assert path.exists()
@@ -22,9 +20,7 @@ def test_set_job_status_create_update_remove(tmp_path: Path, monkeypatch) -> Non
     assert data["job-1"]["status"] == "APPLIED"
     assert data["job-1"]["notes"] == "first note"
 
-    rc = set_job_status.main(
-        ["--profile", "cs", "--job-id", "job-1", "--status", "interviewing", "--note", "updated"]
-    )
+    rc = set_job_status.main(["--profile", "cs", "--job-id", "job-1", "--status", "interviewing", "--note", "updated"])
     assert rc == 0
     data = json.loads(_read(path))
     assert data["job-1"]["status"] == "INTERVIEWING"

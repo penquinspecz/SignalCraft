@@ -21,7 +21,9 @@ def test_us_only_skips_when_no_location_signals(tmp_path, monkeypatch, caplog) -
     _write_jobs(enriched, [{"title": "No Location", "apply_url": "http://example.com", "score": 1}])
 
     (data_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}', encoding="utf-8")
-    (data_dir / "profiles.json").write_text('{"cs": {"role_band_multipliers": {}, "profile_weights": {}}}', encoding="utf-8")
+    (data_dir / "profiles.json").write_text(
+        '{"cs": {"role_band_multipliers": {}, "profile_weights": {}}}', encoding="utf-8"
+    )
 
     monkeypatch.setenv("JOBINTEL_DATA_DIR", str(data_dir))
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(state_dir))

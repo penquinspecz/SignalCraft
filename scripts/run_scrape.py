@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
@@ -16,8 +17,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ji_engine.config import DATA_DIR, RAW_JOBS_JSON
-from ji_engine.providers.openai_provider import OpenAICareersProvider
 from ji_engine.providers.ashby_provider import AshbyProvider
+from ji_engine.providers.openai_provider import OpenAICareersProvider
 from ji_engine.providers.registry import load_providers_config
 from ji_engine.providers.snapshot_json_provider import SnapshotJsonProvider
 

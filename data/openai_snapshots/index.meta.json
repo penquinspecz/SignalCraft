@@ -1,0 +1,9 @@
+{
+  "bytes": 6407,
+  "fetched_at": "2026-01-22T20:38:01.489304+00:00",
+  "http_status": 403,
+  "note": "HTTPError: HTTP Error 403: Forbidden",
+  "provider": "openai",
+  "sha256": "1eaf943abe167fbde631ac897d0c267b140e4ceab6ee3ba7a6bb649a40c711b3",
+  "url": "https://openai.com/careers/search/"
+}

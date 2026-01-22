@@ -54,4 +54,3 @@ def test_run_ai_augment_updates_schema(tmp_path: Path, monkeypatch):
             assert key in item["ai"]
             assert isinstance(item["ai"][key], typ)
         assert 0 <= item["ai"]["match_score"] <= 100
-

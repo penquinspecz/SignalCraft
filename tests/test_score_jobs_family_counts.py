@@ -11,9 +11,24 @@ def test_family_counts_prints_known_families(tmp_path: Path) -> None:
 
     # Keep heuristic scores tied so ranking order is stable (input order).
     jobs = [
-        {"title": "Role A", "jd_text": "", "apply_url": "a", "ai": {"match_score": 0, "role_family": "Customer Success", "seniority": "Senior"}},
-        {"title": "Role B", "jd_text": "", "apply_url": "b", "ai": {"match_score": 0, "role_family": "Solutions Architect", "seniority": "IC"}},
-        {"title": "Role C", "jd_text": "", "apply_url": "c", "ai": {"match_score": 0, "role_family": "Forward Deployed", "seniority": "IC"}},
+        {
+            "title": "Role A",
+            "jd_text": "",
+            "apply_url": "a",
+            "ai": {"match_score": 0, "role_family": "Customer Success", "seniority": "Senior"},
+        },
+        {
+            "title": "Role B",
+            "jd_text": "",
+            "apply_url": "b",
+            "ai": {"match_score": 0, "role_family": "Solutions Architect", "seniority": "IC"},
+        },
+        {
+            "title": "Role C",
+            "jd_text": "",
+            "apply_url": "c",
+            "ai": {"match_score": 0, "role_family": "Forward Deployed", "seniority": "IC"},
+        },
     ]
     input_path = tmp_path / "in.json"
     out_json = tmp_path / "ranked.json"
@@ -50,4 +65,3 @@ def test_family_counts_prints_known_families(tmp_path: Path) -> None:
     assert lines[1].startswith("Customer Success\t")
     assert lines[2].startswith("Solutions Architect\t")
     assert lines[3].startswith("Forward Deployed\t")
-

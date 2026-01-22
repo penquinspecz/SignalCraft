@@ -4,10 +4,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import List
 
-from ji_engine.models import RawJobPosting, JobSource
-from scripts.run_classify import _reclassify_maybe
-from ji_engine.embeddings.simple import build_profile_text, text_hash
 from ji_engine.embeddings.provider import EmbeddingProvider
+from ji_engine.models import JobSource, RawJobPosting
+from scripts.run_classify import _reclassify_maybe
 
 
 class FakeEmbeddingProvider(EmbeddingProvider):
@@ -45,4 +44,3 @@ def test_reclassify_uses_cache(monkeypatch, tmp_path: Path) -> None:
     # second run should hit cache (no new embeds)
     _reclassify_maybe([job], labeled, profile_vec, provider, cache_path, threshold=0.0)
     assert len(provider.calls) == 2
-

@@ -13,7 +13,6 @@ Assumes existing scripts:
 - scripts/score_jobs.py
 """
 
-import sys
 import textwrap
 
 

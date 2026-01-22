@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
 from ji_engine.ai.cache import S3AICache
 from ji_engine.embeddings.simple import load_cache, save_cache
-
 
 try:
     import boto3
@@ -22,6 +20,7 @@ pytestmark = pytest.mark.skipif(boto3 is None or mock_s3 is None, reason="boto3/
 
 
 if mock_s3:
+
     @mock_s3
     def test_s3_ai_cache_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
         bucket = "test-bucket"
@@ -34,7 +33,6 @@ if mock_s3:
 
         got = cache.get("job/1", "hash123")
         assert got == payload
-
 
     @mock_s3
     def test_s3_embedding_cache_load_save(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -57,4 +55,3 @@ if mock_s3:
         obj = client.get_object(Bucket=bucket, Key=key)
         stored = json.loads(obj["Body"].read().decode("utf-8"))
         assert stored == data
-

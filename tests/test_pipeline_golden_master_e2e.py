@@ -103,7 +103,16 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["run_daily.py", "--no_subprocess", "--profile", "cs", "--us_only", "--no_post"],
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--profile",
+            "cs",
+            "--us_only",
+            "--no_post",
+            "--min_score",
+            "70",
+        ],
     )
 
     rc = run_daily.main()

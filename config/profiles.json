@@ -1,19 +1,19 @@
 {
   "cs": {
     "role_band_multipliers": {
-      "CS_CORE": 1.25,
-      "CS_ADJACENT": 1.15,
+      "CS_CORE": 1.2,
+      "CS_ADJACENT": 1.1,
       "SOLUTIONS": 1.05,
-      "OTHER": 0.95
+      "OTHER": 1.0
     },
     "profile_weights": {
-      "boost_cs_core": 15,
-      "boost_cs_adjacent": 5,
-      "boost_solutions": 2,
-      "penalty_research_heavy": -8,
-      "penalty_low_level": -5,
-      "penalty_strong_swe_only": -4,
-      "pin_manager_ai_deployment": 30
+      "boost_cs_core": 14,
+      "boost_cs_adjacent": 9,
+      "boost_solutions": 5,
+      "penalty_research_heavy": -2,
+      "penalty_low_level": -2,
+      "penalty_strong_swe_only": -1,
+      "pin_manager_ai_deployment": 12
     }
   },
   "tam": {

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from scripts.score_jobs import _dedupe_jobs_for_scoring
 
 

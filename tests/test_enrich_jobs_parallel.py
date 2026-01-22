@@ -11,14 +11,31 @@ import pytest
 
 def test_enrich_jobs_preserves_order_with_threads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     jobs = [
-        {"title": "First", "apply_url": "https://jobs.ashbyhq.com/openai/11111111-1111-1111-1111-111111111111/application", "relevance": "RELEVANT"},
-        {"title": "Second", "apply_url": "https://jobs.ashbyhq.com/openai/22222222-2222-2222-2222-222222222222/application", "relevance": "RELEVANT"},
-        {"title": "Third", "apply_url": "https://jobs.ashbyhq.com/openai/33333333-3333-3333-3333-333333333333/application", "relevance": "RELEVANT"},
+        {
+            "title": "First",
+            "apply_url": "https://jobs.ashbyhq.com/openai/11111111-1111-1111-1111-111111111111/application",
+            "relevance": "RELEVANT",
+        },
+        {
+            "title": "Second",
+            "apply_url": "https://jobs.ashbyhq.com/openai/22222222-2222-2222-2222-222222222222/application",
+            "relevance": "RELEVANT",
+        },
+        {
+            "title": "Third",
+            "apply_url": "https://jobs.ashbyhq.com/openai/33333333-3333-3333-3333-333333333333/application",
+            "relevance": "RELEVANT",
+        },
     ]
 
     labeled_path = tmp_path / "labeled.json"
     enriched_path = tmp_path / "enriched.json"
     labeled_path.write_text(json.dumps(jobs), encoding="utf-8")
+
+    snapshot_dir = tmp_path / "openai_snapshots" / "jobs"
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    (snapshot_dir / "stub.html").write_text("<html>stub</html>", encoding="utf-8")
+    monkeypatch.setattr("scripts.enrich_jobs.SNAPSHOT_DIR", tmp_path / "openai_snapshots")
 
     monkeypatch.setattr("ji_engine.config.LABELED_JOBS_JSON", labeled_path)
     monkeypatch.setattr("ji_engine.config.ENRICHED_JOBS_JSON", enriched_path)
@@ -50,4 +67,3 @@ def test_enrich_jobs_preserves_order_with_threads(tmp_path: Path, monkeypatch: p
     titles = [item["title"] for item in data]
 
     assert titles == ["title-1", "title-2", "title-3"]
-

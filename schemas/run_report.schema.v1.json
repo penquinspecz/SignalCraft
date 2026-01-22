@@ -14,6 +14,18 @@
     "run_id": {
       "type": "string"
     },
+    "flags": {
+      "type": "object",
+      "properties": {
+        "min_score": {
+          "type": "integer"
+        },
+        "min_alert_score": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
+    },
     "selection": {
       "type": "object",
       "required": [
@@ -36,6 +48,163 @@
         }
       },
       "additionalProperties": true
+    },
+    "scoring_input_selection_by_profile": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "selected_path",
+          "candidate_paths_considered",
+          "selection_reason"
+        ],
+        "properties": {
+          "selected_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "candidate_paths_considered": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "exists"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "exists": {
+                  "type": "boolean"
+                },
+                "mtime_iso": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "sha256": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "selection_reason": {
+            "type": "string",
+            "enum": [
+              "ai_only",
+              "no_enrich_enriched_newer",
+              "no_enrich_labeled_newer_or_equal",
+              "no_enrich_enriched_only",
+              "no_enrich_labeled_only",
+              "no_enrich_missing",
+              "default_enriched_required",
+              "default_enriched_missing",
+              "prefer_ai_enriched"
+            ]
+          },
+          "comparison_details": {
+            "type": "object",
+            "properties": {
+              "newer_by_seconds": {
+                "type": "number"
+              },
+              "prefer_ai": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "scoring_input_selection_by_provider": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "required": [
+            "selected_path",
+            "candidate_paths_considered",
+            "selection_reason"
+          ],
+          "properties": {
+            "selected_path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "candidate_paths_considered": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "path",
+                  "exists"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "exists": {
+                    "type": "boolean"
+                  },
+                  "mtime_iso": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sha256": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "selection_reason": {
+              "type": "string",
+              "enum": [
+                "ai_only",
+                "no_enrich_enriched_newer",
+                "no_enrich_labeled_newer_or_equal",
+                "no_enrich_enriched_only",
+                "no_enrich_labeled_only",
+                "no_enrich_missing",
+                "default_enriched_required",
+                "default_enriched_missing",
+                "prefer_ai_enriched"
+              ]
+            },
+            "comparison_details": {
+              "type": "object",
+              "properties": {
+                "newer_by_seconds": {
+                  "type": "number"
+                },
+                "prefer_ai": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": true
+        }
+      }
     },
     "delta_summary": {
       "type": "object"

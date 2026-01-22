@@ -12,11 +12,11 @@ from typing import Any, Dict, List, Optional
 from ji_engine.ai.augment import compute_content_hash, load_cached_ai, save_cached_ai
 from ji_engine.ai.extract_rules import RULES_VERSION, extract_ai_fields
 from ji_engine.ai.match import compute_match
-from ji_engine.ai.provider import OpenAIProvider, StubProvider, AIProvider
-from ji_engine.config import ENRICHED_JOBS_JSON
-from ji_engine.utils.atomic_write import atomic_write_text
+from ji_engine.ai.provider import AIProvider, OpenAIProvider, StubProvider
 from ji_engine.ai.schema import ensure_ai_payload
+from ji_engine.config import ENRICHED_JOBS_JSON
 from ji_engine.profile_loader import load_candidate_profile
+from ji_engine.utils.atomic_write import atomic_write_text
 
 logging.basicConfig(
     level=logging.INFO,
@@ -119,7 +119,7 @@ def main(argv: Optional[List[str]] = None, provider: Optional[AIProvider] = None
             except Exception as exc:  # pragma: no cover - defensive
                 logger.error("AI provider extract failed: %s", exc, exc_info=True)
                 raw = {
-                    "summary": f"AI extraction failed for {job.get('title','(untitled)')}",
+                    "summary": f"AI extraction failed for {job.get('title', '(untitled)')}",
                     "confidence": 0.0,
                     "notes": f"provider_error:{exc}",
                 }
@@ -144,7 +144,9 @@ def main(argv: Optional[List[str]] = None, provider: Optional[AIProvider] = None
             save_cached_ai(job_id, chash, payload)
 
         # If cached payload was produced before rules existed (or provider returned empty skills), backfill now.
-        if isinstance(provider, StubProvider) or not (payload.get("skills_required") or payload.get("skills_preferred")):
+        if isinstance(provider, StubProvider) or not (
+            payload.get("skills_required") or payload.get("skills_preferred")
+        ):
             rules = extract_ai_fields(job)
             merged = dict(payload)
             for k in ("skills_required", "skills_preferred", "role_family", "seniority", "red_flags"):

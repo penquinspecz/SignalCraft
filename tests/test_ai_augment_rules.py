@@ -114,4 +114,3 @@ def test_cached_ai_payload_upgraded_to_new_rules(monkeypatch, tmp_path: Path) ->
     assert "Troubleshooting" in ai["skills_required"]
     assert "Embedded Systems" in ai["skills_required"]
     assert ai["rules_version"] == RULES_VERSION
-

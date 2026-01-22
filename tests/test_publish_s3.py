@@ -1,10 +1,11 @@
 import json
+import logging
 import sys
 from pathlib import Path
 
 import boto3
-import logging
 import pytest
+
 import scripts.publish_s3 as publish_s3
 
 
@@ -21,20 +22,29 @@ class DummyClient:
         self.calls.append((Filename, Bucket, Key))
 
 
-def test_publish_s3_uploads(tmp_path, monkeypatch):
-    history = tmp_path / "state" / "history"
-    runs = tmp_path / "state" / "runs"
-    monkeypatch.setattr(publish_s3, "HISTORY_DIR", history)
-    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
-
+def _setup_run(tmp_path: Path) -> tuple[str, Path]:
     run_id = "2026-01-02T00:00:00Z"
-    profile = "cs"
-    data_dir = history / "2026-01-02" / "20260102T000000Z" / profile
-    data_dir.mkdir(parents=True)
-    file = data_dir / "ranked.json"
-    file.write_text("[]", encoding="utf-8")
+    run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
+    run_dir.mkdir(parents=True)
+    provider_dir = run_dir / "openai" / "cs"
+    provider_dir.mkdir(parents=True)
+    (provider_dir / "ranked.json").write_text("[]", encoding="utf-8")
+    (provider_dir / "shortlist.md").write_text("hi", encoding="utf-8")
+    _write(
+        run_dir / "index.json",
+        {
+            "run_id": run_id,
+            "providers": {"openai": {"profiles": {"cs": {"diff_counts": {"new": 1, "changed": 0, "removed": 0}}}}},
+            "artifacts": {},
+        },
+    )
+    return run_id, run_dir
 
-    _write(runs / "run.json", {"run_id": run_id, "profiles": [profile], "stages": {}, "diff_counts": {}})
+
+def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id, _ = _setup_run(tmp_path)
 
     client = DummyClient()
     monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: client)
@@ -48,33 +58,21 @@ def test_publish_s3_uploads(tmp_path, monkeypatch):
             "my-bucket",
             "--prefix",
             "jobintel",
-            "--profile",
-            profile,
             "--run_id",
             run_id,
         ],
     )
 
     publish_s3.main()
-
-    assert client.calls
-    assert client.calls[0][1] == "my-bucket"
-    assert "2026-01-02/20260102T000000Z/cs/ranked.json" in client.calls[0][2]
+    keys = [call[2] for call in client.calls]
+    assert any(key.startswith(f"jobintel/runs/{run_id}/") for key in keys)
+    assert any(key.startswith("jobintel/latest/openai/cs/") for key in keys)
 
 
 def test_publish_s3_dry_run(monkeypatch, tmp_path, caplog):
-    history = tmp_path / "state" / "history"
     runs = tmp_path / "state" / "runs"
-    monkeypatch.setattr(publish_s3, "HISTORY_DIR", history)
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
-
-    run_id = "2026-01-02T00:00:00Z"
-    profile = "cs"
-    data_dir = history / "2026-01-02" / "20260102T000000Z" / profile
-    data_dir.mkdir(parents=True)
-    file = data_dir / "ranked.json"
-    file.write_text("[]", encoding="utf-8")
-    _write(runs / "run.json", {"run_id": run_id, "profiles": [profile], "stages": {}, "diff_counts": {}})
+    run_id, _ = _setup_run(tmp_path)
 
     client = DummyClient()
     monkeypatch.setattr(boto3, "client", lambda *args, **kwargs: client)
@@ -88,8 +86,6 @@ def test_publish_s3_dry_run(monkeypatch, tmp_path, caplog):
             "my-bucket",
             "--prefix",
             "jobintel",
-            "--profile",
-            profile,
             "--run_id",
             run_id,
             "--dry_run",
@@ -102,43 +98,44 @@ def test_publish_s3_dry_run(monkeypatch, tmp_path, caplog):
     assert not client.calls
 
 
-def test_publish_s3_rejects_outside_history(monkeypatch, tmp_path):
-    history = tmp_path / "state" / "history"
+def test_publish_s3_disabled_without_bucket(monkeypatch, tmp_path, caplog):
     runs = tmp_path / "state" / "runs"
-    monkeypatch.setattr(publish_s3, "HISTORY_DIR", history)
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id, _ = _setup_run(tmp_path)
 
-    run_id = "2026-01-02T00:00:00Z"
-    profile = "cs"
-    history_dir = history / "2026-01-02" / "20260102T000000Z" / profile
-    history_dir.mkdir(parents=True)
-    (history_dir / "ranked.json").write_text("[]", encoding="utf-8")
-
-    embed_cache = tmp_path / "state" / "embed_cache.json"
-    embed_cache.parent.mkdir(parents=True, exist_ok=True)
-    embed_cache.write_text("[]", encoding="utf-8")
-
-    _write(runs / "run.json", {"run_id": run_id, "profiles": [profile], "stages": {}, "diff_counts": {}})
-
+    monkeypatch.delenv("JOBINTEL_S3_BUCKET", raising=False)
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "publish_s3.py",
-            "--bucket",
-            "my-bucket",
-            "--prefix",
-            "jobintel",
-            "--profile",
-            profile,
             "--run_id",
             run_id,
         ],
     )
 
-    # force collect_artifacts to include embed_cache by pointing base_dir there
-    monkeypatch.setattr(publish_s3, "_history_run_dir", lambda run_id, profile: embed_cache.parent)
+    with caplog.at_level(logging.INFO):
+        publish_s3.main()
+    assert "S3 bucket unset" in caplog.text
+
+
+def test_publish_s3_requires_bucket(monkeypatch, tmp_path):
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id, _ = _setup_run(tmp_path)
+
+    monkeypatch.delenv("JOBINTEL_S3_BUCKET", raising=False)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--require_s3",
+        ],
+    )
 
     with pytest.raises(SystemExit) as exc:
         publish_s3.main()
-    assert "outside state/history" in str(exc.value)
+    assert str(exc.value) == "2"

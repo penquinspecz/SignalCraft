@@ -26,9 +26,7 @@ def test_add_snapshot_writes_metadata(tmp_path: Path, monkeypatch) -> None:
     src = tmp_path / "source.html"
     src.write_text("<html>meta</html>", encoding="utf-8")
 
-    rc = add_snapshot.main(
-        ["--provider", "openai", "--from-file", str(src), "--write-metadata"]
-    )
+    rc = add_snapshot.main(["--provider", "openai", "--from-file", str(src), "--write-metadata"])
     assert rc == 0
     meta = data_dir / "openai_snapshots" / "metadata.json"
     assert meta.exists()

@@ -26,9 +26,7 @@ def test_job_identity_falls_back_to_detail_url():
 
 def test_job_identity_falls_back_to_content_hash():
     job = {"title": " Role ", "location": "  Remote  "}
-    expected = _hash_payload(
-        {"title": "role", "location": "remote", "team": "", "description": ""}
-    )
+    expected = _hash_payload({"title": "role", "location": "remote", "team": "", "description": ""})
     assert job_identity(job) == expected
 
 

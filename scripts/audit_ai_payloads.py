@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
@@ -61,6 +62,7 @@ def _skills_required(job: Dict[str, Any]) -> List[str]:
 
 def _skills_preferred(job: Dict[str, Any]) -> List[str]:
     return _as_list_str(_ai(job).get("skills_preferred"))
+
 
 def _security_required_reason(job: Dict[str, Any]) -> str:
     return str(_ai(job).get("security_required_reason") or "").strip()

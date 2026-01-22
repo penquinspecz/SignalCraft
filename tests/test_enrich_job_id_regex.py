@@ -1,8 +1,7 @@
 """Test job ID extraction regex."""
 
-import re
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Add root to path for imports
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +15,7 @@ def test_extract_job_id_valid_url():
     """Test that regex extracts UUID from valid OpenAI Ashby URL."""
     url = "https://jobs.ashbyhq.com/openai/0c22b805-3976-492e-81f2-7cf91f63a630/application"
     expected = "0c22b805-3976-492e-81f2-7cf91f63a630"
-    
+
     result = _extract_job_id_from_url(url)
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -25,7 +24,7 @@ def test_extract_job_id_case_insensitive():
     """Test that regex works with uppercase UUID."""
     url = "https://jobs.ashbyhq.com/openai/0C22B805-3976-492E-81F2-7CF91F63A630/application"
     expected = "0C22B805-3976-492E-81F2-7CF91F63A630"
-    
+
     result = _extract_job_id_from_url(url)
     assert result == expected, f"Expected {expected}, got {result}"
 
@@ -40,7 +39,7 @@ def test_extract_job_id_invalid_urls():
         "https://jobs.ashbyhq.com/anthropic/0c22b805-3976-492e-81f2-7cf91f63a630/application",  # Wrong org
         "",  # Empty string
     ]
-    
+
     for url in invalid_urls:
         result = _extract_job_id_from_url(url)
         assert result is None, f"Expected None for '{url}', got {result}"

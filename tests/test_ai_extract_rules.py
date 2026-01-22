@@ -155,4 +155,3 @@ def test_boilerplate_skills_do_not_leak_into_extraction() -> None:
     assert "Kubernetes" not in out["skills_required"]
     assert "Security" not in out["skills_required"]
     assert "Security clearance required" not in out["red_flags"]
-

@@ -3,9 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from ji_engine.embeddings.simple import build_profile_text, text_hash, cosine_similarity
-from ji_engine.models import RawJobPosting, JobSource
-from ji_engine.profile_loader import CandidateProfile, Basics, Preferences, Skills, Constraints
+from ji_engine.embeddings.simple import build_profile_text
+from ji_engine.models import JobSource, RawJobPosting
+from ji_engine.profile_loader import Basics, CandidateProfile, Constraints, Preferences, Skills
 from scripts.run_classify import _reclassify_maybe, _select_provider
 
 
@@ -73,4 +73,3 @@ def test_maybe_job_promoted_by_embedding(tmp_path: Path) -> None:
     assert labeled[0]["relevance"] == "RELEVANT"
     assert labeled[1]["relevance"] == "IRRELEVANT"
     assert cache_path.exists()
-

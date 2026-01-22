@@ -1,7 +1,5 @@
 import importlib
-import os
 import sys
-from pathlib import Path
 
 import ji_engine.config as config
 import scripts.run_daily as run_daily
@@ -19,6 +17,7 @@ def test_no_subprocess_logs_stages(monkeypatch, tmp_path):
     importlib.reload(config)
     importlib.reload(run_daily)
     stages = []
+
     def fake_run(cmd, *, stage):
         stages.append(stage)
         # Create expected output files for each stage
@@ -46,7 +45,11 @@ def test_no_subprocess_logs_stages(monkeypatch, tmp_path):
                 path.write_text("[]", encoding="utf-8")
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(run_daily.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("subprocess should not run")))
+    monkeypatch.setattr(
+        run_daily.subprocess,
+        "run",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("subprocess should not run")),
+    )
     monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--us_only", "--no_post"])
     rc = run_daily.main()
 

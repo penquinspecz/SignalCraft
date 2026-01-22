@@ -22,6 +22,7 @@ Usage:
 """
 
 from __future__ import annotations
+
 try:
     import _bootstrap  # type: ignore
 except ModuleNotFoundError:
@@ -29,33 +30,32 @@ except ModuleNotFoundError:
 
 import argparse
 import csv
+import io
 import json
 import logging
-import re
-import io
 import os
+import re
 from collections import Counter
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ji_engine.ai.schema import ensure_ai_payload
-from ji_engine.ai.provider import StubProvider, OpenAIProvider, AIProvider
 from ji_engine.ai.augment import compute_content_hash
 from ji_engine.ai.cache import AICache, FileSystemAICache, S3AICache
-from ji_engine.profile_loader import load_candidate_profile
+from ji_engine.ai.provider import AIProvider, OpenAIProvider, StubProvider
+from ji_engine.ai.schema import ensure_ai_payload
 from ji_engine.config import (
     ENRICHED_JOBS_JSON,
-    LABELED_JOBS_JSON,
+    USER_STATE_DIR,
     ranked_families_json,
     ranked_jobs_csv,
     ranked_jobs_json,
     shortlist_md,
-    USER_STATE_DIR,
 )
+from ji_engine.profile_loader import load_candidate_profile
 from ji_engine.utils.atomic_write import atomic_write_text, atomic_write_with
-from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.content_fingerprint import content_fingerprint
+from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.location_normalize import normalize_location_guess
 from ji_engine.utils.user_state import load_user_state
 
@@ -101,6 +101,7 @@ EPHEMERAL_FIELDS = {
     "location_norm",
     "is_us_or_remote_us_guess",
     "us_guess_reason",
+    "final_score_raw",
 }
 
 
@@ -121,6 +122,8 @@ def _format_us_only_reason_summary(jobs: List[Dict[str, Any]]) -> str:
         return "(no reason fields present)"
     parts = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     return ", ".join(f"{reason}={count}" for reason, count in parts)
+
+
 CSV_FIELDNAMES = [
     "job_id",
     "score",
@@ -142,6 +145,7 @@ CSV_FIELDNAMES = [
     "apply_url",
     "why_top3",
 ]
+
 
 def _print_explain_top(scored: List[Dict[str, Any]], n: int) -> None:
     """
@@ -188,6 +192,7 @@ def _print_explain_top(scored: List[Dict[str, Any]], n: int) -> None:
         ]
         print("\t".join(row))
 
+
 def _print_family_counts(scored: List[Dict[str, Any]]) -> None:
     """
     Print deterministic role_family frequency table for the ranked list.
@@ -211,6 +216,7 @@ def _print_family_counts(scored: List[Dict[str, Any]]) -> None:
     for k in order:
         print(f"{k}\t{counts[k]}")
 
+
 def _candidate_skill_set() -> set[str]:
     """
     Best-effort load of candidate_profile.json for explanation-only overlap/gap reporting.
@@ -224,7 +230,12 @@ def _candidate_skill_set() -> set[str]:
     skills: List[str] = []
     try:
         s = profile.skills
-        skills = list(s.technical_core or []) + list(s.ai_specific or []) + list(s.customer_success or []) + list(s.domain_knowledge or [])
+        skills = (
+            list(s.technical_core or [])
+            + list(s.ai_specific or [])
+            + list(s.customer_success or [])
+            + list(s.domain_knowledge or [])
+        )
     except Exception:
         skills = []
     return {str(x).strip().lower() for x in skills if str(x).strip()}
@@ -296,6 +307,7 @@ def _build_explanation(job: Dict[str, Any], candidate_skills: set[str]) -> Dict[
         "explanation_summary": explanation_summary,
     }
 
+
 def load_profiles(path: str) -> Dict[str, Any]:
     p = Path(path)
     if not p.exists():
@@ -355,7 +367,6 @@ def _select_ai_cache() -> AICache:
     return FileSystemAICache()
 
 
-
 # ------------------------------------------------------------
 # Tunables: role-band multipliers (this is your big lever)
 # ------------------------------------------------------------
@@ -377,14 +388,14 @@ PROFILE_WEIGHTS = {
     "boost_cs_core": 15,
     "boost_cs_adjacent": 5,
     "boost_solutions": 2,
-
     "penalty_research_heavy": -8,
     "penalty_low_level": -5,
     "penalty_strong_swe_only": -4,
-
     # was 6 — increase so it outranks Partner Solutions Architect
     "pin_manager_ai_deployment": 30,
 }
+
+
 @dataclass(frozen=True)
 class AIBlendConfig:
     """
@@ -407,6 +418,7 @@ AI_BLEND_CONFIG = AIBlendConfig()
 # Rules for base scoring
 # ------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class Rule:
     name: str
@@ -422,31 +434,69 @@ def _compile_rules() -> Tuple[List[Rule], List[Rule]]:
     """
     pos = [
         Rule("customer_success", re.compile(r"\bcustomer success\b", re.I), 8, "either"),
-        Rule("value_realization", re.compile(r"\bvalue realization\b|\bbusiness value\b|\bROI\b", re.I), 7, "either"),
-        Rule("adoption_onboarding_enablement", re.compile(r"\badoption\b|\bonboarding\b|\benablement\b", re.I), 6, "text"),
-        Rule("deployment_implementation", re.compile(r"\bdeploy(ment|ing|ed)?\b|\bimplementation\b", re.I), 5, "either"),
-        Rule("stakeholder_exec", re.compile(r"\bstakeholder(s)?\b|\bexecutive\b|\bC-?level\b", re.I), 4, "text"),
-        Rule("enterprise_strategic", re.compile(r"\benterprise\b|\bstrategic\b|\bkey account\b", re.I), 3, "text"),
-        Rule("customer_facing", re.compile(r"\bcustomer-?facing\b|\bexternal\b clients?\b", re.I), 4, "text"),
-        Rule("consultative_advisory", re.compile(r"\badvis(e|ory)\b|\bconsult(ing|ative)\b", re.I), 3, "text"),
-        Rule("discovery_requirements", re.compile(r"\bdiscovery\b|\bneeds assessment\b|\brequirements gathering\b", re.I), 3, "text"),
+        Rule("value_realization", re.compile(r"\bvalue realization\b|\bbusiness value\b|\bROI\b", re.I), 8, "either"),
+        Rule(
+            "adoption_onboarding_enablement",
+            re.compile(r"\badoption\b|\bonboarding\b|\benablement\b", re.I),
+            6,
+            "text",
+        ),
+        Rule(
+            "deployment_implementation",
+            re.compile(r"\bdeploy(ment|ing|ed)?\b|\bimplementation\b", re.I),
+            5,
+            "either",
+        ),
+        Rule("support_delivery", re.compile(r"\bsupport delivery\b|\bservice delivery\b", re.I), 4, "either"),
+        Rule(
+            "post_sales",
+            re.compile(r"\bpost[- ]sales\b|\bpost sales\b|\bcustomer success\b", re.I),
+            4,
+            "either",
+        ),
+        Rule("stakeholder_exec", re.compile(r"\bstakeholder(s)?\b|\bexecutive\b|\bC-?level\b", re.I), 2, "text"),
+        Rule("enterprise_strategic", re.compile(r"\benterprise\b|\bstrategic\b|\bkey account\b", re.I), 1, "text"),
+        Rule("customer_facing", re.compile(r"\bcustomer-?facing\b|\bexternal\b clients?\b", re.I), 2, "text"),
+        Rule("consultative_advisory", re.compile(r"\badvis(e|ory)\b|\bconsult(ing|ative)\b", re.I), 1, "text"),
+        Rule(
+            "discovery_requirements",
+            re.compile(r"\bdiscovery\b|\bneeds assessment\b|\brequirements gathering\b", re.I),
+            1,
+            "text",
+        ),
         Rule("integrations_apis", re.compile(r"\bintegration(s)?\b|\bAPI(s)?\b|\bSDK\b", re.I), 2, "text"),
-        Rule("governance_security_compliance", re.compile(r"\bgovernance\b|\bsecurity\b|\bcompliance\b", re.I), 2, "text"),
-        Rule("renewal_retention_expansion", re.compile(r"\brenewal(s)?\b|\bretention\b|\bexpansion\b|\bupsell\b|\bcross-?sell\b", re.I), 3, "text"),
-
+        Rule(
+            "governance_security_compliance", re.compile(r"\bgovernance\b|\bsecurity\b|\bcompliance\b", re.I), 2, "text"
+        ),
+        Rule(
+            "renewal_retention_expansion",
+            re.compile(r"\brenewal(s)?\b|\bretention\b|\bexpansion\b|\bupsell\b|\bcross-?sell\b", re.I),
+            1,
+            "text",
+        ),
         # title-forward signals (but keep weights lower than CS/value/adoption)
         Rule("solutions_architect", re.compile(r"\bsolutions architect\b", re.I), 6, "title"),
-        Rule("solutions_engineer", re.compile(r"\bsolutions engineer\b", re.I), 6, "title"),
-        Rule("forward_deployed", re.compile(r"\bforward deployed\b", re.I), 5, "either"),
+        Rule("solutions_engineer", re.compile(r"\bsolutions engineer\b", re.I), 5, "title"),
+        Rule("forward_deployed", re.compile(r"\bforward deployed\b", re.I), 3, "either"),
         Rule("program_manager", re.compile(r"\bprogram manager\b", re.I), 2, "title"),
     ]
 
     neg = [
-        Rule("research_scientist", re.compile(r"\bresearch scientist\b|\bresearcher\b", re.I), -10, "either"),
-        Rule("phd_required", re.compile(r"\bPhD\b|\bdoctoral\b", re.I), -8, "text"),
-        Rule("model_training_pretraining", re.compile(r"\bpretraining\b|\bRLHF\b|\btraining pipeline\b|\bmodel training\b", re.I), -8, "text"),
-        Rule("compiler_kernels_cuda", re.compile(r"\bcompiler\b|\bkernels?\b|\bCUDA\b|\bTPU\b|\bASIC\b", re.I), -5, "text"),
-        Rule("theory_math_heavy", re.compile(r"\btheoretical\b|\bproof\b|\bnovel algorithm\b", re.I), -4, "text"),
+        Rule("research_scientist", re.compile(r"\bresearch scientist\b|\bresearcher\b", re.I), -6, "either"),
+        Rule("phd_required", re.compile(r"\bPhD\b|\bdoctoral\b", re.I), -4, "text"),
+        Rule(
+            "model_training_pretraining",
+            re.compile(r"\bpretraining\b|\bRLHF\b|\btraining pipeline\b|\bmodel training\b", re.I),
+            -4,
+            "text",
+        ),
+        Rule(
+            "compiler_kernels_cuda",
+            re.compile(r"\bcompiler\b|\bkernels?\b|\bCUDA\b|\bTPU\b|\bASIC\b", re.I),
+            -3,
+            "text",
+        ),
+        Rule("theory_math_heavy", re.compile(r"\btheoretical\b|\bproof\b|\bnovel algorithm\b", re.I), -2, "text"),
     ]
     return pos, neg
 
@@ -454,6 +504,7 @@ def _compile_rules() -> Tuple[List[Rule], List[Rule]]:
 # ------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------
+
 
 def _norm(s: Optional[str]) -> str:
     return (s or "").strip()
@@ -526,22 +577,51 @@ def _classify_role_band(job: Dict[str, Any]) -> str:
     def has_any(subs: List[str]) -> bool:
         return any(s in combined for s in subs)
 
-    if has_any([
-        "customer success", "csm", "success plan", "value realization", "adoption", "onboarding",
-        "retention", "renewal", "deployment and adoption", "ai deployment", "support delivery",
-    ]):
+    if has_any(
+        [
+            "customer success",
+            "csm",
+            "success plan",
+            "value realization",
+            "adoption",
+            "onboarding",
+            "retention",
+            "renewal",
+            "deployment and adoption",
+            "ai deployment",
+            "support delivery",
+        ]
+    ):
         return "CS_CORE"
 
-    if has_any([
-        "program manager", "delivery lead", "enablement", "engagement", "operations", "gtm", "go to market",
-        "account director", "partner", "alliances",
-    ]):
+    if has_any(
+        [
+            "program manager",
+            "delivery lead",
+            "enablement",
+            "engagement",
+            "operations",
+            "gtm",
+            "go to market",
+            "account director",
+            "partner",
+            "alliances",
+        ]
+    ):
         return "CS_ADJACENT"
 
-    if has_any([
-        "solutions architect", "solutions engineer", "forward deployed", "field engineer", "pre-sales",
-        "presales", "sales engineer", "partner solutions",
-    ]):
+    if has_any(
+        [
+            "solutions architect",
+            "solutions engineer",
+            "forward deployed",
+            "field engineer",
+            "pre-sales",
+            "presales",
+            "sales engineer",
+            "partner solutions",
+        ]
+    ):
         return "SOLUTIONS"
 
     return "OTHER"
@@ -552,7 +632,9 @@ def _title_family(title: str) -> str:
     Normalize title into a family bucket for clustering.
     """
     t = _norm(title).lower()
-    t = re.sub(r"\s*\([^)]*(remote|san francisco|new york|london|dublin|tokyo|munich|sydney)[^)]*\)\s*$", "", t, flags=re.I)
+    t = re.sub(
+        r"\s*\([^)]*(remote|san francisco|new york|london|dublin|tokyo|munich|sydney)[^)]*\)\s*$", "", t, flags=re.I
+    )
     t = re.sub(r"\s*[-–—]\s*(sf|nyc|new york|san francisco|london|dublin|tokyo|munich|sydney)\s*$", "", t, flags=re.I)
     t = re.sub(r"\s+", " ", t).strip()
     return t
@@ -591,6 +673,7 @@ def _signals(text: str, patterns: List[Tuple[str, re.Pattern]]) -> List[str]:
 # Scoring
 # ------------------------------------------------------------
 
+
 def score_job(job: Dict[str, Any], pos_rules: List[Rule], neg_rules: List[Rule]) -> Dict[str, Any]:
     title = _norm(job.get("title"))
     text = _get_text_blob(job)
@@ -598,6 +681,7 @@ def score_job(job: Dict[str, Any], pos_rules: List[Rule], neg_rules: List[Rule])
 
     # If JD unavailable, score title-only lightly.
     title_only_mode = (enrich_status == "unavailable") or (not text)
+    jd_rich = (not title_only_mode) and len(text) >= 200
 
     base_score = 0
     hits: List[Dict[str, Any]] = []
@@ -616,7 +700,16 @@ def score_job(job: Dict[str, Any], pos_rules: List[Rule], neg_rules: List[Rule])
         if c <= 0:
             return
 
-        delta = rule.weight * c
+        weight = rule.weight
+        if rule.name in {
+            "research_scientist",
+            "phd_required",
+            "model_training_pretraining",
+            "compiler_kernels_cuda",
+            "theory_math_heavy",
+        } and not jd_rich:
+            weight = int(round(weight * 0.25))
+        delta = weight * c
         base_score += delta
         hits.append({"rule": rule.name, "count": c, "delta": delta})
 
@@ -624,6 +717,17 @@ def score_job(job: Dict[str, Any], pos_rules: List[Rule], neg_rules: List[Rule])
         apply_rule(r)
     for r in neg_rules:
         apply_rule(r)
+
+    relevance = _norm(job.get("relevance")).upper()
+    if relevance == "RELEVANT":
+        base_score += 10
+        hits.append({"rule": "boost_relevant", "count": 1, "delta": 10})
+    elif relevance == "MAYBE":
+        base_score += 5
+        hits.append({"rule": "boost_maybe", "count": 1, "delta": 5})
+    elif relevance == "IRRELEVANT":
+        base_score -= 5
+        hits.append({"rule": "penalty_irrelevant", "count": 1, "delta": -5})
 
     if (not title_only_mode) and len(text) >= 800:
         base_score += 2
@@ -645,19 +749,23 @@ def score_job(job: Dict[str, Any], pos_rules: List[Rule], neg_rules: List[Rule])
     # Optional pin for your explicitly mentioned target
     if re.search(r"\bmanager,\s*ai deployment\b", title, re.I):
         profile_delta += PROFILE_WEIGHTS["pin_manager_ai_deployment"]
-        hits.append({"rule": "pin_manager_ai_deployment", "count": 1, "delta": PROFILE_WEIGHTS["pin_manager_ai_deployment"]})
+        hits.append(
+            {"rule": "pin_manager_ai_deployment", "count": 1, "delta": PROFILE_WEIGHTS["pin_manager_ai_deployment"]}
+        )
 
     # Risk penalties based on JD/text
-    blob = (title if title_only_mode else (title + "\n" + text))
+    blob = title if title_only_mode else (title + "\n" + text)
+    penalty_factor = 1.0 if jd_rich else 0.25
     if re.search(r"\bPhD\b|\bdoctoral\b", blob, re.I):
-        profile_delta += PROFILE_WEIGHTS["penalty_research_heavy"]
+        profile_delta += int(round(PROFILE_WEIGHTS["penalty_research_heavy"] * penalty_factor))
     if re.search(r"\bcompiler\b|\bCUDA\b|\bkernels?\b|\bASIC\b|\bTPU\b", blob, re.I):
-        profile_delta += PROFILE_WEIGHTS["penalty_low_level"]
+        profile_delta += int(round(PROFILE_WEIGHTS["penalty_low_level"] * penalty_factor))
     if re.search(r"\bC\+\+\b|\brust\b|\boperating systems\b|\bkernel\b", blob, re.I):
-        profile_delta += PROFILE_WEIGHTS["penalty_strong_swe_only"]
+        profile_delta += int(round(PROFILE_WEIGHTS["penalty_strong_swe_only"] * penalty_factor))
 
     heuristic_score = int(round((base_score + profile_delta) * mult))
-    final_score = _blend_with_ai(heuristic_score, job.get("ai"))
+    final_score_raw = _blend_with_ai(heuristic_score, job.get("ai"))
+    final_score = max(0, min(100, final_score_raw))
 
     fit_signals = _signals(blob, FIT_PATTERNS)
     risk_signals = _signals(blob, RISK_PATTERNS)
@@ -666,6 +774,7 @@ def score_job(job: Dict[str, Any], pos_rules: List[Rule], neg_rules: List[Rule])
     out["base_score"] = base_score
     out["profile_delta"] = profile_delta
     out["heuristic_score"] = heuristic_score
+    out["final_score_raw"] = final_score_raw
     out["final_score"] = final_score
     out["score"] = final_score  # backward compatibility
     out["role_band"] = role_band
@@ -685,33 +794,38 @@ def to_csv_rows(scored: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         top3 = ", ".join([f"{h['rule']}({h['delta']})" for h in top_hits[:3]])
         expl = j.get("explanation") or {}
         expl_summary = _norm(expl.get("explanation_summary") or "")
-        rows.append({
-            "job_id": _norm(j.get("job_id")),
-            "score": j.get("score", 0),
-            "heuristic_score": j.get("heuristic_score", j.get("score", 0)),
-            "final_score": j.get("final_score", j.get("score", 0)),
-            "explanation_summary": expl_summary,
-            "base_score": j.get("base_score", 0),
-            "profile_delta": j.get("profile_delta", 0),
-            "role_band": _norm(j.get("role_band")),
-            "title": _norm(j.get("title")),
-            "department": _norm(j.get("department") or j.get("departmentName")),
-            "team": ", ".join(j.get("teamNames") or []) if isinstance(j.get("teamNames"), list) else _norm(j.get("team")),
-            "location": _norm(j.get("location") or j.get("locationName")),
-            "enrich_status": _norm(j.get("enrich_status")),
-            "enrich_reason": _norm(j.get("enrich_reason")),
-            "jd_text_chars": j.get("jd_text_chars", 0),
-            "fit_signals": ", ".join(j.get("fit_signals") or []),
-            "risk_signals": ", ".join(j.get("risk_signals") or []),
-            "apply_url": _norm(j.get("apply_url")),
-            "why_top3": top3,
-        })
+        rows.append(
+            {
+                "job_id": _norm(j.get("job_id")),
+                "score": j.get("score", 0),
+                "heuristic_score": j.get("heuristic_score", j.get("score", 0)),
+                "final_score": j.get("final_score", j.get("score", 0)),
+                "explanation_summary": expl_summary,
+                "base_score": j.get("base_score", 0),
+                "profile_delta": j.get("profile_delta", 0),
+                "role_band": _norm(j.get("role_band")),
+                "title": _norm(j.get("title")),
+                "department": _norm(j.get("department") or j.get("departmentName")),
+                "team": ", ".join(j.get("teamNames") or [])
+                if isinstance(j.get("teamNames"), list)
+                else _norm(j.get("team")),
+                "location": _norm(j.get("location") or j.get("locationName")),
+                "enrich_status": _norm(j.get("enrich_status")),
+                "enrich_reason": _norm(j.get("enrich_reason")),
+                "jd_text_chars": j.get("jd_text_chars", 0),
+                "fit_signals": ", ".join(j.get("fit_signals") or []),
+                "risk_signals": ", ".join(j.get("risk_signals") or []),
+                "apply_url": _norm(j.get("apply_url")),
+                "why_top3": top3,
+            }
+        )
     return rows
 
 
 # ------------------------------------------------------------
 # Step 5: clustering / families output
 # ------------------------------------------------------------
+
 
 def build_families(scored: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not scored:
@@ -860,6 +974,7 @@ def _dedupe_jobs_for_scoring(jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]
 # Step 8: shortlist output
 # ------------------------------------------------------------
 
+
 def write_shortlist_md(scored: List[Dict[str, Any]], out_path: Path, min_score: int) -> None:
     def _shortlist_profile(path: Path) -> Optional[str]:
         name = path.name
@@ -901,7 +1016,7 @@ def write_shortlist_md(scored: List[Dict[str, Any]], out_path: Path, min_score: 
     profile = _shortlist_profile(out_path)
     user_state = _load_user_state_map(profile)
 
-    lines: List[str] = ["# OpenAI Shortlist", f"", f"Min score: **{min_score}**", ""]
+    lines: List[str] = ["# OpenAI Shortlist", "", f"Min score: **{min_score}**", ""]
     for idx, job in enumerate(shortlist):
         title = _norm(job.get("title")) or "Untitled"
         score = job.get("score", 0)
@@ -955,6 +1070,90 @@ def write_shortlist_md(scored: List[Dict[str, Any]], out_path: Path, min_score: 
     out_path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _score_distribution(scores: List[int]) -> Dict[str, Any]:
+    if not scores:
+        return {
+            "min": 0,
+            "p50": 0,
+            "p90": 0,
+            "max": 0,
+            "buckets": {">=90": 0, ">=80": 0, ">=70": 0, ">=60": 0},
+        }
+    ordered = sorted(scores)
+    n = len(ordered)
+    p50_idx = (n - 1) // 2
+    p90_idx = max(int((0.9 * n) - 1), 0)
+    buckets = {
+        ">=90": sum(1 for s in ordered if s >= 90),
+        ">=80": sum(1 for s in ordered if s >= 80),
+        ">=70": sum(1 for s in ordered if s >= 70),
+        ">=60": sum(1 for s in ordered if s >= 60),
+    }
+    return {
+        "min": ordered[0],
+        "p50": ordered[p50_idx],
+        "p90": ordered[p90_idx],
+        "max": ordered[-1],
+        "buckets": buckets,
+    }
+
+
+def _format_distribution_line(dist: Dict[str, Any]) -> str:
+    buckets = dist.get("buckets", {})
+    return (
+        f"Score distribution: min={dist.get('min')}, "
+        f"p50={dist.get('p50')}, p90={dist.get('p90')}, max={dist.get('max')} "
+        f"(>=90: {buckets.get('>=90', 0)}, >=80: {buckets.get('>=80', 0)}, "
+        f">=70: {buckets.get('>=70', 0)}, >=60: {buckets.get('>=60', 0)})"
+    )
+
+
+def write_top_n_md(scored: List[Dict[str, Any]], out_path: Path, top_n: int) -> None:
+    cleaned = [_strip_ephemeral_fields(j) for j in scored]
+    dist = _score_distribution([int(j.get("score", 0)) for j in cleaned])
+    top = cleaned[: max(0, top_n)]
+
+    lines: List[str] = [
+        "# OpenAI Top Jobs",
+        "",
+        f"Top N: **{top_n}**",
+        "",
+        _format_distribution_line(dist),
+        "",
+    ]
+    for job in top:
+        title = _norm(job.get("title")) or "Untitled"
+        score = job.get("score", 0)
+        role_band = _norm(job.get("role_band"))
+        apply_url = _norm(job.get("apply_url"))
+        job_id = _norm(job.get("job_id"))
+
+        lines.append(f"## {title} — {score} [{role_band}]")
+        if apply_url:
+            lines.append(f"[Apply link]({apply_url})")
+        if job_id:
+            lines.append(f"(job_id: {job_id})")
+        lines.append("")
+
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def _print_explain_top_n(scored: List[Dict[str, Any]], top_n: int) -> None:
+    if top_n <= 0:
+        return
+    logger.info("Explain top %d (rule breakdown):", top_n)
+    for job in scored[:top_n]:
+        title = _norm(job.get("title")) or "Untitled"
+        score = job.get("score", 0)
+        apply_url = _norm(job.get("apply_url"))
+        hits = job.get("score_hits") or []
+        hits_sorted = sorted(hits, key=lambda h: abs(h.get("delta", 0)), reverse=True)
+        breakdown = ", ".join(f"{h.get('rule')}={h.get('delta')}" for h in hits_sorted[:8])
+        logger.info(" - %s | %s | %s", score, title, apply_url or "no_url")
+        if breakdown:
+            logger.info("   %s", breakdown)
+
+
 def write_shortlist_ai_md(scored: List[Dict[str, Any]], out_path: Path, min_score: int) -> None:
     shortlist = [
         _strip_ephemeral_fields(j)
@@ -962,7 +1161,7 @@ def write_shortlist_ai_md(scored: List[Dict[str, Any]], out_path: Path, min_scor
         if j.get("score", 0) >= min_score and j.get("enrich_status") != "unavailable"
     ]
 
-    lines: List[str] = ["# OpenAI Shortlist (AI Insights)", f"", f"Min score: **{min_score}**", ""]
+    lines: List[str] = ["# OpenAI Shortlist (AI Insights)", "", f"Min score: **{min_score}**", ""]
     for idx, job in enumerate(shortlist):
         title = _norm(job.get("title")) or "Untitled"
         score = job.get("score", 0)
@@ -998,10 +1197,12 @@ def write_shortlist_ai_md(scored: List[Dict[str, Any]], out_path: Path, min_scor
             expl = job.get("explanation") or {}
             if expl:
                 lines.append("- Explanation:")
-                lines.append(f"  - final_score={expl.get('final_score')} (heuristic={expl.get('heuristic_score')}, w={expl.get('blend_weight_used')})")
+                lines.append(
+                    f"  - final_score={expl.get('final_score')} (heuristic={expl.get('heuristic_score')}, w={expl.get('blend_weight_used')})"
+                )
                 lines.append(f"  - heuristic_top3={', '.join(expl.get('heuristic_reasons_top3') or []) or '—'}")
                 lines.append(f"  - match_rationale={expl.get('match_rationale') or '—'}")
-                miss = expl.get('missing_required_skills') or []
+                miss = expl.get("missing_required_skills") or []
                 lines.append(f"  - missing_required={', '.join(miss) if miss else '—'}")
 
         lines.append("")
@@ -1110,7 +1311,7 @@ def write_application_kit_md(
         team = _norm(job.get("team") or job.get("department") or "")
 
         lines.append(f"## {title}")
-        lines.append(f"- Apply URL: {job.get('apply_url','')}")
+        lines.append(f"- Apply URL: {job.get('apply_url', '')}")
         lines.append("")
         lines.append("### Role snapshot")
         lines.append(f"- Title: {title}")
@@ -1151,6 +1352,7 @@ def write_application_kit_md(
         lines.append("")
 
     out_path.write_text("\n".join(lines), encoding="utf-8")
+
 
 def is_us_or_remote_us(job: Dict[str, Any]) -> bool:
     guess = job.get("is_us_or_remote_us_guess")
@@ -1196,10 +1398,10 @@ def is_us_or_remote_us(job: Dict[str, Any]) -> bool:
     # If it isn't clearly non-US and isn't remote, assume it's US (works well for SF/NYC/DC etc)
     return bool(loc)
 
+
 # ------------------------------------------------------------
 # Main
 # ------------------------------------------------------------
-
 
 
 def main() -> int:
@@ -1226,6 +1428,12 @@ def main() -> int:
     ap.add_argument("--out_families", default=str(ranked_families_json("cs")))
     ap.add_argument("--out_md", default=str(shortlist_md("cs")))
     ap.add_argument(
+        "--out_md_top_n",
+        default="",
+        help="Top N markdown output path (always written if provided).",
+    )
+    ap.add_argument("--top_n", type=int, default=25, help="Number of jobs to include in Top N markdown output.")
+    ap.add_argument(
         "--out_md_ai",
         default=str(shortlist_md("cs").with_name(shortlist_md("cs").stem + "_ai.md")),
         help="AI-aware shortlist markdown output",
@@ -1236,23 +1444,51 @@ def main() -> int:
         help="Application kit markdown output",
     )
 
-    ap.add_argument("--shortlist_score", type=int, default=70)
+    ap.add_argument("--min_score", type=int, default=40)
+    ap.add_argument(
+        "--shortlist_score",
+        type=int,
+        default=None,
+        help="Deprecated: use --min_score instead.",
+    )
     ap.add_argument("--us_only", action="store_true")
     ap.add_argument("--app_kit", action="store_true", help="Generate application kit for shortlisted jobs.")
-    ap.add_argument("--ai_live", action="store_true", help="Use live AI provider for application kit (requires OPENAI_API_KEY).")
-    ap.add_argument("--explain_top", type=int, default=0, help="Print a TSV debug report for the top N jobs (output-only).")
-    ap.add_argument("--family_counts", action="store_true", help="Print a TSV frequency table of role_family for the ranked list (output-only).")
+    ap.add_argument(
+        "--ai_live", action="store_true", help="Use live AI provider for application kit (requires OPENAI_API_KEY)."
+    )
+    ap.add_argument(
+        "--explain_top", type=int, default=0, help="Print a TSV debug report for the top N jobs (output-only)."
+    )
+    ap.add_argument(
+        "--explain_top_n",
+        type=int,
+        default=0,
+        help="Print top N jobs with score breakdown (rule deltas).",
+    )
+    ap.add_argument(
+        "--family_counts",
+        action="store_true",
+        help="Print a TSV frequency table of role_family for the ranked list (output-only).",
+    )
     args = ap.parse_args()
+    if args.shortlist_score is not None:
+        args.min_score = args.shortlist_score
 
     # ---- HARDEN OUTPUT PATHS ----
     out_json = Path(args.out_json)
     out_csv = Path(args.out_csv)
     out_families = Path(args.out_families)
     out_md = Path(args.out_md)
+    out_md_top_n = Path(args.out_md_top_n) if args.out_md_top_n else None
     out_md_ai = Path(args.out_md_ai) if args.out_md_ai else None
     out_app_kit = Path(args.out_app_kit) if args.out_app_kit else None
 
-    for p in [out_json, out_csv, out_families, out_md] + ([out_md_ai] if out_md_ai else []) + ([out_app_kit] if out_app_kit else []):
+    for p in (
+        [out_json, out_csv, out_families, out_md]
+        + ([out_md_top_n] if out_md_top_n else [])
+        + ([out_md_ai] if out_md_ai else [])
+        + ([out_app_kit] if out_app_kit else [])
+    ):
         if "<function " in str(p):
             raise SystemExit(f"Refusing invalid output path (looks like function repr): {p}")
 
@@ -1288,6 +1524,7 @@ def main() -> int:
 
     us_only_fallback: Optional[Dict[str, Any]] = None
     if args.us_only:
+
         def _has_location_signal(job: Dict[str, Any]) -> bool:
             if job.get("location") or job.get("locationName") or job.get("location_norm"):
                 return True
@@ -1339,8 +1576,37 @@ def main() -> int:
     # Stable sort: primary by score desc, secondary by job identity (apply_url/detail_url/title/location)
     scored.sort(key=lambda x: (-x.get("score", 0), x.get("job_id") or job_identity(x)))
     _print_explain_top(scored, int(args.explain_top or 0))
+    _print_explain_top_n(scored, int(args.explain_top_n or 0))
     if args.family_counts:
         _print_family_counts(scored)
+
+    raw_scores = [int(j.get("final_score_raw", j.get("score", 0)) or 0) for j in scored]
+    dist_raw = _score_distribution(raw_scores)
+    dist = _score_distribution([int(j.get("score", 0)) for j in scored])
+    logger.info("Scoring summary: total=%d", len(scored))
+    if dist_raw["max"] != dist["max"]:
+        logger.info("Scores max: pre-clamp=%d post-clamp=%d", dist_raw["max"], dist["max"])
+    logger.info(
+        "Scores: min=%d p50=%d p90=%d max=%d",
+        dist["min"],
+        dist["p50"],
+        dist["p90"],
+        dist["max"],
+    )
+    logger.info(
+        "Buckets: >=90=%d >=80=%d >=70=%d >=60=%d",
+        dist["buckets"][">=90"],
+        dist["buckets"][">=80"],
+        dist["buckets"][">=70"],
+        dist["buckets"][">=60"],
+    )
+    logger.info("Shortlist threshold: %d", args.min_score)
+    logger.info("Top 10 jobs:")
+    for job in scored[:10]:
+        title = _norm(job.get("title")) or "Untitled"
+        score = job.get("score", 0)
+        apply_url = _norm(job.get("apply_url"))
+        logger.info(" - %s | %s | %s", score, title, apply_url or "no_url")
 
     sanitized_scored = [_strip_ephemeral_fields(j) for j in scored]
 
@@ -1350,6 +1616,7 @@ def main() -> int:
         atomic_write_text(_score_meta_path(out_json), _serialize_json(meta_payload))
 
     rows = to_csv_rows(sanitized_scored)
+
     def _write_csv(tmp_path: Path) -> None:
         with tmp_path.open("w", encoding="utf-8", newline="") as f:
             if rows:
@@ -1361,6 +1628,7 @@ def main() -> int:
                 )
                 w.writeheader()
                 w.writerows(rows)
+
     atomic_write_with(out_csv, _write_csv)
 
     families = build_families(sanitized_scored)
@@ -1371,10 +1639,10 @@ def main() -> int:
     shortlist = [
         _strip_ephemeral_fields(j)
         for j in scored
-        if j.get("score", 0) >= args.shortlist_score and j.get("enrich_status") != "unavailable"
+        if j.get("score", 0) >= args.min_score and j.get("enrich_status") != "unavailable"
     ]
 
-    lines: List[str] = ["# OpenAI Shortlist", f"", f"Min score: **{args.shortlist_score}**", ""]
+    lines: List[str] = ["# OpenAI Shortlist", "", f"Min score: **{args.min_score}**", ""]
     for job in shortlist:
         title = _norm(job.get("title")) or "Untitled"
         score = job.get("score", 0)
@@ -1411,8 +1679,10 @@ def main() -> int:
     shortlist_content = "\n".join(lines)
     atomic_write_text(out_md, shortlist_content)
 
+    if out_md_top_n:
+        write_top_n_md(scored, out_md_top_n, int(args.top_n))
     if out_md_ai:
-        write_shortlist_ai_md(scored, out_md_ai, args.shortlist_score)
+        write_shortlist_ai_md(scored, out_md_ai, args.min_score)
     if args.app_kit and out_app_kit:
         provider = _select_ai_provider(args.ai_live)
         cache = _select_ai_cache()
@@ -1421,7 +1691,7 @@ def main() -> int:
     logger.info(f"Wrote ranked JSON     : {out_json}")
     logger.info(f"Wrote ranked CSV      : {out_csv}")
     logger.info(f"Wrote ranked families : {out_families}")
-    logger.info(f"Wrote shortlist MD    : {out_md} (score >= {args.shortlist_score})")
+    logger.info(f"Wrote shortlist MD    : {out_md} (score >= {args.min_score})")
 
     return 0
 
