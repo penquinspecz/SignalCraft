@@ -6,7 +6,11 @@ import csv
 import json
 import sys
 from pathlib import Path
+import os
 from typing import Any, List
+
+
+SMOKE_CONTRACT_VERSION = 1
 
 
 def _load_json(path: Path) -> Any:
@@ -185,6 +189,18 @@ def main(argv: List[str] | None = None) -> int:
     ap.add_argument("--min-ranked", type=int, default=5, help="Minimum ranked jobs required.")
     ap.add_argument("--providers", default="openai", help="Comma-separated provider ids.")
     ap.add_argument("--profiles", default="cs", help="Comma-separated profiles.")
+    ap.add_argument(
+        "--min-schema-version",
+        type=int,
+        default=int(os.environ.get("SMOKE_MIN_SCHEMA_VERSION", "1")),
+        help="Minimum acceptable run_report schema version.",
+    )
+    ap.add_argument(
+        "--require-schema-version",
+        type=int,
+        default=int(os.environ.get("SMOKE_REQUIRE_SCHEMA_VERSION", "1")),
+        help="Require exact run_report schema version (set to 0 to disable exact match).",
+    )
     args = ap.parse_args(argv)
 
     artifacts = Path(args.artifacts_dir)
@@ -201,6 +217,22 @@ def main(argv: List[str] | None = None) -> int:
     run_report = _load_json(run_report_path)
     if not isinstance(run_report, dict):
         raise RuntimeError("run_report.json must be an object")
+    schema_version = run_report.get("run_report_schema_version")
+    if not isinstance(schema_version, int):
+        raise RuntimeError("run_report.json missing run_report_schema_version")
+    if schema_version < SMOKE_CONTRACT_VERSION:
+        raise RuntimeError(
+            f"run_report_schema_version {schema_version} < smoke_contract_version {SMOKE_CONTRACT_VERSION}"
+        )
+    if args.require_schema_version:
+        if schema_version != args.require_schema_version:
+            raise RuntimeError(
+                f"run_report_schema_version {schema_version} != required {args.require_schema_version}"
+            )
+    elif schema_version < args.min_schema_version:
+        raise RuntimeError(
+            f"run_report_schema_version {schema_version} < minimum {args.min_schema_version}"
+        )
     _validate_run_report(run_report, providers, profiles, args.min_ranked, artifacts)
     _validate_delta_summary(run_report, providers, profiles, artifacts)
 

@@ -210,6 +210,10 @@ make smoke
 ./scripts/smoke_docker.sh
 ```
 
+BuildKit is required (the Dockerfile uses `RUN --mount=type=cache`), so
+`DOCKER_BUILDKIT=0` is unsupported. Docker Desktop on macOS uses BuildKit by
+default.
+
 Skip the image build (reuse existing `jobintel:local`):
 
 ```bash
@@ -250,6 +254,11 @@ The smoke contract check validates deterministic properties of smoke artifacts s
 - `openai_ranked_jobs.cs.json` has at least N items (default 5)
 - `openai_ranked_jobs.cs.csv` row count matches ranked JSON
 - `run_report.json` includes provider=openai, scrape_mode=SNAPSHOT, and classified_job_count matches labeled length
+
+`run_report.json` includes `run_report_schema_version` (int). The smoke contract
+enforces exact schema version `1` by default; override with
+`--min-schema-version` or `--require-schema-version` (or env
+`SMOKE_MIN_SCHEMA_VERSION` / `SMOKE_REQUIRE_SCHEMA_VERSION`) during migrations.
 
 To adjust thresholds intentionally, pass a new minimum:
 

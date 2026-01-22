@@ -79,6 +79,7 @@ def _unavailable_summary() -> str:
 logger = logging.getLogger(__name__)
 USE_SUBPROCESS = True
 LAST_RUN_JSON = STATE_DIR / "last_run.json"
+RUN_REPORT_SCHEMA_VERSION = 1
 
 
 def _flush_logging() -> None:
@@ -452,7 +453,7 @@ def _persist_run_metadata(
     outputs_by_provider: Optional[Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]]] = None,
     delta_summary: Optional[Dict[str, Any]] = None,
 ) -> Path:
-    run_report_schema_version = "1"
+    run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
         "raw_jobs_json": _file_metadata(RAW_JOBS_JSON),
         "labeled_jobs_json": _file_metadata(LABELED_JOBS_JSON),
