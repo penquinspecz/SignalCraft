@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates docker-build docker-run-local report snapshot snapshot-openai smoke
+.PHONY: test lint format-check gates docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -22,6 +22,8 @@ gates: format-check lint test
 
 docker-build:
 	docker build -t jobintel:local .
+
+image: docker-build
 
 docker-run-local:
 	docker run --rm \
@@ -48,4 +50,11 @@ smoke:
 	./scripts/smoke_docker.sh
 
 smoke-fast:
+	@docker image inspect jobintel:local >/dev/null 2>&1 || ( \
+		echo "jobintel:local image missing; building with make image..."; \
+		$(MAKE) image; \
+	)
 	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh
+
+smoke-ci:
+	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build --providers openai --profiles cs

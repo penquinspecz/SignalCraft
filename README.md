@@ -205,6 +205,7 @@ find state -maxdepth 10 -type f
 Run the same containerized smoke flow as CI (offline, baked snapshots/state):
 
 ```bash
+make image
 make smoke
 ./scripts/smoke_docker.sh
 ```
@@ -214,6 +215,12 @@ Skip the image build (reuse existing `jobintel:local`):
 ```bash
 make smoke-fast
 ./scripts/smoke_docker.sh --skip-build
+```
+
+Run the CI-equivalent invocation:
+
+```bash
+make smoke-ci
 ```
 
 Multi-provider smoke (bounded profiles):
