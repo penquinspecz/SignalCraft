@@ -210,9 +210,16 @@ make smoke
 ./scripts/smoke_docker.sh
 ```
 
+Do not reuse the `jobintel:local` tag for unrelated builds. Use a different tag
+(for example `sanity-build`) to avoid overwriting the smoke image.
+
 BuildKit is required (the Dockerfile uses `RUN --mount=type=cache`), so
 `DOCKER_BUILDKIT=0` is unsupported. Docker Desktop on macOS uses BuildKit by
 default.
+
+The smoke preflight checks absolute python paths first
+(`/usr/local/bin/python`, `/usr/bin/python3`) before falling back to `python3`
+and `python` on PATH, using `--entrypoint` to bypass the image ENTRYPOINT.
 
 Skip the image build (reuse existing `jobintel:local`):
 

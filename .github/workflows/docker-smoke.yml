@@ -48,6 +48,92 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Smoke summary
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          artifacts = Path("smoke_artifacts")
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
+          if not summary_path:
+            raise SystemExit(0)
+
+          def _read_text(path: Path):
+            try:
+              return path.read_text(encoding="utf-8").strip()
+            except Exception:
+              return None
+
+          def _load_json(path: Path):
+            try:
+              return json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+              return None
+
+          exit_code = _read_text(artifacts / "exit_code.txt") or "unknown"
+          metadata = _load_json(artifacts / "metadata.json") or {}
+          providers = metadata.get("providers") or ["openai"]
+          profiles = metadata.get("profiles") or ["cs"]
+
+          report = _load_json(artifacts / "run_report.json") or {}
+          selection = report.get("selection") or {}
+          classified = selection.get("classified_job_count")
+          classified_by_provider = selection.get("classified_job_count_by_provider") or {}
+
+          ranked_counts = []
+          for provider in providers:
+            labeled_path = artifacts / f"{provider}_labeled_jobs.json"
+            labeled = _load_json(labeled_path)
+            labeled_count = len(labeled) if isinstance(labeled, list) else None
+            for profile in profiles:
+              ranked_path = artifacts / f"{provider}_ranked_jobs.{profile}.json"
+              ranked = _load_json(ranked_path)
+              ranked_count = len(ranked) if isinstance(ranked, list) else None
+              ranked_counts.append((provider, profile, ranked_count, labeled_count))
+
+          required_missing = []
+          for provider in providers:
+            required = [f"{provider}_labeled_jobs.json"]
+            for profile in profiles:
+              required.append(f"{provider}_ranked_jobs.{profile}.json")
+              required.append(f"{provider}_ranked_jobs.{profile}.csv")
+            for name in required:
+              if not (artifacts / name).exists():
+                required_missing.append(name)
+          if not (artifacts / "run_report.json").exists():
+            required_missing.append("run_report.json")
+
+          lines = []
+          lines.append("### Smoke summary")
+          lines.append(f"- Exit code: `{exit_code}`")
+          lines.append(f"- Providers: `{', '.join(providers)}`")
+          lines.append(f"- Profiles: `{', '.join(profiles)}`")
+          if classified is not None:
+            lines.append(f"- classified_job_count: `{classified}`")
+          if classified_by_provider:
+            lines.append(f"- classified_job_count_by_provider: `{classified_by_provider}`")
+          for provider, profile, ranked_count, labeled_count in ranked_counts:
+            parts = [f"{provider}/{profile}"]
+            if ranked_count is not None:
+              parts.append(f"ranked={ranked_count}")
+            if labeled_count is not None:
+              parts.append(f"labeled={labeled_count}")
+            lines.append(f"- counts: `{', '.join(parts)}`")
+          delta_summary = report.get("delta_summary")
+          if delta_summary is not None:
+            lines.append(f"- delta_summary: `{json.dumps(delta_summary)[:500]}`")
+          if required_missing:
+            lines.append(f"- missing artifacts: `{', '.join(required_missing)}`")
+          else:
+            lines.append("- missing artifacts: `none`")
+
+          with open(summary_path, "a", encoding="utf-8") as handle:
+            handle.write("\n".join(lines) + "\n")
+          PY
+
       - name: Upload smoke artifacts
         if: always()
         uses: actions/upload-artifact@v4

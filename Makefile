@@ -16,6 +16,13 @@ define check_buildkit
 	fi
 endef
 
+define docker_diag
+	@echo "Docker context: $$(docker context show 2>/dev/null || echo unknown)"; \
+	context="$$(docker context show 2>/dev/null || echo default)"; \
+	host="$$(docker context inspect "$$context" --format '{{json .Endpoints.docker.Host}}' 2>/dev/null || echo unknown)"; \
+	echo "Docker host: $$host"
+endef
+
 test:
 	$(PY) -m pytest -q
 
@@ -29,12 +36,14 @@ gates: format-check lint test
 
 docker-build:
 	$(call check_buildkit)
+	$(call docker_diag)
 	docker build -t jobintel:local --build-arg RUN_TESTS=0 .
 
 image: docker-build
 
 image-ci:
 	$(call check_buildkit)
+	$(call docker_diag)
 	docker build -t jobintel:local --build-arg RUN_TESTS=1 .
 
 docker-run-local:
@@ -60,11 +69,13 @@ snapshot:
 
 smoke:
 	$(call check_buildkit)
+	$(call docker_diag)
 	$(MAKE) image
 	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build
 
 smoke-fast:
 	$(call check_buildkit)
+	$(call docker_diag)
 	@docker image inspect jobintel:local >/dev/null 2>&1 || ( \
 		echo "jobintel:local image missing; building with make image..."; \
 		$(MAKE) image; \
@@ -73,5 +84,6 @@ smoke-fast:
 
 smoke-ci:
 	$(call check_buildkit)
+	$(call docker_diag)
 	$(MAKE) image-ci
 	SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh --skip-build --providers openai --profiles cs

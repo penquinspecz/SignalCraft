@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "run_report schema v1",
+  "type": "object",
+  "required": [
+    "run_report_schema_version",
+    "run_id",
+    "selection"
+  ],
+  "properties": {
+    "run_report_schema_version": {
+      "type": "integer"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "selection": {
+      "type": "object",
+      "required": [
+        "scrape_provenance",
+        "classified_job_count",
+        "classified_job_count_by_provider"
+      ],
+      "properties": {
+        "scrape_provenance": {
+          "type": "object"
+        },
+        "classified_job_count": {
+          "type": "integer"
+        },
+        "classified_job_count_by_provider": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "delta_summary": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}
