@@ -8,7 +8,6 @@ import shutil
 import sys
 from pathlib import Path
 
-
 HASHED_OUTPUT_FILES = [
     "openai_ranked_jobs.cs.json",
     "openai_ranked_jobs.cs.csv",
