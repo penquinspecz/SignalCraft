@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok
+.PHONY: test lint format-check gates docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -109,3 +109,12 @@ print-config:
 	@echo "SMOKE_PROVIDERS=$(SMOKE_PROVIDERS)"
 	@echo "SMOKE_PROFILES=$(SMOKE_PROFILES)"
 	$(call docker_diag)
+
+daily:
+	$(MAKE) print-config
+	$(MAKE) image
+	@mode="$${JOBINTEL_MODE:-SNAPSHOT}"; \
+	offline_flag="--offline"; \
+	if [ "$$mode" = "LIVE" ]; then offline_flag=""; fi; \
+	IMAGE_TAG=$(JOBINTEL_IMAGE_TAG) SMOKE_SKIP_BUILD=1 SMOKE_PROVIDERS=$(SMOKE_PROVIDERS) SMOKE_PROFILES=$(SMOKE_PROFILES) \
+		./scripts/smoke_docker.sh --skip-build --providers $(SMOKE_PROVIDERS) --profiles $(SMOKE_PROFILES) $$offline_flag

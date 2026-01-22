@@ -180,6 +180,8 @@ for provider in "${provider_list[@]}"; do
     copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" 1
     copy_from_container "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" 0
     copy_from_container "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" 0
+    copy_from_container "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.json" 0
+    copy_from_container "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.md" 0
   done
 done
 

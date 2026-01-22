@@ -58,26 +58,11 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
     config = importlib.reload(config)
     run_scrape = importlib.reload(importlib.import_module("scripts.run_scrape"))
     run_classify = importlib.reload(importlib.import_module("scripts.run_classify"))
-    enrich_jobs = importlib.reload(importlib.import_module("scripts.enrich_jobs"))
+    run_enrich = importlib.reload(importlib.import_module("scripts.run_enrich"))
     score_jobs = importlib.reload(importlib.import_module("scripts.score_jobs"))
     run_daily = importlib.reload(importlib.import_module("scripts.run_daily"))
 
-    # Stub network calls for enrichment
-    def _stub_fetch_job_posting(**kwargs):
-        return {
-            "data": {
-                "jobPosting": {
-                    "title": None,
-                    "locationName": None,
-                    "teamNames": None,
-                    "descriptionHtml": "<p>Stub JD text for testing.</p>",
-                }
-            }
-        }
-
-    monkeypatch.setattr(enrich_jobs, "fetch_job_posting", _stub_fetch_job_posting)
-    monkeypatch.setattr(enrich_jobs, "_fetch_html_fallback", lambda url: None)
-    sys.modules["scripts.enrich_jobs"] = enrich_jobs
+    sys.modules["scripts.run_enrich"] = run_enrich
     monkeypatch.setattr(score_jobs, "is_us_or_remote_us", lambda job: True)
     sys.modules["scripts.score_jobs"] = score_jobs
     sys.modules["scripts.run_scrape"] = run_scrape
@@ -89,9 +74,9 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
 
     def _run_stage(cmd, *, stage: str):
         argv = cmd[1:] if cmd and cmd[0] == sys.executable else cmd
-        if argv and argv[0] == "-m" and argv[1] == "scripts.enrich_jobs":
+        if argv and argv[0] == "-m" and argv[1] == "scripts.run_enrich":
             sys.argv = [argv[1], *argv[2:]]
-            rc = enrich_jobs.main()
+            rc = run_enrich.main()
             if rc not in (None, 0):
                 raise SystemExit(rc)
             return
@@ -103,9 +88,9 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
         elif script_path == "run_classify.py":
             sys.argv = [script_path, *argv[1:]]
             rc = run_classify.main()
-        elif script_path == "enrich_jobs.py":
+        elif script_path == "run_enrich.py":
             sys.argv = [script_path, *argv[1:]]
-            rc = enrich_jobs.main()
+            rc = run_enrich.main()
         elif script_path == "score_jobs.py":
             sys.argv = [script_path, *argv[1:]]
             rc = score_jobs.main()

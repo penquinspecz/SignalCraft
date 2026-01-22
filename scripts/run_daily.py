@@ -38,6 +38,14 @@ import urllib.request
 from ji_engine.utils.dotenv import load_dotenv
 from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.content_fingerprint import content_fingerprint
+from jobintel.alerts import (
+    build_last_seen,
+    compute_alerts,
+    load_last_seen,
+    resolve_score_delta,
+    write_alerts,
+    write_last_seen,
+)
 from jobintel.delta import compute_delta
 from ji_engine.config import (
     DATA_DIR,
@@ -348,6 +356,17 @@ def _provider_enriched_jobs_json(provider: str) -> Path:
     if provider == "openai":
         return ENRICHED_JOBS_JSON
     return DATA_DIR / f"{provider}_enriched_jobs.json"
+
+
+def _alerts_paths(provider: str, profile: str) -> Tuple[Path, Path]:
+    return (
+        DATA_DIR / f"{provider}_alerts.{profile}.json",
+        DATA_DIR / f"{provider}_alerts.{profile}.md",
+    )
+
+
+def _last_seen_path(provider: str, profile: str) -> Path:
+    return STATE_DIR / "runs" / "last_seen" / f"{provider}.{profile}.json"
 
 
 def _provider_ai_jobs_json(provider: str) -> Path:
@@ -1724,7 +1743,7 @@ def main() -> int:
                     lambda p=labeled_path, o=enriched_path: _run(
                         [
                             sys.executable,
-                            str(REPO_ROOT / "scripts" / "enrich_jobs.py"),
+                            str(REPO_ROOT / "scripts" / "run_enrich.py"),
                             "--in_path",
                             str(p),
                             "--out_path",
@@ -1830,6 +1849,12 @@ def main() -> int:
                 state_path = _state_last_ranked(provider, profile)
                 state_exists = state_path.exists()
                 curr = _read_json(ranked_json)
+                alerts_json, alerts_md = _alerts_paths(provider, profile)
+                last_seen_path = _last_seen_path(provider, profile)
+                prev_last_seen = load_last_seen(last_seen_path)
+                alerts = compute_alerts(curr, prev_last_seen, score_delta=resolve_score_delta())
+                write_alerts(alerts_json, alerts_md, alerts, provider, profile)
+                write_last_seen(last_seen_path, build_last_seen(curr))
                 fallback_applied = selection.get("us_only_fallback", {}).get("fallback_applied") is True
                 if fallback_applied:
                     label = _profile_label(provider, profile)
