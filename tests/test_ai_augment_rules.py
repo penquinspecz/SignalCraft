@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from ji_engine.ai.cache import FileSystemAICache
-from ji_engine.ai.provider import StubProvider, AIProvider
-from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.ai.augment import compute_content_hash
+from ji_engine.ai.cache import FileSystemAICache
 from ji_engine.ai.extract_rules import RULES_VERSION
+from ji_engine.ai.provider import AIProvider, StubProvider
+from ji_engine.utils.atomic_write import atomic_write_text
 
 
 class MinimalProvider(AIProvider):
@@ -48,7 +48,7 @@ def test_run_ai_augment_backfills_skills_from_rules(monkeypatch, tmp_path: Path)
     monkeypatch.setattr("scripts.run_ai_augment.ENRICHED_JOBS_JSON", input_path)
     monkeypatch.setattr("scripts.run_ai_augment.OUTPUT_PATH", output_path)
 
-    from scripts.run_ai_augment import main  # noqa: WPS433
+    from scripts.run_ai_augment import main  # noqa: PLC0415
 
     rc = main(argv=[], provider=MinimalProvider())
     assert rc == 0
@@ -101,7 +101,7 @@ def test_cached_ai_payload_upgraded_to_new_rules(monkeypatch, tmp_path: Path) ->
     monkeypatch.setattr("scripts.run_ai_augment.ENRICHED_JOBS_JSON", input_path)
     monkeypatch.setattr("scripts.run_ai_augment.OUTPUT_PATH", output_path)
 
-    from scripts.run_ai_augment import main  # noqa: WPS433
+    from scripts.run_ai_augment import main  # noqa: PLC0415
 
     main(argv=[], provider=StubProvider())
 
@@ -114,5 +114,4 @@ def test_cached_ai_payload_upgraded_to_new_rules(monkeypatch, tmp_path: Path) ->
     assert "Troubleshooting" in ai["skills_required"]
     assert "Embedded Systems" in ai["skills_required"]
     assert ai["rules_version"] == RULES_VERSION
-
 
