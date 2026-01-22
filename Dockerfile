@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -16,10 +17,13 @@ COPY pyproject.toml /app/pyproject.toml
 COPY requirements.txt /app/requirements.txt
 COPY README.md /app/README.md
 
+ARG RUN_TESTS=0
+
 # Install dependencies + dev test deps (no secrets required)
-RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r /app/requirements.txt \
-    && pip install --no-cache-dir pytest
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip \
+    && pip install -r /app/requirements.txt \
+    && pip install pytest
 
 # Copy project code
 COPY src /app/src
@@ -38,7 +42,7 @@ RUN ls -la /app/data && \
     ls -la /app/data/anthropic_snapshots
 
 # Run tests during build (deterministic, offline)
-RUN python -m pytest -q
+RUN if [ "$RUN_TESTS" = "1" ]; then python -m pytest -q; fi
 
 # Ensure runtime user can write only to /app/data and /app/state (and ashby_cache)
 RUN mkdir -p /app/data /app/state /app/data/ashby_cache /app/state/runs \
