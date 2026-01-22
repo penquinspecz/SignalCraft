@@ -240,6 +240,9 @@ SMOKE_SKIP_BUILD=1 ./scripts/smoke_docker.sh
 CI runs the same script and uploads `smoke_artifacts/` even on failure. Check
 `smoke_artifacts/container.log` and `smoke_artifacts/run_report.json` when debugging.
 
+`make image` builds without tests (fast). Use `make image-ci` or
+`docker build -t jobintel:local --build-arg RUN_TESTS=1 .` to force tests.
+
 ## Smoke contract
 
 The smoke contract check validates deterministic properties of smoke artifacts so CI stays stable:

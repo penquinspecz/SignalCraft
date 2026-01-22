@@ -26,7 +26,7 @@ jobs:
 
       - name: Build image
         run: |
-          docker build -t jobintel:local .
+          make image-ci
 
       - name: Run smoke (containerized)
         id: smoke
