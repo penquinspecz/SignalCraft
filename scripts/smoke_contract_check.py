@@ -9,7 +9,10 @@ from pathlib import Path
 import os
 from typing import Any, List
 
-from scripts.schema_validate import validate_report
+try:
+    from schema_validate import validate_report
+except ImportError:  # pragma: no cover - fallback for module execution
+    from scripts.schema_validate import validate_report
 
 
 SMOKE_CONTRACT_VERSION = 1

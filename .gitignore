@@ -76,3 +76,5 @@ data/state/*.json
 
 # Local smoke outputs
 smoke_artifacts/
+
+# Personal notes (local-only)

@@ -65,6 +65,33 @@ else
   docker build -t "$IMAGE_TAG" .
 fi
 
+echo "==> Preflight image runtime"
+preflight_status=1
+last_cmd=""
+last_output=""
+for cmd in "/usr/local/bin/python -V" "/usr/bin/python3 -V" "python3 -V" "python -V"; do
+  set +e
+  entrypoint="${cmd%% *}"
+  args="${cmd#* }"
+  last_output="$(docker run --rm --entrypoint "$entrypoint" "$IMAGE_TAG" $args 2>&1)"
+  preflight_status=$?
+  set -e
+  last_cmd="docker run --rm --entrypoint $entrypoint $IMAGE_TAG $args"
+  if [ "$preflight_status" -eq 0 ]; then
+    break
+  fi
+done
+if [ "$preflight_status" -ne 0 ]; then
+  echo "Preflight failed: unable to run python in image '$IMAGE_TAG'."
+  echo "Last command: $last_cmd"
+  echo "Last error output:"
+  echo "$last_output"
+  echo "Preflight bypasses the image ENTRYPOINT; failures mean python is missing or"
+  echo "the jobintel:local tag may have been overwritten by a non-jobintel image."
+  echo "Rebuild with: make image"
+  exit 1
+fi
+
 echo "==> Validate baked-in snapshots"
 docker run --rm --entrypoint python "$IMAGE_TAG" \
   -m src.jobintel.cli snapshots validate --all --data-dir /app/data
@@ -95,16 +122,45 @@ fi
 
 echo "==> Collect outputs"
 missing=0
-for path in /app/data/openai_labeled_jobs.json /app/data/openai_ranked_jobs.cs.json /app/data/openai_ranked_jobs.cs.csv; do
+IFS=',' read -r -a provider_list <<< "$PROVIDERS"
+IFS=',' read -r -a profile_list <<< "$PROFILES"
+
+copy_from_container() {
+  local src="$1"
+  local required="$2"
   if [ "$container_created" -ne 1 ]; then
-    echo "Skipping copy (container not created): $path"
-    missing=1
+    echo "Skipping copy (container not created): $src"
+    if [ "$required" = "1" ]; then
+      missing=1
+    fi
+    return
+  fi
+  if ! docker cp "$CONTAINER_NAME:$src" "$ARTIFACT_DIR/$(basename "$src")" 2>/dev/null; then
+    if [ "$required" = "1" ]; then
+      echo "Missing output: $src"
+      missing=1
+    else
+      echo "Missing optional output: $src"
+    fi
+  fi
+}
+
+for provider in "${provider_list[@]}"; do
+  provider_trimmed="$(echo "$provider" | xargs)"
+  if [ -z "$provider_trimmed" ]; then
     continue
   fi
-  if ! docker cp "$CONTAINER_NAME:$path" "$ARTIFACT_DIR/$(basename "$path")" 2>/dev/null; then
-    echo "Missing output: $path"
-    missing=1
-  fi
+  copy_from_container "/app/data/${provider_trimmed}_labeled_jobs.json" 1
+  for profile in "${profile_list[@]}"; do
+    profile_trimmed="$(echo "$profile" | xargs)"
+    if [ -z "$profile_trimmed" ]; then
+      continue
+    fi
+    copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" 1
+    copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" 1
+    copy_from_container "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" 0
+    copy_from_container "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" 0
+  done
 done
 
 rm -rf "$ARTIFACT_DIR/state_runs"
@@ -124,6 +180,9 @@ if [ "$missing" -ne 0 ]; then
 fi
 
 PYTHON=${PYTHON:-python3}
+echo "==> Write metadata"
+$PYTHON -m scripts.smoke_metadata --out "$ARTIFACT_DIR/metadata.json" --providers "$PROVIDERS" --profiles "$PROFILES"
+
 echo "==> Smoke contract check"
 $PYTHON scripts/smoke_contract_check.py "$ARTIFACT_DIR" --providers "$PROVIDERS" --profiles "$PROFILES"
 
