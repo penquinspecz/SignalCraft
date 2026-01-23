@@ -113,7 +113,7 @@ env_json=$(jq -n \
       {"name":"JOBINTEL_IMAGE","value":$img},
       {"name":"JOBINTEL_TASKDEF","value":$taskdef}
     ]
-    + ( $git_sha | length > 0 ? [{"name":"JOBINTEL_GIT_SHA","value":$git_sha}] : [] )
+    + (if ($git_sha | length) > 0 then [{"name":"JOBINTEL_GIT_SHA","value":$git_sha}] else [] end)
   ')
 overrides=$(jq -n --arg name "${container_name}" --argjson env "${env_json}" '{containerOverrides:[{name:$name,environment:$env}]}')
 
