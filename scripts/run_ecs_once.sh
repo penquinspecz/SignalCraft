@@ -29,6 +29,15 @@ fail() {
   echo "FAIL: ${msg}" >&2
   STATUS=1
 }
+finish() {
+  echo "\nSummary:"
+  if [[ "${STATUS}" -eq 0 ]]; then
+    echo "SUCCESS"
+  else
+    echo "FAIL"
+  fi
+  exit "${STATUS}"
+}
 
 command -v aws >/dev/null 2>&1 || fail "aws CLI is required."
 command -v jq >/dev/null 2>&1 || fail "jq is required for JSON parsing. Install via: brew install jq"
@@ -45,7 +54,7 @@ fi
 
 if [[ "${STATUS}" -ne 0 ]]; then
   echo "Example: CLUSTER_ARN=... TASK_FAMILY=jobintel-daily REGION=us-east-1 SUBNET_IDS=subnet-1,subnet-2 SECURITY_GROUP_IDS=sg-1 BUCKET=... PREFIX=jobintel ./scripts/run_ecs_once.sh" >&2
-  exit 2
+  finish
 fi
 
 subnets_json=$(printf '%s' "${SUBNET_IDS}" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$";"")) | map(select(length>0))')
@@ -75,14 +84,38 @@ fi
 
 if [[ -z "${TASK_DEF_ARN}" || "${TASK_DEF_ARN}" == "None" ]]; then
   fail "No task definition found for family ${TASK_FAMILY}."
-  echo "Summary:\nFAIL"; exit 1
+  finish
 fi
 
 taskdef_desc=$(aws ecs describe-task-definition --task-definition "${TASK_DEF_ARN}" --region "${REGION}")
 taskdef_image=$(printf '%s' "${taskdef_desc}" | jq -r '.taskDefinition.containerDefinitions[0].image // ""')
+container_name=$(printf '%s' "${taskdef_desc}" | jq -r '.taskDefinition.containerDefinitions[0].name // ""')
+
+if [[ -z "${container_name}" ]]; then
+  fail "Could not determine container name from task definition."
+  finish
+fi
 
 echo "Task definition: ${TASK_DEF_ARN}"
 echo "Task image: ${taskdef_image:-unknown}"
+
+git_sha_env=""
+if [[ "${taskdef_image}" =~ :([0-9a-f]{7,40})$ ]]; then
+  git_sha_env="${BASH_REMATCH[1]}"
+fi
+
+env_json=$(jq -n \
+  --arg img "${taskdef_image}" \
+  --arg taskdef "${TASK_DEF_ARN}" \
+  --arg git_sha "${git_sha_env}" \
+  '
+    [
+      {"name":"JOBINTEL_IMAGE","value":$img},
+      {"name":"JOBINTEL_TASKDEF","value":$taskdef}
+    ]
+    + ( $git_sha | length > 0 ? [{"name":"JOBINTEL_GIT_SHA","value":$git_sha}] : [] )
+  ')
+overrides=$(jq -n --arg name "${container_name}" --argjson env "${env_json}" '{containerOverrides:[{name:$name,environment:$env}]}')
 
 # Run task
 run_out=$(aws ecs run-task \
@@ -90,13 +123,14 @@ run_out=$(aws ecs run-task \
   --launch-type FARGATE \
   --task-definition "${TASK_DEF_ARN}" \
   --network-configuration "awsvpcConfiguration={subnets=${subnets_json},securityGroups=${sg_json},assignPublicIp=ENABLED}" \
+  --overrides "${overrides}" \
   --region "${REGION}")
 
 task_arn=$(printf '%s' "${run_out}" | jq -r '.tasks[0].taskArn // ""')
 
 if [[ -z "${task_arn}" ]]; then
   fail "Task failed to start (no taskArn)."
-  echo "Summary:\nFAIL"; exit 1
+  finish
 fi
 
 echo "Task ARN: ${task_arn}"
@@ -121,7 +155,7 @@ check_pointer() {
     err=$(
       aws s3api head-object --bucket "${BUCKET}" --key "${key}" --region "${REGION}" 2>&1 || true
     )
-    if echo "${err}" | rg -qi "AccessDenied|403"; then
+    if echo "${err}" | grep -qiE "AccessDenied|403"; then
       status="access_denied"
     fi
   fi
@@ -201,10 +235,4 @@ echo "baseline_resolved: ${baseline_resolved}"
 echo "new/changed/removed: ${new_count}/${changed_count}/${removed_count}"
 echo "pointer_written: ${pointer_written}"
 
-echo "\nSummary:"
-if [[ "${STATUS}" -eq 0 ]]; then
-  echo "SUCCESS"
-else
-  echo "FAIL"
-fi
-exit "${STATUS}"
+finish
