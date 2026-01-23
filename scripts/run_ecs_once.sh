@@ -110,6 +110,7 @@ stopped_reason=$(printf '%s' "${desc}" | jq -r '.tasks[0].stoppedReason // ""')
 
 pointer_status_global="not_found"
 pointer_status_provider="not_found"
+pointer_written="no"
 
 check_pointer() {
   local key="$1"
@@ -131,6 +132,9 @@ global_key="${PREFIX}/state/last_success.json"
 provider_key="${PREFIX}/state/${PROVIDER}/${PROFILE}/last_success.json"
 pointer_status_global=$(check_pointer "${global_key}")
 pointer_status_provider=$(check_pointer "${provider_key}")
+if [[ "${pointer_status_global}" == "ok" && "${pointer_status_provider}" == "ok" ]]; then
+  pointer_written="yes"
+fi
 
 latest_run_id=$(aws s3api list-objects-v2 \
   --bucket "${BUCKET}" \
