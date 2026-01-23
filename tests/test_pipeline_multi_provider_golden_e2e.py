@@ -16,10 +16,10 @@ def _write_providers_config(path: Path, openai_snapshot: Path, ashby_snapshot_di
     payload = [
         {
             "provider_id": "openai",
-            "type": "openai",
-            "careers_url": "https://openai.com/careers/search/",
+            "type": "ashby",
+            "board_url": "https://jobs.ashbyhq.com/openai",
             "mode": "snapshot",
-            "snapshot_path": str(openai_snapshot),
+            "snapshot_dir": str(openai_snapshot.parent),
         },
         {
             "provider_id": "anthropic",

@@ -162,25 +162,45 @@ def publish_run(
     )
     state_payload["provider_profiles"] = provider_profiles
     if not dry_run and write_last_success:
-        logger.info("writing baseline pointer: s3://%s/%s/state/last_success.json", resolved_bucket, resolved_prefix)
-        write_last_success_state(resolved_bucket, resolved_prefix, state_payload, client=client)
-        for provider, profiles in latest_prefixes.items():
-            for profile in profiles.keys():
-                logger.info(
-                    "writing baseline pointer: s3://%s/%s/state/%s/%s/last_success.json",
-                    resolved_bucket,
-                    resolved_prefix,
-                    provider,
-                    profile,
-                )
-                write_provider_last_success_state(
-                    resolved_bucket,
-                    resolved_prefix,
-                    provider,
-                    profile,
-                    state_payload,
-                    client=client,
-                )
+        try:
+            logger.info(
+                "writing baseline pointer: s3://%s/%s/state/last_success.json",
+                resolved_bucket,
+                resolved_prefix,
+            )
+            write_last_success_state(resolved_bucket, resolved_prefix, state_payload, client=client)
+            logger.info(
+                "baseline pointer write ok: s3://%s/%s/state/last_success.json",
+                resolved_bucket,
+                resolved_prefix,
+            )
+            for provider, profiles in latest_prefixes.items():
+                for profile in profiles.keys():
+                    logger.info(
+                        "writing baseline pointer: s3://%s/%s/state/%s/%s/last_success.json",
+                        resolved_bucket,
+                        resolved_prefix,
+                        provider,
+                        profile,
+                    )
+                    write_provider_last_success_state(
+                        resolved_bucket,
+                        resolved_prefix,
+                        provider,
+                        profile,
+                        state_payload,
+                        client=client,
+                    )
+                    logger.info(
+                        "baseline pointer write ok: s3://%s/%s/state/%s/%s/last_success.json",
+                        resolved_bucket,
+                        resolved_prefix,
+                        provider,
+                        profile,
+                    )
+        except ClientError as exc:
+            logger.error("baseline pointer write failed: %s", exc)
+            raise
     elif not dry_run and not write_last_success:
         logger.info("Skipping baseline pointer write (run not successful).")
 

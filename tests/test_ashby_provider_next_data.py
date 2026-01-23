@@ -29,6 +29,15 @@ def test_parse_fallback_anchor() -> None:
     assert results[0].location == "Remote"
 
 
+def test_parse_app_data_payload() -> None:
+    html = Path("tests/fixtures/ashby_app_data.html").read_text(encoding="utf-8")
+    provider = AshbyProvider(provider_id="acme", board_url="https://jobs.ashbyhq.com/acme", snapshot_dir=Path("data"))
+    results = provider._parse_html(html)
+    assert len(results) == 1
+    assert results[0].title == "Deployment Manager"
+    assert "ashbyhq.com" in (results[0].apply_url or "")
+
+
 def test_job_id_hash_includes_apply_url() -> None:
     provider = AshbyProvider(provider_id="acme", board_url="https://jobs.ashbyhq.com/acme", snapshot_dir=Path("data"))
     job_id_a = provider._extract_job_id(

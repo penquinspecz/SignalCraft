@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ji_engine.providers.openai_provider import OpenAICareersProvider
+from ji_engine.providers.ashby_provider import AshbyProvider
 from ji_engine.providers.registry import load_providers_config
 from ji_engine.utils.job_id import extract_job_id_from_url
 
@@ -8,9 +8,13 @@ from ji_engine.utils.job_id import extract_job_id_from_url
 def test_openai_snapshot_contract() -> None:
     snapshot_path = Path("data/openai_snapshots/index.html")
     assert snapshot_path.exists(), f"Missing snapshot fixture: {snapshot_path}"
-    html = snapshot_path.read_text(encoding="utf-8")
-    provider = OpenAICareersProvider(mode="SNAPSHOT", data_dir="data")
-    jobs = provider._parse_html(html)
+    provider = AshbyProvider(
+        provider_id="openai",
+        board_url="https://jobs.ashbyhq.com/openai",
+        snapshot_dir=Path("data/openai_snapshots"),
+        mode="SNAPSHOT",
+    )
+    jobs = provider.load_from_snapshot()
     assert len(jobs) > 100
 
     apply_urls = [job.apply_url for job in jobs if job.apply_url]
