@@ -165,6 +165,10 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert (
         data["scoring_input_selection_by_provider"]["openai"]["cs"]["decision"]["rule"] == "default_enriched_required"
     )
+    assert data["provenance"]["build"]["git_sha"] == "unknown"
+    assert data["provenance"]["build"]["image"] == "unknown"
+    assert data["provenance"]["build"]["taskdef"] == "unknown"
+    assert data["provenance"]["build"]["ecs_task_arn"] == "unknown"
     assert path1.name == "20260101T000000Z.json"
     schema = json.loads(resolve_schema_path(1).read_text(encoding="utf-8"))
     assert validate_report(data, schema) == []

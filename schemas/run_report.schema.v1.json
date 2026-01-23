@@ -251,6 +251,36 @@
       },
       "additionalProperties": true
     },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "build": {
+          "type": "object",
+          "required": [
+            "git_sha",
+            "image",
+            "taskdef",
+            "ecs_task_arn"
+          ],
+          "properties": {
+            "git_sha": {
+              "type": "string"
+            },
+            "image": {
+              "type": "string"
+            },
+            "taskdef": {
+              "type": "string"
+            },
+            "ecs_task_arn": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "delta_summary": {
       "type": "object"
     }

@@ -717,6 +717,13 @@ def _persist_run_metadata(
             if primary_provider in classified_by_provider:
                 selection["classified_job_count"] = classified_by_provider[primary_provider]
 
+    build_provenance = {
+        "git_sha": os.environ.get("JOBINTEL_GIT_SHA", "unknown"),
+        "image": os.environ.get("JOBINTEL_IMAGE", "unknown"),
+        "taskdef": os.environ.get("JOBINTEL_TASKDEF", "unknown"),
+        "ecs_task_arn": os.environ.get("ECS_TASK_ARN", "unknown"),
+    }
+
     payload = {
         "run_report_schema_version": run_report_schema_version,
         "run_id": run_id,
@@ -731,7 +738,7 @@ def _persist_run_metadata(
         "stage_durations": telemetry.get("stages", {}),
         "diff_counts": diff_counts,
         "provenance_by_provider": provenance_by_provider or {},
-        "provenance": provenance_by_provider or {},
+        "provenance": {**(provenance_by_provider or {}), "build": build_provenance},
         "selection": selection,
         "inputs": inputs,
         "scoring_inputs_by_profile": scoring_inputs_by_profile,
