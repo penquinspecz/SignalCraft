@@ -1905,6 +1905,8 @@ def main() -> int:
                 s3_meta = {"status": "error", "reason": f"publish_failed:{exc.__class__.__name__}"}
                 s3_exit_code = 2
                 s3_failed = require_s3
+        else:
+            logger.info("S3 publish disabled (S3_PUBLISH_ENABLED != 1).")
 
         if os.environ.get("JOBINTEL_PRUNE") == "1":
             try:

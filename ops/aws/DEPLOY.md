@@ -140,6 +140,27 @@ Verification:
   BUCKET=<bucket> PREFIX=<prefix> PROVIDER=openai PROFILE=cs ./scripts/verify_s3_pointers.sh
   ```
 
+## One-command verification
+```bash
+BUCKET=<bucket> PREFIX=<prefix> PROVIDER=openai PROFILE=cs ./scripts/verify_ops.sh
+```
+CloudWatch tail helper:
+```bash
+LOG_GROUP=/ecs/jobintel REGION=us-east-1 LOOKBACK_MINUTES=60 FILTER=baseline ./scripts/cw_tail.sh
+```
+ECS task inspection:
+```bash
+CLUSTER_ARN=<cluster> TASK_ARN=<task> REGION=us-east-1 ./scripts/ecs_verify_task.sh
+```
+
+## Troubleshooting: diff_counts show all-new
+1. Run the verifier to confirm pointers and latest run success:
+   `./scripts/verify_ops.sh`
+2. If pointers are missing, ensure `S3_PUBLISH_ENABLED=1` and task role has `s3:GetObject`.
+3. If pointer read shows `access_denied`, fix task role policy for the `state/` prefix.
+4. If pointer exists but baseline still missing, delete and rerun to refresh:
+   `aws s3 rm s3://<bucket>/<prefix>/state/last_success.json`
+
 ## OpenAI scraping source
 - OpenAI jobs are sourced from the Ashby board: `https://jobs.ashbyhq.com/openai`.
 - The legacy `openai.com/careers` scraper is deprecated due to WAF/403 risk.

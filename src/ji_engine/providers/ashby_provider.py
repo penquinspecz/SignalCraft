@@ -76,6 +76,9 @@ class AshbyProvider(BaseJobProvider):
         parsed = self._parse_next_data(soup, now)
         if parsed:
             return parsed
+        parsed = self._parse_app_data(html, now)
+        if parsed:
+            return parsed
 
         anchors = soup.find_all("a", href=lambda h: h and "ashbyhq.com" in h and "/application" in h)
         for anchor in anchors:
@@ -156,6 +159,72 @@ class AshbyProvider(BaseJobProvider):
             )
         return results
 
+    def _parse_app_data(self, html: str, now: datetime) -> List[RawJobPosting]:
+        marker = "window.__appData"
+        idx = html.find(marker)
+        if idx == -1:
+            return []
+        start = html.find("{", idx)
+        if start == -1:
+            return []
+        depth = 0
+        end = None
+        for i in range(start, len(html)):
+            ch = html[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    end = i + 1
+                    break
+        if end is None:
+            return []
+        try:
+            payload = json.loads(html[start:end])
+        except Exception:
+            return []
+        matches: List[dict[str, Any]] = []
+
+        def walk(node: Any) -> None:
+            if isinstance(node, dict):
+                if self._looks_like_job(node):
+                    matches.append(node)
+                for value in node.values():
+                    walk(value)
+            elif isinstance(node, list):
+                for item in node:
+                    walk(item)
+
+        walk(payload)
+        results: List[RawJobPosting] = []
+        seen_apply_urls: set[str] = set()
+        for job in matches:
+            apply_url = self._extract_apply_url(job)
+            title = self._extract_title_from_payload(job)
+            if not apply_url or not title:
+                continue
+            if apply_url in seen_apply_urls:
+                continue
+            seen_apply_urls.add(apply_url)
+            location = self._extract_location_from_payload(job)
+            team = self._extract_team_from_payload(job)
+            job_id = self._extract_job_id(apply_url, title, location, team)
+            results.append(
+                RawJobPosting(
+                    source=JobSource.ASHBY,
+                    title=title,
+                    location=location,
+                    team=team,
+                    apply_url=apply_url,
+                    detail_url=None,
+                    raw_text="",
+                    scraped_at=now,
+                    job_id=job_id,
+                )
+            )
+        return results
+
     def _looks_like_job(self, node: dict[str, Any]) -> bool:
         apply_url = self._extract_apply_url(node)
         title = self._extract_title_from_payload(node)
@@ -166,6 +235,11 @@ class AshbyProvider(BaseJobProvider):
             value = node.get(key)
             if isinstance(value, str) and "ashbyhq.com" in value and "/application" in value:
                 return value
+        for key in ("jobId", "job_id", "id"):
+            value = node.get(key)
+            if isinstance(value, str) and _ASHBY_JOB_ID_RE.search(f"/{value}/application"):
+                base = self.board_url.rstrip("/")
+                return f"{base}/{value}/application"
         return None
 
     def _extract_title_from_payload(self, node: dict[str, Any]) -> Optional[str]:

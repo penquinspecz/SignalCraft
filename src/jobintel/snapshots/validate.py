@@ -12,7 +12,6 @@ MIN_BYTES_BY_PROVIDER = {
     "ashby": 500,
 }
 BLOCKED_MARKERS = (
-    "captcha",
     "access denied",
     "forbidden",
     "verify you are human",
@@ -61,6 +60,13 @@ def _min_bytes_for(provider: str) -> int:
 
 def _looks_blocked(text: str) -> Tuple[bool, str]:
     lower = text.lower()
+    if "captcha" in lower and (
+        "verify you are human" in lower
+        or "access denied" in lower
+        or "temporarily blocked" in lower
+        or "attention required" in lower
+    ):
+        return True, "blocked marker: captcha"
     for marker in BLOCKED_MARKERS:
         if marker in lower:
             return True, f"blocked marker: {marker}"
