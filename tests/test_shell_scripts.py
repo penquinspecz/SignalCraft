@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -16,3 +17,17 @@ def test_shell_scripts_syntax() -> None:
     for path in script_paths:
         result = subprocess.run([bash, "-n", str(path)], capture_output=True, text=True)
         assert result.returncode == 0, f"bash -n failed for {path}: {result.stderr}"
+
+
+def test_run_ecs_once_smoke_no_unbound() -> None:
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("bash not available")
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "run_ecs_once.sh"
+    env = {"PATH": os.environ.get("PATH", "")}
+    result = subprocess.run([bash, str(script)], capture_output=True, text=True, env=env)
+    assert result.returncode != 0
+    combined = (result.stdout or "") + (result.stderr or "")
+    assert "unbound variable" not in combined
+    assert "pointer_written: unbound variable" not in combined
