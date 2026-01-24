@@ -19,8 +19,8 @@ class DummyClient:
     def __init__(self):
         self.calls = []
 
-    def upload_file(self, Filename, Bucket, Key):
-        self.calls.append(("upload", Key))
+    def upload_file(self, Filename, Bucket, Key, ExtraArgs=None):
+        self.calls.append(("upload", Key, ExtraArgs or {}))
 
     def put_object(self, Bucket, Key, Body):
         self.calls.append(("put", Key))
@@ -71,6 +71,8 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     keys = [call[1] for call in client.calls if call[0] == "upload"]
     assert any(key.startswith(f"jobintel/runs/{run_id}/") for key in keys)
     assert any(key.startswith("jobintel/latest/openai/cs/") for key in keys)
+    content_types = [call[2].get("ContentType") for call in client.calls if call[0] == "upload"]
+    assert any(ct == "application/json" for ct in content_types)
     put_keys = [call[1] for call in client.calls if call[0] == "put"]
     assert "jobintel/state/last_success.json" in put_keys
     assert "jobintel/state/openai/cs/last_success.json" in put_keys
@@ -146,7 +148,7 @@ def test_publish_s3_requires_bucket(monkeypatch, tmp_path):
 
     with pytest.raises(SystemExit) as exc:
         publish_s3.main()
-    assert str(exc.value) == "2"
+    assert "JOBINTEL_S3_BUCKET" in str(exc.value)
 
 
 def test_publish_s3_pointer_write_error(monkeypatch, tmp_path):

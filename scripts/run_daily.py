@@ -405,6 +405,37 @@ def _load_scrape_provenance(providers: List[str]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def _ecs_task_arn_from_metadata() -> Optional[str]:
+    metadata_env = ("ECS_CONTAINER_METADATA_URI_V4", "ECS_CONTAINER_METADATA_URI")
+    for key in metadata_env:
+        base_uri = os.environ.get(key)
+        if not base_uri:
+            continue
+        task_uri = f"{base_uri.rstrip('/')}/task"
+        try:
+            with urllib.request.urlopen(task_uri, timeout=2) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (urllib.error.URLError, json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(payload, dict):
+            task_arn = payload.get("TaskARN") or payload.get("TaskArn")
+            if isinstance(task_arn, str) and task_arn:
+                return task_arn
+    return None
+
+
+def _resolve_ecs_task_arn() -> str:
+    env_value = os.environ.get("JOBINTEL_ECS_TASK_ARN") or os.environ.get("ECS_TASK_ARN")
+    if env_value and env_value not in {"unknown", "metadata", "from_metadata"}:
+        return env_value
+    metadata_value = _ecs_task_arn_from_metadata()
+    if metadata_value:
+        return metadata_value
+    if env_value:
+        return env_value
+    return "unknown"
+
+
 def _apply_score_fallback_metadata(selection: Dict[str, Any], ranked_json: Path) -> None:
     meta_path = _score_meta_path(ranked_json)
     if not meta_path.exists():
@@ -721,7 +752,7 @@ def _persist_run_metadata(
         "git_sha": os.environ.get("JOBINTEL_GIT_SHA", "unknown"),
         "image": os.environ.get("JOBINTEL_IMAGE", "unknown"),
         "taskdef": os.environ.get("JOBINTEL_TASKDEF", "unknown"),
-        "ecs_task_arn": os.environ.get("ECS_TASK_ARN", "unknown"),
+        "ecs_task_arn": _resolve_ecs_task_arn(),
     }
 
     payload = {
@@ -1124,6 +1155,8 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
     reason = ""
     selection_reason = ""
     comparison_details: Dict[str, Any] = {}
+    selection_reason_labeled_vs_enriched = "not_applicable"
+    selection_reason_enriched_vs_ai = "not_applicable"
 
     def _ai_note() -> str:
         if args.ai and not args.ai_only:
@@ -1135,12 +1168,15 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
         reason = "ai_only requires AI-enriched input"
         selected_path = ai_path if ai_path.exists() else None
         selection_reason = "ai_only"
+        selection_reason_enriched_vs_ai = "ai_only_required"
         decision["reason"] = reason
         return {
             "selected": _file_metadata(selected_path) if selected_path else None,
             "selected_path": str(selected_path) if selected_path else None,
             "candidate_paths_considered": candidate_paths_considered,
             "selection_reason": selection_reason,
+            "selection_reason_labeled_vs_enriched": selection_reason_labeled_vs_enriched,
+            "selection_reason_enriched_vs_ai": selection_reason_enriched_vs_ai,
             "comparison_details": comparison_details,
             "candidates": candidates,
             "decision": decision,
@@ -1159,36 +1195,46 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
                 selected_path = enriched_path
                 reason = "enriched newer than labeled"
                 selection_reason = "no_enrich_enriched_newer"
+                selection_reason_labeled_vs_enriched = "enriched_newer"
                 comparisons["winner"] = "enriched"
             else:
                 selected_path = labeled_path
                 reason = "labeled newer or same mtime as enriched"
                 selection_reason = "no_enrich_labeled_newer_or_equal"
+                selection_reason_labeled_vs_enriched = "labeled_newer_or_equal"
                 comparisons["winner"] = "labeled"
         elif enriched_path.exists():
             selected_path = enriched_path
             reason = "enriched exists and labeled missing"
             selection_reason = "no_enrich_enriched_only"
+            selection_reason_labeled_vs_enriched = "enriched_only"
             comparisons["winner"] = "enriched"
         elif labeled_path.exists():
             selected_path = labeled_path
             reason = "labeled exists and enriched missing"
             selection_reason = "no_enrich_labeled_only"
+            selection_reason_labeled_vs_enriched = "labeled_only"
             comparisons["winner"] = "labeled"
         else:
             reason = "no_enrich requires labeled or enriched input"
             selection_reason = "no_enrich_missing"
+            selection_reason_labeled_vs_enriched = "missing"
         decision["comparisons"] = comparisons
         decision["reason"] = reason + _ai_note()
         if selected_path == enriched_path and args.ai and ai_path.exists():
             selection_reason = "prefer_ai_enriched"
             selected_path = ai_path
             comparison_details["prefer_ai"] = True
+            selection_reason_enriched_vs_ai = "ai_enriched_preferred"
+        elif selected_path == enriched_path and args.ai:
+            selection_reason_enriched_vs_ai = "ai_enriched_missing"
         return {
             "selected": _file_metadata(selected_path) if selected_path else None,
             "selected_path": str(selected_path) if selected_path else None,
             "candidate_paths_considered": candidate_paths_considered,
             "selection_reason": selection_reason,
+            "selection_reason_labeled_vs_enriched": selection_reason_labeled_vs_enriched,
+            "selection_reason_enriched_vs_ai": selection_reason_enriched_vs_ai,
             "comparison_details": comparison_details,
             "candidates": candidates,
             "decision": decision,
@@ -1199,19 +1245,26 @@ def _score_input_selection_detail_for(args: argparse.Namespace, provider: str) -
         selected_path = enriched_path
         reason = "default requires enriched input"
         selection_reason = "default_enriched_required"
+        selection_reason_labeled_vs_enriched = "enriched_required"
     else:
         reason = "enriched input missing"
         selection_reason = "default_enriched_missing"
+        selection_reason_labeled_vs_enriched = "missing"
     decision["reason"] = reason + _ai_note()
     if selected_path == enriched_path and args.ai and ai_path.exists():
         selection_reason = "prefer_ai_enriched"
         selected_path = ai_path
         comparison_details["prefer_ai"] = True
+        selection_reason_enriched_vs_ai = "ai_enriched_preferred"
+    elif selected_path == enriched_path and args.ai:
+        selection_reason_enriched_vs_ai = "ai_enriched_missing"
     return {
         "selected": _file_metadata(selected_path) if selected_path else None,
         "selected_path": str(selected_path) if selected_path else None,
         "candidate_paths_considered": candidate_paths_considered,
         "selection_reason": selection_reason,
+        "selection_reason_labeled_vs_enriched": selection_reason_labeled_vs_enriched,
+        "selection_reason_enriched_vs_ai": selection_reason_enriched_vs_ai,
         "comparison_details": comparison_details,
         "candidates": candidates,
         "decision": decision,
@@ -1938,11 +1991,11 @@ def main() -> int:
         s3_meta: Dict[str, Any] = {"status": "disabled"}
         s3_failed = False
         s3_exit_code: Optional[int] = None
-        publish_enabled = os.environ.get("S3_PUBLISH_ENABLED", "0").strip() == "1"
-        require_s3 = os.environ.get("S3_PUBLISH_REQUIRE", "0").strip() == "1"
+        publish_enabled = os.environ.get("PUBLISH_S3", "0").strip() == "1"
+        require_s3 = publish_enabled
         resolved_bucket, resolved_prefix = publish_s3._resolve_bucket_prefix(None, None)
         if publish_enabled:
-            dry_run = os.environ.get("S3_PUBLISH_DRY_RUN", "0").strip() == "1"
+            dry_run = os.environ.get("PUBLISH_S3_DRY_RUN", "0").strip() == "1"
             if resolved_bucket:
                 logger.info(
                     "S3 publish enabled: s3://%s/%s (dry_run=%s require=%s)",
@@ -1952,14 +2005,17 @@ def main() -> int:
                     require_s3,
                 )
             else:
-                logger.warning("S3 publish enabled but bucket is unset.")
+                raise SystemExit("PUBLISH_S3=1 requires JOBINTEL_S3_BUCKET.")
             try:
                 s3_meta = publish_s3.publish_run(
                     run_id=run_id,
                     bucket=None,
                     prefix=None,
+                    run_dir=RUN_METADATA_DIR / publish_s3._sanitize_run_id(run_id),
                     dry_run=dry_run,
                     require_s3=require_s3,
+                    providers=providers,
+                    profiles=profiles_list,
                     write_last_success=bool(telemetry.get("success", False)),
                 )
                 if isinstance(s3_meta, dict) and s3_meta.get("status") == "ok":
