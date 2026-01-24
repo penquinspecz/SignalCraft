@@ -144,8 +144,15 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
         assert body == (run_dir / "index.json").read_bytes()
 
         json_ct = client.get_object(Bucket=bucket, Key=run_keys[0])["ContentType"]
+        report_ct = client.get_object(Bucket=bucket, Key=run_keys[1])["ContentType"]
         csv_ct = client.get_object(Bucket=bucket, Key=run_keys[3])["ContentType"]
         md_ct = client.get_object(Bucket=bucket, Key=run_keys[5])["ContentType"]
         assert json_ct == "application/json"
+        assert report_ct == "application/json"
         assert csv_ct == "text/csv; charset=utf-8"
         assert md_ct == "text/markdown; charset=utf-8"
+
+        latest_json_ct = client.get_object(Bucket=bucket, Key=latest_keys[0])["ContentType"]
+        latest_md_ct = client.get_object(Bucket=bucket, Key=latest_keys[3])["ContentType"]
+        assert latest_json_ct == "application/json"
+        assert latest_md_ct == "text/markdown; charset=utf-8"
