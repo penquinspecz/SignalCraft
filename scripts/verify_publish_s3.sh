@@ -133,4 +133,15 @@ if [[ -n "${ranked_key}" ]]; then
   download_and_print "${ranked_key}" "ranked_artifact"
 fi
 
+run_report_ct=$(head_object "${run_report_key}" || echo "unknown")
+if [[ "${run_report_ct}" != "application/json" ]]; then
+  fail "run_report.json content-type mismatch: ${run_report_ct}"
+fi
+if [[ -n "${ranked_key}" ]]; then
+  ranked_ct=$(head_object "${ranked_key}" || echo "unknown")
+  if [[ "${ranked_ct}" != "application/json" ]]; then
+    fail "ranked artifact content-type mismatch: ${ranked_ct}"
+  fi
+fi
+
 finish

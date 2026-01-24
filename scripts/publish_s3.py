@@ -67,6 +67,8 @@ def _content_type_for(path: Path) -> Optional[str]:
         return "text/markdown; charset=utf-8"
     if suffix in {".html", ".htm"}:
         return "text/html; charset=utf-8"
+    if suffix == ".txt":
+        return "text/plain; charset=utf-8"
     return "application/octet-stream"
 
 
