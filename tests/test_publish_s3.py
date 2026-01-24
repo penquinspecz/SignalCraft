@@ -151,6 +151,26 @@ def test_publish_s3_requires_bucket(monkeypatch, tmp_path):
     assert "JOBINTEL_S3_BUCKET" in str(exc.value)
 
 
+def test_resolve_bucket_prefix_prefers_jobintel(monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_S3_BUCKET", "jobintel-bucket")
+    monkeypatch.setenv("BUCKET", "alias-bucket")
+    monkeypatch.setenv("JOBINTEL_S3_PREFIX", "jobintel-prefix")
+    monkeypatch.setenv("PREFIX", "alias-prefix")
+    bucket, prefix = publish_s3._resolve_bucket_prefix(None, None)
+    assert bucket == "jobintel-bucket"
+    assert prefix == "jobintel-prefix"
+
+
+def test_resolve_bucket_prefix_fallback_alias(monkeypatch) -> None:
+    monkeypatch.delenv("JOBINTEL_S3_BUCKET", raising=False)
+    monkeypatch.delenv("JOBINTEL_S3_PREFIX", raising=False)
+    monkeypatch.setenv("BUCKET", "alias-bucket")
+    monkeypatch.setenv("PREFIX", "alias-prefix")
+    bucket, prefix = publish_s3._resolve_bucket_prefix(None, None)
+    assert bucket == "alias-bucket"
+    assert prefix == "alias-prefix"
+
+
 def test_publish_s3_pointer_write_error(monkeypatch, tmp_path):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)

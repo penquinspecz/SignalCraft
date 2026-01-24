@@ -119,8 +119,13 @@ def _load_index(run_id: str) -> Dict[str, Any]:
 
 
 def _resolve_bucket_prefix(bucket: Optional[str], prefix: Optional[str]) -> Tuple[str, str]:
-    resolved_bucket = bucket or os.getenv("JOBINTEL_S3_BUCKET", "").strip()
-    resolved_prefix = prefix or os.getenv("JOBINTEL_S3_PREFIX", DEFAULT_PREFIX).strip("/")
+    env_bucket = os.getenv("JOBINTEL_S3_BUCKET", "").strip()
+    env_bucket_alias = os.getenv("BUCKET", "").strip()
+    resolved_bucket = (bucket or env_bucket or env_bucket_alias).strip()
+
+    env_prefix = os.getenv("JOBINTEL_S3_PREFIX", "").strip()
+    env_prefix_alias = os.getenv("PREFIX", "").strip()
+    resolved_prefix = (prefix or env_prefix or env_prefix_alias or DEFAULT_PREFIX).strip("/")
     return resolved_bucket, resolved_prefix
 
 

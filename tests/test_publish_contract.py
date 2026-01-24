@@ -33,3 +33,10 @@ def test_publish_contract_failure_marks_run_failed(tmp_path: Path) -> None:
     assert data["publish"]["pointer_write"]["global"] == "error"
     assert data["success"] is False
     assert data["status"] == "failed"
+
+
+def test_publish_state_missing_bucket_skips() -> None:
+    enabled, required, reason = run_daily._resolve_publish_state(True, "")
+    assert enabled is False
+    assert required is False
+    assert reason == "skipped_missing_bucket"

@@ -382,6 +382,14 @@ def _publish_contract_failed(publish_section: Dict[str, Any]) -> bool:
     return not _pointer_write_ok(publish_section.get("pointer_write"))
 
 
+def _resolve_publish_state(publish_requested: bool, bucket: str) -> Tuple[bool, bool, Optional[str]]:
+    if not publish_requested:
+        return False, False, None
+    if not bucket:
+        return False, False, "skipped_missing_bucket"
+    return True, True, None
+
+
 def _score_meta_path(ranked_json: Path) -> Path:
     return ranked_json.with_suffix(".score_meta.json")
 
@@ -1991,21 +1999,23 @@ def main() -> int:
         s3_meta: Dict[str, Any] = {"status": "disabled"}
         s3_failed = False
         s3_exit_code: Optional[int] = None
-        publish_enabled = os.environ.get("PUBLISH_S3", "0").strip() == "1"
-        require_s3 = publish_enabled
+        publish_requested = os.environ.get("PUBLISH_S3", "0").strip() == "1"
         resolved_bucket, resolved_prefix = publish_s3._resolve_bucket_prefix(None, None)
+        publish_enabled, require_s3, skip_reason = _resolve_publish_state(
+            publish_requested, resolved_bucket
+        )
+        if skip_reason:
+            logger.warning("S3 publish requested but bucket is unset; skipping.")
+            s3_meta = {"status": skip_reason, "reason": skip_reason}
         if publish_enabled:
             dry_run = os.environ.get("PUBLISH_S3_DRY_RUN", "0").strip() == "1"
-            if resolved_bucket:
-                logger.info(
-                    "S3 publish enabled: s3://%s/%s (dry_run=%s require=%s)",
-                    resolved_bucket,
-                    resolved_prefix,
-                    dry_run,
-                    require_s3,
-                )
-            else:
-                raise SystemExit("PUBLISH_S3=1 requires JOBINTEL_S3_BUCKET.")
+            logger.info(
+                "S3 publish enabled: s3://%s/%s (dry_run=%s require=%s)",
+                resolved_bucket,
+                resolved_prefix,
+                dry_run,
+                require_s3,
+            )
             try:
                 s3_meta = publish_s3.publish_run(
                     run_id=run_id,
