@@ -6,7 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
@@ -57,6 +57,19 @@ def _collect_artifacts(base_dir: Path) -> List[Path]:
     return files
 
 
+def _content_type_for(path: Path) -> Optional[str]:
+    suffix = path.suffix.lower()
+    if suffix == ".json":
+        return "application/json"
+    if suffix == ".csv":
+        return "text/csv; charset=utf-8"
+    if suffix in {".md", ".markdown"}:
+        return "text/markdown; charset=utf-8"
+    if suffix in {".html", ".htm"}:
+        return "text/html; charset=utf-8"
+    return "application/octet-stream"
+
+
 def _upload_files(
     client,
     bucket: str,
@@ -68,13 +81,23 @@ def _upload_files(
     prefix = prefix.strip("/")
     uploaded = 0
     for path in files:
+        if not path.exists():
+            logger.warning("missing artifact, skipping: %s", path)
+            continue
         rel = path.relative_to(base_dir)
         key = f"{prefix}/{rel.as_posix()}" if prefix else rel.as_posix()
         if dry_run:
             logger.info("dry-run: %s -> s3://%s/%s", path, bucket, key)
             continue
         try:
-            client.upload_file(str(path), bucket, key)
+            extra_args: Dict[str, str] = {}
+            content_type = _content_type_for(path)
+            if content_type:
+                extra_args["ContentType"] = content_type
+            if extra_args:
+                client.upload_file(str(path), bucket, key, ExtraArgs=extra_args)
+            else:
+                client.upload_file(str(path), bucket, key)
             logger.info("uploaded %s -> s3://%s/%s", path, bucket, key)
             uploaded += 1
         except ClientError as exc:
@@ -104,8 +127,11 @@ def publish_run(
     run_id: str,
     bucket: Optional[str],
     prefix: Optional[str],
+    run_dir: Optional[Path] = None,
     dry_run: bool,
     require_s3: bool,
+    providers: Optional[List[str]] = None,
+    profiles: Optional[List[str]] = None,
     write_last_success: bool = True,
 ) -> Dict[str, Any]:
     resolved_bucket, resolved_prefix = _resolve_bucket_prefix(bucket, prefix)
@@ -113,7 +139,7 @@ def publish_run(
     if not resolved_bucket:
         logger.info("S3 bucket unset; skipping publish.")
         if require_s3:
-            raise SystemExit(2)
+            raise SystemExit("PUBLISH_S3=1 requires JOBINTEL_S3_BUCKET.")
         return {
             "status": "skipped",
             "reason": "missing_bucket",
@@ -121,7 +147,7 @@ def publish_run(
             "pointer_write": pointer_write,
         }
 
-    run_dir = _run_dir(run_id)
+    run_dir = run_dir or _run_dir(run_id)
     index = _load_index(run_id)
     client = boto3.client("s3")
     logger.info("S3 publish target: s3://%s/%s", resolved_bucket, resolved_prefix)
@@ -129,20 +155,34 @@ def publish_run(
     files = _collect_artifacts(run_dir)
     if not files:
         logger.error("no artifacts found for run %s", run_id)
+        if require_s3:
+            raise SystemExit(2)
         return {"status": "error", "uploaded_files_count": 0}
 
     runs_prefix = f"{resolved_prefix}/runs/{run_id}".strip("/")
     uploaded = _upload_files(client, resolved_bucket, runs_prefix, run_dir, files, dry_run)
+    if uploaded == 0:
+        logger.error("no artifacts uploaded for run %s", run_id)
+        if require_s3:
+            raise SystemExit(2)
+        return {"status": "error", "uploaded_files_count": 0}
 
     latest_prefixes: Dict[str, Dict[str, str]] = {}
-    providers = index.get("providers") if isinstance(index.get("providers"), dict) else {}
+    providers_index = index.get("providers") if isinstance(index.get("providers"), dict) else {}
+    provider_filter = {p.strip() for p in (providers or []) if p.strip()}
+    profile_filter = {p.strip() for p in (profiles or []) if p.strip()}
     provider_profiles: Dict[str, str] = {}
-    for provider, provider_payload in providers.items():
-        profiles = provider_payload.get("profiles") if isinstance(provider_payload, dict) else {}
-        for profile in profiles:
+    for provider, provider_payload in providers_index.items():
+        if provider_filter and provider not in provider_filter:
+            continue
+        profiles_payload = provider_payload.get("profiles") if isinstance(provider_payload, dict) else {}
+        for profile in profiles_payload:
+            if profile_filter and profile not in profile_filter:
+                continue
             profile_dir = run_dir / provider / profile
             profile_files = _collect_artifacts(profile_dir)
             if not profile_files:
+                logger.warning("no artifacts for %s/%s (skipping latest)", provider, profile)
                 continue
             latest_prefix = f"{resolved_prefix}/latest/{provider}/{profile}".strip("/")
             _upload_files(client, resolved_bucket, latest_prefix, profile_dir, profile_files, dry_run)
@@ -158,8 +198,8 @@ def publish_run(
         run_id,
         run_path,
         index.get("timestamp"),
-        list(providers.keys()),
-        list({p for profiles in providers.values() for p in (profiles.get("profiles") or {}).keys()}),
+        list(providers_index.keys()),
+        list({p for profiles in providers_index.values() for p in (profiles.get("profiles") or {}).keys()}),
         schema_version=1,
     )
     state_payload["provider_profiles"] = provider_profiles
@@ -252,18 +292,35 @@ def main() -> int:
     ap.add_argument("--bucket")
     ap.add_argument("--prefix")
     ap.add_argument("--run_id")
+    ap.add_argument("--run_dir")
     ap.add_argument("--latest", action="store_true")
     ap.add_argument("--dry_run", action="store_true")
     ap.add_argument("--require_s3", action="store_true")
+    ap.add_argument(
+        "--providers",
+        default="",
+        help="Comma-separated provider ids to publish latest pointers for (default: all).",
+    )
+    ap.add_argument(
+        "--profiles",
+        default="",
+        help="Comma-separated profiles to publish latest pointers for (default: all).",
+    )
     args = ap.parse_args()
 
     run_id = _select_run_id(args.run_id, args.latest)
+    providers = [p.strip() for p in args.providers.split(",") if p.strip()]
+    profiles = [p.strip() for p in args.profiles.split(",") if p.strip()]
+    run_dir = Path(args.run_dir) if args.run_dir else None
     publish_run(
         run_id=run_id,
         bucket=args.bucket,
         prefix=args.prefix,
+        run_dir=run_dir,
         dry_run=args.dry_run,
         require_s3=args.require_s3,
+        providers=providers,
+        profiles=profiles,
     )
     return 0
 
