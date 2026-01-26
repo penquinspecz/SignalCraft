@@ -7,8 +7,8 @@ if [[ $# -ne 0 ]]; then
   exit 2
 fi
 
-BUCKET="${BUCKET:-${JOBINTEL_S3_BUCKET:-}}"
-PREFIX="${PREFIX:-${JOBINTEL_S3_PREFIX:-jobintel}}"
+BUCKET="${JOBINTEL_S3_BUCKET:-${BUCKET:-}}"
+PREFIX="${JOBINTEL_S3_PREFIX:-${PREFIX:-jobintel}}"
 RUN_ID="${RUN_ID:-}"
 REGION="${REGION:-${AWS_REGION:-us-east-1}}"
 PROVIDER="${PROVIDER:-openai}"
@@ -37,28 +37,33 @@ if [[ -z "${BUCKET}" || -z "${PREFIX}" ]]; then
   fail "BUCKET and PREFIX are required."
 fi
 
+prefix_clean="${PREFIX#/}"
+prefix_clean="${prefix_clean%/}"
+PREFIX="${prefix_clean}"
+
+if [[ -z "${prefix_clean}" ]]; then
+  fail "PREFIX must not be empty after normalization."
+fi
 if [[ "${STATUS}" -ne 0 ]]; then
   finish
 fi
 
-prefix_clean="${PREFIX%/}"
-
 if [[ -z "${RUN_ID}" ]]; then
-  pointer_uri="s3://${BUCKET}/${prefix_clean}/state/last_success.json"
-  pointer_json=$(aws s3 cp "${pointer_uri}" - --region "${REGION}" 2>/dev/null || true)
-  if [[ -z "${pointer_json}" ]]; then
-    fail "Missing ${pointer_uri}. Set RUN_ID or write pointer first."
+  command -v python3 >/dev/null 2>&1 || { fail "python3 is required to resolve run_id automatically. Set RUN_ID to bypass."; finish; }
+  resolve_output=$(JOBINTEL_S3_BUCKET="${BUCKET}" JOBINTEL_S3_PREFIX="${prefix_clean}" PROVIDER="${PROVIDER}" PROFILE="${PROFILE}" REGION="${REGION}" \
+    python3 scripts/resolve_s3_run_id.py 2>&1) || {
+    fail "Unable to resolve run_id automatically: ${resolve_output}"
     finish
-  fi
-  RUN_ID=$(printf '%s' "${pointer_json}" | jq -r '.run_id // empty')
+  }
+  RUN_ID="${resolve_output}"
   if [[ -z "${RUN_ID}" ]]; then
-    fail "Pointer at ${pointer_uri} missing run_id."
+    fail "Resolved empty run_id. Set RUN_ID explicitly to bypass automatic resolution."
     finish
   fi
 fi
 
 run_report_key="${prefix_clean}/runs/${RUN_ID}/run_report.json"
-ranked_prefix="${prefix_clean}/runs/${RUN_ID}/${PROVIDER}/${PROFILE}/"
+ranked_key="${prefix_clean}/runs/${RUN_ID}/${PROVIDER}/${PROFILE}/${PROVIDER}_ranked_families.${PROFILE}.json"
 latest_prefix="${prefix_clean}/latest/${PROVIDER}/${PROFILE}/"
 
 head_object() {
@@ -85,17 +90,14 @@ require_object() {
   return 0
 }
 
-ranked_key=""
 latest_has_artifacts="no"
 
 if ! require_object "${run_report_key}"; then
   finish
 fi
 
-ranked_keys_json=$(list_keys "${ranked_prefix}")
-ranked_key=$(printf '%s' "${ranked_keys_json}" | jq -r '.[]? | select(test("ranked_(jobs|families).*\\.(json|csv)$"))' | head -n 1)
-if [[ -z "${ranked_key}" ]]; then
-  fail "Missing ranked artifacts under s3://${BUCKET}/${ranked_prefix}"
+if ! head_object "${ranked_key}" >/dev/null; then
+  fail "Missing ranked artifacts at s3://${BUCKET}/${ranked_key}"
 fi
 
 if head_object "${latest_prefix}run_report.json" >/dev/null; then
@@ -129,19 +131,15 @@ download_and_print() {
 }
 
 download_and_print "${run_report_key}" "run_report"
-if [[ -n "${ranked_key}" ]]; then
-  download_and_print "${ranked_key}" "ranked_artifact"
-fi
+download_and_print "${ranked_key}" "ranked_artifact"
 
 run_report_ct=$(head_object "${run_report_key}" || echo "unknown")
 if [[ "${run_report_ct}" != "application/json" ]]; then
   fail "run_report.json content-type mismatch: ${run_report_ct}"
 fi
-if [[ -n "${ranked_key}" ]]; then
-  ranked_ct=$(head_object "${ranked_key}" || echo "unknown")
-  if [[ "${ranked_ct}" != "application/json" ]]; then
-    fail "ranked artifact content-type mismatch: ${ranked_ct}"
-  fi
+ranked_ct=$(head_object "${ranked_key}" || echo "unknown")
+if [[ "${ranked_ct}" != "application/json" ]]; then
+  fail "ranked artifact content-type mismatch: ${ranked_ct}"
 fi
 
 finish
