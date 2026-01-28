@@ -15,8 +15,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.10
+          python-version: "3.12"
           cache: "pip"
+      - name: Show Python version
+        run: |
+          python -VV
+          which python
       - name: Prepare state dir
         run: |
           echo "JOBINTEL_STATE_DIR=$RUNNER_TEMP/ci_state" >> "$GITHUB_ENV"

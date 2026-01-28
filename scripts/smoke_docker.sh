@@ -2,7 +2,7 @@
 set -euo pipefail
 
 CONTAINER_NAME=${CONTAINER_NAME:-jobintel_smoke}
-ARTIFACT_DIR=${ARTIFACT_DIR:-smoke_artifacts}
+ARTIFACT_DIR=${SMOKE_ARTIFACTS_DIR:-${ARTIFACT_DIR:-smoke_artifacts}}
 IMAGE_TAG=${IMAGE_TAG:-${JOBINTEL_IMAGE_TAG:-jobintel:local}}
 SMOKE_SKIP_BUILD=${SMOKE_SKIP_BUILD:-0}
 SMOKE_PROVIDERS=${SMOKE_PROVIDERS:-openai}
@@ -15,6 +15,7 @@ PROFILES=${PROFILES:-$SMOKE_PROFILES}
 SMOKE_TAIL_LINES=${SMOKE_TAIL_LINES:-0}
 container_created=0
 status=1
+missing=0
 
 if [ "${DOCKER_BUILDKIT:-1}" = "0" ]; then
   echo "BuildKit is required (Dockerfile uses RUN --mount=type=cache). Set DOCKER_BUILDKIT=1."
@@ -24,6 +25,85 @@ fi
 write_exit_code() {
   mkdir -p "$ARTIFACT_DIR"
   echo "$status" > "$ARTIFACT_DIR/exit_code.txt"
+}
+
+write_run_report_placeholder() {
+  if [ -f "$ARTIFACT_DIR/run_report.json" ]; then
+    return
+  fi
+  cat > "$ARTIFACT_DIR/run_report.json" <<EOF
+{
+  "run_id": "unknown",
+  "status": "failed",
+  "success": false,
+  "error": "smoke_run_failed_or_missing_report"
+}
+EOF
+}
+
+write_smoke_summary() {
+  mkdir -p "$ARTIFACT_DIR"
+  local tmp_summary
+  tmp_summary="$ARTIFACT_DIR/smoke_summary.json"
+  local py
+  py="${PYTHON:-python3}"
+  local tail_text
+  tail_text=""
+  if [ -f "$ARTIFACT_DIR/smoke.log" ]; then
+    tail_text="$(tail -n 200 "$ARTIFACT_DIR/smoke.log" 2>/dev/null || true)"
+  fi
+
+  IFS=',' read -r -a _providers <<< "$PROVIDERS"
+  IFS=',' read -r -a _profiles <<< "$PROFILES"
+  local missing_list=()
+  for provider in "${_providers[@]}"; do
+    provider="$(echo "$provider" | xargs)"
+    [ -z "$provider" ] && continue
+    if [ ! -f "$ARTIFACT_DIR/${provider}_labeled_jobs.json" ]; then
+      missing_list+=("${provider}_labeled_jobs.json")
+    fi
+    for profile in "${_profiles[@]}"; do
+      profile="$(echo "$profile" | xargs)"
+      [ -z "$profile" ] && continue
+      if [ ! -f "$ARTIFACT_DIR/${provider}_ranked_jobs.${profile}.json" ]; then
+        missing_list+=("${provider}_ranked_jobs.${profile}.json")
+      fi
+      if [ ! -f "$ARTIFACT_DIR/${provider}_ranked_jobs.${profile}.csv" ]; then
+        missing_list+=("${provider}_ranked_jobs.${profile}.csv")
+      fi
+    done
+  done
+  if [ ! -f "$ARTIFACT_DIR/run_report.json" ]; then
+    missing_list+=("run_report.json")
+  fi
+
+  local missing_json
+  missing_json="[]"
+  if [ "${#missing_list[@]}" -gt 0 ]; then
+    missing_json="$(printf '%s\n' "${missing_list[@]}" | $py - <<'PY'
+import json
+import sys
+items=[line.strip() for line in sys.stdin if line.strip()]
+print(json.dumps(items))
+PY
+)"
+  fi
+
+  cat > "$tmp_summary" <<EOF
+{
+  "status": "$( [ "$status" -eq 0 ] && echo success || echo failed )",
+  "exit_code": $status,
+  "providers": "$(echo "$PROVIDERS")",
+  "profiles": "$(echo "$PROFILES")",
+  "missing_artifacts": $missing_json,
+  "stdout_tail": $(printf '%s' "$tail_text" | $py - <<'PY'
+import json
+import sys
+print(json.dumps(sys.stdin.read()))
+PY
+)
+}
+EOF
 }
 
 write_docker_context() {
@@ -64,10 +144,13 @@ while [ "$#" -gt 0 ]; do
 done
 
 mkdir -p "$ARTIFACT_DIR"
+touch "$ARTIFACT_DIR/smoke.log"
 
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
   write_exit_code
+  write_run_report_placeholder
+  write_smoke_summary
 }
 trap cleanup EXIT
 
@@ -147,11 +230,12 @@ set -e
 if [ "$create_status" -eq 0 ]; then
   container_created=1
   set +e
-  docker start -a "$CONTAINER_NAME" 2>&1 | tee "$ARTIFACT_DIR/smoke.log"
+  docker start -a "$CONTAINER_NAME" 2>&1 | tee -a "$ARTIFACT_DIR/smoke.log"
   status=${PIPESTATUS[0]}
   set -e
 else
   echo "Failed to create smoke container (exit_code=$create_status)"
+  echo "Failed to create smoke container (exit_code=$create_status)" >> "$ARTIFACT_DIR/smoke.log"
   status=$create_status
 fi
 
@@ -161,7 +245,6 @@ if [ "$status" -ne 0 ] && [ "${SMOKE_TAIL_LINES:-0}" -gt 0 ]; then
 fi
 
 echo "==> Collect outputs"
-missing=0
 IFS=',' read -r -a provider_list <<< "$PROVIDERS"
 IFS=',' read -r -a profile_list <<< "$PROFILES"
 
@@ -173,7 +256,7 @@ copy_from_container() {
     if [ "$required" = "1" ]; then
       missing=1
     fi
-    return
+    return 1
   fi
   if ! docker cp "$CONTAINER_NAME:$src" "$ARTIFACT_DIR/$(basename "$src")" 2>/dev/null; then
     if [ "$required" = "1" ]; then
@@ -182,6 +265,24 @@ copy_from_container() {
     else
       echo "Missing optional output: $src"
     fi
+    return 1
+  fi
+  return 0
+}
+
+copy_from_container_any() {
+  local required="$1"
+  shift
+  local src
+  local copied=0
+  for src in "$@"; do
+    if copy_from_container "$src" 0; then
+      copied=1
+      break
+    fi
+  done
+  if [ "$copied" -ne 1 ] && [ "$required" = "1" ]; then
+    missing=1
   fi
 }
 
@@ -190,21 +291,21 @@ for provider in "${provider_list[@]}"; do
   if [ -z "$provider_trimmed" ]; then
     continue
   fi
-  copy_from_container "/app/data/${provider_trimmed}_raw_jobs.json" 0
-  copy_from_container "/app/data/${provider_trimmed}_labeled_jobs.json" 1
-  copy_from_container "/app/data/${provider_trimmed}_enriched_jobs.json" 0
+  copy_from_container_any 0 "/app/data/${provider_trimmed}_raw_jobs.json"
+  copy_from_container_any 1 "/app/data/${provider_trimmed}_labeled_jobs.json"
+  copy_from_container_any 0 "/app/data/${provider_trimmed}_enriched_jobs.json"
   for profile in "${profile_list[@]}"; do
     profile_trimmed="$(echo "$profile" | xargs)"
     if [ -z "$profile_trimmed" ]; then
       continue
     fi
-    copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" 1
-    copy_from_container "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" 1
-    copy_from_container "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" 0
-    copy_from_container "/app/data/${provider_trimmed}_top.${profile_trimmed}.md" 0
-    copy_from_container "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" 0
-    copy_from_container "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.json" 0
-    copy_from_container "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.md" 0
+    copy_from_container_any 1 "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json"
+    copy_from_container_any 1 "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv"
+    copy_from_container_any 0 "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_shortlist.${profile_trimmed}.md"
+    copy_from_container_any 0 "/app/data/${provider_trimmed}_top.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_top.${profile_trimmed}.md"
+    copy_from_container_any 0 "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_families.${profile_trimmed}.json"
+    copy_from_container_any 0 "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_alerts.${profile_trimmed}.json"
+    copy_from_container_any 0 "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_alerts.${profile_trimmed}.md"
   done
 done
 
