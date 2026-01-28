@@ -19,11 +19,10 @@ fail() {
   STATUS=1
 }
 finish() {
-  echo "\nSummary:"
   if [[ "${STATUS}" -eq 0 ]]; then
-    echo "SUCCESS"
+    echo "Summary: SUCCESS"
   else
-    echo "FAIL"
+    echo "Summary: FAIL"
   fi
   exit "${STATUS}"
 }
@@ -40,7 +39,11 @@ if [[ "${STATUS}" -ne 0 ]]; then
 fi
 
 if [[ -z "${RUN_ID}" ]]; then
-  pointer_uri="s3://${BUCKET}/${PREFIX}/state/last_success.json"
+  pointer_key="${PREFIX}/state/last_success.json"
+  if [[ -n "${PROVIDER:-}" && -n "${PROFILE:-}" ]]; then
+    pointer_key="${PREFIX}/state/${PROVIDER}/${PROFILE}/last_success.json"
+  fi
+  pointer_uri="s3://${BUCKET}/${pointer_key}"
   pointer_json=$(aws s3 cp "${pointer_uri}" - --region "${REGION}" 2>/dev/null || true)
   if [[ -z "${pointer_json}" ]]; then
     fail "Missing ${pointer_uri}. Set RUN_ID or write pointer first."
@@ -61,7 +64,7 @@ if [[ -z "${report}" ]]; then
 fi
 
 if ! printf '%s' "${report}" | jq -e '.provenance.build' >/dev/null; then
-  fail "run_report missing provenance.build at ${run_report_uri}."
+  fail "run_report missing provenance.build (run_id=${RUN_ID}) at ${run_report_uri}. Run a new ECS job to populate build provenance."
   finish
 fi
 

@@ -171,9 +171,7 @@ def _provider_state_key(prefix: str, provider: str, profile: str) -> str:
     return f"{prefix.strip('/')}/state/{provider}/{profile}/last_success.json".strip("/")
 
 
-def read_last_success_state(
-    bucket: str, prefix: str, *, client=None
-) -> tuple[Optional[dict], str, str]:
+def read_last_success_state(bucket: str, prefix: str, *, client=None) -> tuple[Optional[dict], str, str]:
     key = _state_key(prefix)
     payload, status = _read_json_object(bucket, key, client=client)
     return payload, status, key
@@ -207,9 +205,7 @@ def get_provider_last_success_state(
     *,
     client=None,
 ) -> Optional[dict]:
-    payload, status, _ = read_provider_last_success_state(
-        bucket, prefix, provider, profile, client=client
-    )
+    payload, status, _ = read_provider_last_success_state(bucket, prefix, provider, profile, client=client)
     if status != "ok":
         return None
     return payload
