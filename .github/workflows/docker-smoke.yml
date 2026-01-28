@@ -42,11 +42,16 @@ jobs:
           docker version || true
           docker info || true
 
+      - name: Prepare smoke artifacts dir
+        run: |
+          mkdir -p smoke_artifacts
+
       - name: Run smoke (containerized)
         id: smoke
         continue-on-error: true
         env:
           SMOKE_SKIP_BUILD: "1"
+          SMOKE_ARTIFACTS_DIR: ${{ github.workspace }}/smoke_artifacts
         run: |
           ./scripts/smoke_docker.sh --skip-build --providers openai --profiles cs
 
@@ -56,9 +61,9 @@ jobs:
           if [ -f smoke_artifacts/exit_code.txt ]; then
             echo "Smoke exit code: $(cat smoke_artifacts/exit_code.txt)"
           fi
-          if [ -f smoke_artifacts/container.log ]; then
-            echo "---- tail smoke_artifacts/container.log (last 200 lines) ----"
-            tail -n 200 smoke_artifacts/container.log || true
+          if [ -f smoke_artifacts/smoke.log ]; then
+            echo "---- tail smoke_artifacts/smoke.log (last 200 lines) ----"
+            tail -n 200 smoke_artifacts/smoke.log || true
           fi
         continue-on-error: true
 
@@ -159,6 +164,17 @@ jobs:
       - name: "Gate: fail if smoke failed"
         if: always()
         run: |
+          if [ ! -d smoke_artifacts ]; then
+            mkdir -p smoke_artifacts
+            cat > smoke_artifacts/run_report.json <<'EOF'
+            {"run_id":"unknown","status":"failed","success":false,"error":"smoke_artifacts_missing"}
+            EOF
+            cat > smoke_artifacts/smoke_summary.json <<'EOF'
+            {"status":"failed","exit_code":1,"missing_artifacts":["smoke_artifacts_dir"]}
+            EOF
+            echo "Smoke artifacts directory was missing; failing gate."
+            exit 1
+          fi
           code=1
           if [ -f smoke_artifacts/exit_code.txt ]; then
             code="$(cat smoke_artifacts/exit_code.txt)"

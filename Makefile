@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help
+.PHONY: test lint format-check gates gate docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -45,6 +45,8 @@ format-check:
 	$(PY) -m ruff format --check src
 
 gates: format-check lint test
+
+gate: gates
 
 docker-build:
 	$(call check_buildkit)
