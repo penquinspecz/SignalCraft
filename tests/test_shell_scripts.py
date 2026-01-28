@@ -302,12 +302,13 @@ def test_verify_publish_s3_success(tmp_path: Path) -> None:
     bucket = "bucket"
     prefix = "jobintel"
     run_report_key = f"{prefix}/runs/{run_id}/run_report.json"
-    ranked_key = f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json"
-    latest_key = f"{prefix}/latest/openai/cs/openai_ranked_jobs.cs.json"
+    ranked_key = f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_families.cs.json"
+    latest_key = f"{prefix}/latest/openai/cs/openai_ranked_families.cs.json"
     env = {
         "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
         "BUCKET": bucket,
         "PREFIX": prefix,
+        "RUN_ID": run_id,
         "REGION": "us-east-1",
         "PROVIDER": "openai",
         "PROFILE": "cs",
