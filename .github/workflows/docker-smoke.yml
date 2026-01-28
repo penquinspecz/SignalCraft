@@ -166,12 +166,14 @@ jobs:
         run: |
           if [ ! -d smoke_artifacts ]; then
             mkdir -p smoke_artifacts
-            cat > smoke_artifacts/run_report.json <<'EOF'
-            {"run_id":"unknown","status":"failed","success":false,"error":"smoke_artifacts_missing"}
-            EOF
-            cat > smoke_artifacts/smoke_summary.json <<'EOF'
-            {"status":"failed","exit_code":1,"missing_artifacts":["smoke_artifacts_dir"]}
-            EOF
+            {
+              cat <<'EOF' > smoke_artifacts/run_report.json
+{"run_id":"unknown","status":"failed","success":false,"error":"smoke_artifacts_missing"}
+EOF
+              cat <<'EOF' > smoke_artifacts/smoke_summary.json
+{"status":"failed","exit_code":1,"missing_artifacts":["smoke_artifacts_dir"]}
+EOF
+            }
             echo "Smoke artifacts directory was missing; failing gate."
             exit 1
           fi
