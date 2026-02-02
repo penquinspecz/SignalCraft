@@ -325,3 +325,66 @@ def test_publish_s3_requires_verifiable_artifacts(tmp_path: Path, monkeypatch) -
             require_s3=False,
         )
     assert exc.value.code == 2
+
+
+def test_publish_s3_plan_is_deterministic(tmp_path: Path, monkeypatch, capsys) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id, _ = _setup_run(tmp_path)
+
+    monkeypatch.setenv("JOBINTEL_S3_BUCKET", "my-bucket")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA_TEST_KEY")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "SUPER_SECRET")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--plan",
+            "--json",
+        ],
+    )
+
+    publish_s3.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    plan = payload["plan"]
+    keys = [entry["s3_key"] for entry in plan]
+    assert keys == sorted(keys)
+    assert any(key.endswith("openai_ranked_jobs.cs.json") for key in keys)
+    assert any("/latest/openai/cs/" in key for key in keys)
+    assert all(entry["kind"] in {"runs", "latest"} for entry in plan)
+
+
+def test_publish_s3_plan_requires_verifiable(tmp_path: Path, monkeypatch) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id = "2026-01-02T00:00:00Z"
+    run_dir = runs / publish_s3._sanitize_run_id(run_id)
+    run_dir.mkdir(parents=True)
+    _write(run_dir / "run_report.json", {"run_id": run_id, "run_report_schema_version": 1})
+
+    monkeypatch.setenv("JOBINTEL_S3_BUCKET", "my-bucket")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA_TEST_KEY")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "SUPER_SECRET")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--plan",
+            "--json",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        publish_s3.main()
+    assert exc.value.code == 2
