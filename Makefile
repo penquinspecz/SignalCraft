@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots replay gate-replay verify-publish verify-publish-live
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -44,9 +44,51 @@ lint:
 format-check:
 	$(PY) -m ruff format --check src
 
-gates: format-check lint test
+deps:
+	$(PY) -m pip install -r requirements.txt
 
-gate: gates
+deps-sync:
+	$(PY) scripts/export_requirements.py
+	$(PY) -m pip install -r requirements.txt
+
+deps-check:
+	$(PY) scripts/export_requirements.py --check
+
+gates: format-check lint deps-check test snapshot-guard
+
+gate-fast:
+	@echo "==> pytest"
+	$(PY) -m pytest -q
+	@echo "==> snapshot immutability"
+	$(PY) scripts/verify_snapshots_immutable.py
+	@echo "==> replay smoke"
+	$(PY) scripts/replay_smoke_fixture.py
+
+gate-truth: gate-fast
+	@echo "==> docker build (no-cache, RUN_TESTS=1)"
+	@if [ "$${DOCKER_BUILDKIT:-1}" = "0" ]; then \
+		echo "BuildKit is required (Dockerfile uses RUN --mount=type=cache). Set DOCKER_BUILDKIT=1."; \
+		exit 1; \
+	fi
+	@DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+
+gate: gate-fast
+
+gate-ci: gate-truth
+
+verify-snapshots:
+	$(PY) scripts/verify_snapshots_immutable.py
+
+snapshot-guard: verify-snapshots
+
+replay:
+	@if [ -z "$(RUN_ID)" ]; then echo "Usage: make replay RUN_ID=<id>"; exit 2; fi
+	$(PY) scripts/replay_run.py --run-id $(RUN_ID) --strict
+
+gate-replay:
+	$(PY) -m pytest -q
+	$(MAKE) verify-snapshots
+	$(PY) scripts/replay_smoke_fixture.py
 
 docker-build:
 	$(call check_buildkit)
@@ -159,6 +201,11 @@ explain-smoke:
 		--out_md_top_n /tmp/openai_top.cs.md
 
 dashboard:
+	@$(PY) - <<'PY' || true
+	import importlib.util
+	if importlib.util.find_spec("uvicorn") is None:
+	    print('Warning: dashboard deps missing. Run: pip install ".[dashboard]"')
+	PY
 	$(PY) -m uvicorn jobintel.dashboard.app:app --reload --port 8000
 
 weekly:
@@ -167,6 +214,20 @@ weekly:
 publish-last:
 	@if [ -z "$(RUN_ID)" ]; then echo "Usage: make publish-last RUN_ID=<id>"; exit 2; fi
 	$(PY) scripts/publish_s3.py --run_id $(RUN_ID) --require_s3
+
+verify-publish:
+	@if [ -z "$(RUN_ID)" ]; then echo "Usage: make verify-publish RUN_ID=<id> [VERIFY_LATEST=1] [PREFIX=jobintel] [REGION=us-east-1]"; exit 2; fi
+	@if [ -z "$${JOBINTEL_S3_BUCKET:-}" ]; then echo "Missing JOBINTEL_S3_BUCKET"; exit 2; fi
+	@prefix="$${PREFIX:-$${JOBINTEL_S3_PREFIX:-jobintel}}"; \
+	region="$${REGION:-$${JOBINTEL_AWS_REGION:-$${AWS_REGION:-$${AWS_DEFAULT_REGION:-}}}}"; \
+	$(PY) scripts/verify_published_s3.py --bucket "$${JOBINTEL_S3_BUCKET}" --run-id "$(RUN_ID)" --prefix "$${prefix}" --offline $$( [ "$${VERIFY_LATEST:-0}" = "1" ] && printf %s "--verify-latest" ) $$( [ -n "$${region}" ] && printf %s " --region $${region}" )
+
+verify-publish-live:
+	@if [ -z "$(RUN_ID)" ]; then echo "Usage: make verify-publish-live RUN_ID=<id> [VERIFY_LATEST=1] [PREFIX=jobintel] [REGION=us-east-1]"; exit 2; fi
+	@if [ -z "$${JOBINTEL_S3_BUCKET:-}" ]; then echo "Missing JOBINTEL_S3_BUCKET"; exit 2; fi
+	@prefix="$${PREFIX:-$${JOBINTEL_S3_PREFIX:-jobintel}}"; \
+	region="$${REGION:-$${JOBINTEL_AWS_REGION:-$${AWS_REGION:-$${AWS_DEFAULT_REGION:-}}}}"; \
+	$(PY) scripts/verify_published_s3.py --bucket "$${JOBINTEL_S3_BUCKET}" --run-id "$(RUN_ID)" --prefix "$${prefix}" $$( [ "$${VERIFY_LATEST:-0}" = "1" ] && printf %s "--verify-latest" ) $$( [ -n "$${region}" ] && printf %s " --region $${region}" )
 
 aws-env-check:
 	@echo "JOBINTEL_S3_BUCKET=$${JOBINTEL_S3_BUCKET:-<unset>}"

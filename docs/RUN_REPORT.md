@@ -25,11 +25,24 @@ debugging, and audit trails. They are versioned with `run_report_schema_version`
 - `inputs`: raw/labeled/enriched input file metadata (path, mtime, sha256).
 - `outputs_by_profile`: ranked outputs (paths + sha256).
 - `inputs_by_provider`, `outputs_by_provider`: provider-specific input/output metadata.
+- `verifiable_artifacts`: mapping of logical artifact keys to hashes:
+  - Keys are `"<provider>:<profile>:<output_key>"`.
+  - Values include `path` (run-dir-relative), `sha256`, `hash_algo`.
+- `config_fingerprint`: sha256 of the effective, non-secret configuration inputs.
+- `environment_fingerprint`: best-effort environment details (python version, platform, image tag, git sha).
 - `scoring_inputs_by_profile`: selected scoring input metadata (path/mtime/sha256).
 - `scoring_input_selection_by_profile`: decision metadata for scoring inputs:
   - `selected_path`
   - `candidate_paths_considered` (path/mtime/sha/exists)
   - `selection_reason` (enum string)
+  - `selection_reason_details` (stable reasoning object):
+    - `labeled_vs_enriched` and `enriched_vs_ai` each include:
+      - `rule_id` (stable string)
+      - `chosen_path`
+      - `candidate_paths`
+      - `compared_fields` (mtimes/hashes used)
+      - `decision` (short enum)
+      - `decision_timestamp` (ISO 8601)
   - `comparison_details` (e.g., newer_by_seconds, prefer_ai)
   - `decision` (human-readable rule and reason)
 - `delta_summary`: delta intelligence summary if available.
@@ -48,6 +61,11 @@ Selection reasons are deterministic strings such as:
 - `default_enriched_required`
 - `default_enriched_missing`
 - `prefer_ai_enriched`
+
+### selection_reason_details.rule_id
+Rule IDs are stable strings scoped to the decision boundary:
+- `labeled_vs_enriched.<decision>`
+- `enriched_vs_ai.<decision>`
 
 ## How to debug a run
 Use these paths to inspect artifacts:
@@ -80,3 +98,8 @@ python scripts/replay_run.py --run-id <run_id> --profile cs
 - Exit code `0`: reproducible
 - Exit code `2`: missing inputs or mismatched hashes
 - Exit code `>=3`: runtime error
+
+Machine-readable replay output:
+```bash
+python scripts/replay_run.py --run-id <run_id> --json
+```

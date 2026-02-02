@@ -17,6 +17,26 @@ from jobintel.snapshots.validate import validate_snapshot_file
 CAREERS_SEARCH_URL = "https://openai.com/careers/search/"
 
 
+def _is_pinned_snapshot(snapshot_file: Path) -> bool:
+    repo_data_dir = Path(__file__).resolve().parents[2] / "data"
+    try:
+        in_repo_data = snapshot_file.resolve().is_relative_to(repo_data_dir.resolve())
+    except AttributeError:
+        in_repo_data = str(snapshot_file.resolve()).startswith(str(repo_data_dir.resolve()))
+    if not in_repo_data:
+        return False
+    return snapshot_file.parent.name.endswith("_snapshots")
+
+
+def _assert_pinned_snapshot_write_allowed(snapshot_file: Path) -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST") and _is_pinned_snapshot(snapshot_file):
+        if os.environ.get("ALLOW_SNAPSHOT_CHANGES", "0") != "1":
+            raise RuntimeError(
+                "Refusing to overwrite pinned snapshot fixture. "
+                "Set ALLOW_SNAPSHOT_CHANGES=1 to allow intentional refresh."
+            )
+
+
 class OpenAICareersProvider(BaseJobProvider):
     """
     Provider for OpenAI careers (deprecated; prefer Ashby board scraping).
@@ -54,6 +74,7 @@ class OpenAICareersProvider(BaseJobProvider):
             return self.load_from_snapshot()
 
         SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        _assert_pinned_snapshot_write_allowed(self._snapshot_file())
         self._snapshot_file().write_text(html, encoding="utf-8")
         if os.environ.get("JOBINTEL_PROVENANCE_LOG", "0") != "1":
             print(
@@ -66,6 +87,7 @@ class OpenAICareersProvider(BaseJobProvider):
         """Attempt a live HTTP scrape, saving the HTML snapshot for reuse."""
         html = self._fetch_live_html()
         SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        _assert_pinned_snapshot_write_allowed(self._snapshot_file())
         self._snapshot_file().write_text(html, encoding="utf-8")
         return self._parse_html(html)
 
@@ -164,6 +186,7 @@ class OpenAICareersProvider(BaseJobProvider):
             )
             results.append(posting)
 
+        results.sort(key=self._stable_posting_key)
         print(f"[OpenAICareersProvider] Parsed {len(results)} jobs from HTML")
         return results
 
@@ -289,6 +312,9 @@ class OpenAICareersProvider(BaseJobProvider):
 
     def _extract_job_description_from_card(self, card: Tag, title: str) -> str:
         return f"Job Title: {title}\n\nFull job description available on detail page."
+
+    def _stable_posting_key(self, job: RawJobPosting) -> tuple[str, str, str, str]:
+        return (job.apply_url or "", job.title or "", job.location or "", job.team or "")
 
     def _element_before(self, elem1: Tag, elem2: Tag) -> bool:
         parent = elem1.find_parent()

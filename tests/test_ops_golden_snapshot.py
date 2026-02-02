@@ -13,6 +13,7 @@ except Exception:  # pragma: no cover
     mock_s3 = None
 
 import scripts.publish_s3 as publish_s3
+from ji_engine.utils.verification import compute_sha256_file
 
 pytestmark = pytest.mark.skipif(boto3 is None or mock_s3 is None, reason="boto3/moto not installed")
 
@@ -39,20 +40,24 @@ def _setup_run_dir(tmp_path: Path, run_id: str) -> Path:
     run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
     provider_dir = run_dir / "openai" / "cs"
     provider_dir.mkdir(parents=True, exist_ok=True)
-    (provider_dir / "openai_ranked_jobs.cs.json").write_text("[]", encoding="utf-8")
-    _write_json(
-        run_dir / "index.json",
-        {
-            "run_id": run_id,
-            "timestamp": run_id,
-            "providers": {"openai": {"profiles": {"cs": {"diff_counts": {"new": 0}}}}},
-        },
-    )
+    ranked = provider_dir / "openai_ranked_jobs.cs.json"
+    ranked.write_text("[]", encoding="utf-8")
+    verifiable = {
+        "openai:cs:ranked_json": {
+            "path": "openai/cs/openai_ranked_jobs.cs.json",
+            "sha256": compute_sha256_file(ranked),
+            "hash_algo": "sha256",
+        }
+    }
     _write_json(
         run_dir / "run_report.json",
         {
             "run_id": run_id,
             "run_report_schema_version": 1,
+            "providers": ["openai"],
+            "profiles": ["cs"],
+            "timestamps": {"ended_at": run_id},
+            "verifiable_artifacts": verifiable,
             "selection": {"scrape_provenance": {"openai": {"scrape_mode": "snapshot"}}},
             "provenance": {"openai": {"scrape_mode": "snapshot"}},
             "provenance_by_provider": {"openai": {"scrape_mode": "snapshot"}},
@@ -65,7 +70,7 @@ def _setup_run_dir(tmp_path: Path, run_id: str) -> Path:
     return run_dir
 
 
-def test_ops_golden_snapshot_contract(tmp_path):
+def test_ops_golden_snapshot_contract(tmp_path, monkeypatch):
     with mock_s3():
         bucket = "bucket"
         prefix = "jobintel"
@@ -81,6 +86,7 @@ def test_ops_golden_snapshot_contract(tmp_path):
         assert report["run_report_schema_version"] == 1
         assert "openai" in report["provenance_by_provider"]
 
+        monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", tmp_path / "state" / "runs")
         publish_s3.publish_run(
             run_id=run_id,
             bucket=bucket,

@@ -252,6 +252,9 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
   - pipeline produces a normalized `candidate_profile.json` (schema-validated)
 - [ ] UI authentication and authorization (basic, practical)
 - [ ] AI insights become profile-aware (coach-like, but grounded in artifacts)
+- [ ] Security Review (Multi-Model)
+- [ ] Move into Rancher/NV?
+- [ ] Actual GUI?
 
 ### Work Items
 - [ ] Candidate profile schema versioning + validation
