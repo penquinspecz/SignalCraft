@@ -5,7 +5,10 @@
   "required": [
     "run_report_schema_version",
     "run_id",
-    "selection"
+    "selection",
+    "verifiable_artifacts",
+    "config_fingerprint",
+    "environment_fingerprint"
   ],
   "properties": {
     "run_report_schema_version": {
@@ -121,6 +124,88 @@
               }
             },
             "additionalProperties": false
+          },
+          "selection_reason_details": {
+            "type": "object",
+            "properties": {
+              "labeled_vs_enriched": {
+                "type": "object",
+                "required": [
+                  "rule_id",
+                  "chosen_path",
+                  "candidate_paths",
+                  "compared_fields",
+                  "decision",
+                  "decision_timestamp"
+                ],
+                "properties": {
+                  "rule_id": {
+                    "type": "string"
+                  },
+                  "chosen_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "candidate_paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "compared_fields": {
+                    "type": "object"
+                  },
+                  "decision": {
+                    "type": "string"
+                  },
+                  "decision_timestamp": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              },
+              "enriched_vs_ai": {
+                "type": "object",
+                "required": [
+                  "rule_id",
+                  "chosen_path",
+                  "candidate_paths",
+                  "compared_fields",
+                  "decision",
+                  "decision_timestamp"
+                ],
+                "properties": {
+                  "rule_id": {
+                    "type": "string"
+                  },
+                  "chosen_path": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "candidate_paths": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "compared_fields": {
+                    "type": "object"
+                  },
+                  "decision": {
+                    "type": "string"
+                  },
+                  "decision_timestamp": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": true
+              }
+            },
+            "additionalProperties": true
           }
         },
         "additionalProperties": true
@@ -200,11 +285,146 @@
                 }
               },
               "additionalProperties": false
+            },
+            "selection_reason_details": {
+              "type": "object",
+              "properties": {
+                "labeled_vs_enriched": {
+                  "type": "object",
+                  "required": [
+                    "rule_id",
+                    "chosen_path",
+                    "candidate_paths",
+                    "compared_fields",
+                    "decision",
+                    "decision_timestamp"
+                  ],
+                  "properties": {
+                    "rule_id": {
+                      "type": "string"
+                    },
+                    "chosen_path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "candidate_paths": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "compared_fields": {
+                      "type": "object"
+                    },
+                    "decision": {
+                      "type": "string"
+                    },
+                    "decision_timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                },
+                "enriched_vs_ai": {
+                  "type": "object",
+                  "required": [
+                    "rule_id",
+                    "chosen_path",
+                    "candidate_paths",
+                    "compared_fields",
+                    "decision",
+                    "decision_timestamp"
+                  ],
+                  "properties": {
+                    "rule_id": {
+                      "type": "string"
+                    },
+                    "chosen_path": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "candidate_paths": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "compared_fields": {
+                      "type": "object"
+                    },
+                    "decision": {
+                      "type": "string"
+                    },
+                    "decision_timestamp": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": true
+                }
+              },
+              "additionalProperties": true
             }
           },
           "additionalProperties": true
         }
       }
+    },
+    "verifiable_artifacts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "path",
+          "sha256",
+          "hash_algo"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "hash_algo": {
+            "type": "string",
+            "enum": [
+              "sha256"
+            ]
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "config_fingerprint": {
+      "type": "string"
+    },
+    "environment_fingerprint": {
+      "type": "object",
+      "properties": {
+        "python_version": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "image_tag": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "git_sha": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
     },
     "publish": {
       "type": "object",

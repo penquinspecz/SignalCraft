@@ -71,6 +71,13 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         "cs": run_daily._file_metadata(enriched_path),
         "tam": run_daily._file_metadata(labeled_path),
     }
+    config_fingerprint = run_daily._config_fingerprint(flags, None)
+    environment_fingerprint = {
+        "python_version": "3.10.14",
+        "platform": "test-platform",
+        "image_tag": "jobintel:test",
+        "git_sha": "deadbeef",
+    }
     scoring_input_selection_by_profile = {
         "cs": {
             "selected": run_daily._file_metadata(enriched_path),
@@ -81,6 +88,36 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
                 run_daily._candidate_metadata(labeled_path),
             ],
             "selection_reason": "default_enriched_required",
+            "selection_reason_labeled_vs_enriched": "enriched_required",
+            "selection_reason_enriched_vs_ai": "not_applicable",
+            "selection_reason_details": {
+                "labeled_vs_enriched": {
+                    "rule_id": "labeled_vs_enriched.enriched_required",
+                    "chosen_path": str(enriched_path),
+                    "candidate_paths": [str(enriched_path), str(labeled_path)],
+                    "compared_fields": {
+                        "candidates": {
+                            str(enriched_path): run_daily._file_metadata(enriched_path),
+                            str(labeled_path): run_daily._file_metadata(labeled_path),
+                        }
+                    },
+                    "decision": "enriched_required",
+                    "decision_timestamp": "2026-01-01T00:00:00Z",
+                },
+                "enriched_vs_ai": {
+                    "rule_id": "enriched_vs_ai.not_applicable",
+                    "chosen_path": None,
+                    "candidate_paths": [str(enriched_path), str(ai_path)],
+                    "compared_fields": {
+                        "candidates": {
+                            str(enriched_path): run_daily._file_metadata(enriched_path),
+                            str(ai_path): run_daily._file_metadata(ai_path),
+                        }
+                    },
+                    "decision": "not_applicable",
+                    "decision_timestamp": "2026-01-01T00:00:00Z",
+                },
+            },
             "comparison_details": {"newer_by_seconds": 0, "prefer_ai": False},
             "candidates": [
                 run_daily._candidate_metadata(ai_path),
@@ -103,6 +140,37 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
                 run_daily._candidate_metadata(labeled_path),
             ],
             "selection_reason": "no_enrich_labeled_newer_or_equal",
+            "selection_reason_labeled_vs_enriched": "labeled_newer_or_equal",
+            "selection_reason_enriched_vs_ai": "not_applicable",
+            "selection_reason_details": {
+                "labeled_vs_enriched": {
+                    "rule_id": "labeled_vs_enriched.labeled_newer_or_equal",
+                    "chosen_path": str(labeled_path),
+                    "candidate_paths": [str(enriched_path), str(labeled_path)],
+                    "compared_fields": {
+                        "candidates": {
+                            str(enriched_path): run_daily._file_metadata(enriched_path),
+                            str(labeled_path): run_daily._file_metadata(labeled_path),
+                        },
+                        "comparisons": {"winner": "labeled"},
+                    },
+                    "decision": "labeled_newer_or_equal",
+                    "decision_timestamp": "2026-01-01T00:00:00Z",
+                },
+                "enriched_vs_ai": {
+                    "rule_id": "enriched_vs_ai.not_applicable",
+                    "chosen_path": None,
+                    "candidate_paths": [str(enriched_path), str(ai_path)],
+                    "compared_fields": {
+                        "candidates": {
+                            str(enriched_path): run_daily._file_metadata(enriched_path),
+                            str(ai_path): run_daily._file_metadata(ai_path),
+                        }
+                    },
+                    "decision": "not_applicable",
+                    "decision_timestamp": "2026-01-01T00:00:00Z",
+                },
+            },
             "comparison_details": {"newer_by_seconds": 0, "prefer_ai": False},
             "candidates": [
                 run_daily._candidate_metadata(ai_path),
@@ -131,6 +199,8 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         provenance_by_provider=None,
         scoring_inputs_by_profile=scoring_inputs_by_profile,
         scoring_input_selection_by_profile=scoring_input_selection_by_profile,
+        config_fingerprint=config_fingerprint,
+        environment_fingerprint=environment_fingerprint,
     )
     path2 = run_daily._persist_run_metadata(
         run_id="2026-01-01T00:00:00Z",
@@ -141,6 +211,8 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         provenance_by_provider=None,
         scoring_inputs_by_profile=scoring_inputs_by_profile,
         scoring_input_selection_by_profile=scoring_input_selection_by_profile,
+        config_fingerprint=config_fingerprint,
+        environment_fingerprint=environment_fingerprint,
     )
 
     assert path1 == path2
@@ -160,11 +232,40 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert data["scoring_inputs_by_provider"]["openai"]["cs"]["path"] == str(enriched_path)
     assert data["outputs_by_profile"]["tam"]["ranked_csv"]["path"] == str(_ranked_csv("tam"))
     assert data["outputs_by_provider"]["openai"]["tam"]["ranked_csv"]["path"] == str(_ranked_csv("tam"))
+    assert data["config_fingerprint"] == config_fingerprint
+    assert len(data["config_fingerprint"]) == 64
+    assert all(ch in "0123456789abcdef" for ch in data["config_fingerprint"])
+    assert data["environment_fingerprint"]["python_version"] == "3.10.14"
+    assert data["environment_fingerprint"]["platform"] == "test-platform"
+    verifiable = data["verifiable_artifacts"]
+    assert isinstance(verifiable, dict)
+    for profile in profiles:
+        for key in ("ranked_json", "ranked_csv", "ranked_families_json", "shortlist_md"):
+            logical_key = f"openai:{profile}:{key}"
+            assert logical_key in verifiable
+            expected_meta = data["outputs_by_provider"]["openai"][profile][key]
+            expected_sha = expected_meta["sha256"]
+            expected_path = Path(expected_meta["path"]).name
+            assert verifiable[logical_key]["sha256"] == expected_sha
+            assert verifiable[logical_key]["hash_algo"] == "sha256"
+            assert verifiable[logical_key]["path"] == f"openai/{profile}/{expected_path}"
     assert data["scoring_input_selection_by_profile"]["cs"]["decision"]["rule"] == "default_enriched_required"
     assert data["scoring_input_selection_by_profile"]["tam"]["decision"]["rule"] == "no_enrich_compare"
     assert (
         data["scoring_input_selection_by_provider"]["openai"]["cs"]["decision"]["rule"] == "default_enriched_required"
     )
+    assert data["scoring_input_selection_by_profile"]["cs"]["selection_reason_details"]["labeled_vs_enriched"][
+        "rule_id"
+    ] == "labeled_vs_enriched.enriched_required"
+    assert data["scoring_input_selection_by_profile"]["cs"]["selection_reason_details"]["labeled_vs_enriched"][
+        "chosen_path"
+    ] == str(enriched_path)
+    assert data["scoring_input_selection_by_profile"]["tam"]["selection_reason_details"]["labeled_vs_enriched"][
+        "rule_id"
+    ] == "labeled_vs_enriched.labeled_newer_or_equal"
+    assert data["scoring_input_selection_by_profile"]["tam"]["selection_reason_details"]["labeled_vs_enriched"][
+        "chosen_path"
+    ] == str(labeled_path)
     assert data["provenance"]["build"]["git_sha"] == "unknown"
     assert data["provenance"]["build"]["image"] == "unknown"
     assert data["provenance"]["build"]["taskdef"] == "unknown"
@@ -172,3 +273,22 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert path1.name == "20260101T000000Z.json"
     schema = json.loads(resolve_schema_path(1).read_text(encoding="utf-8"))
     assert validate_report(data, schema) == []
+
+
+def test_config_fingerprint_ignores_env_secrets(monkeypatch) -> None:
+    flags = {
+        "profile": "cs",
+        "profiles": "cs",
+        "providers": ["openai"],
+        "us_only": False,
+        "no_enrich": False,
+        "ai": False,
+        "ai_only": False,
+        "min_score": 40,
+        "min_alert_score": 85,
+    }
+    base = run_daily._config_fingerprint(flags, None)
+    monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://example.com/secret")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-secret")
+    again = run_daily._config_fingerprint(flags, None)
+    assert base == again

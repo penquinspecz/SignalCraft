@@ -1,115 +1,83 @@
+from __future__ import annotations
+
 import hashlib
 import json
-import subprocess
-import sys
 from pathlib import Path
 
 import scripts.replay_run as replay_run
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as fp:
-        for chunk in iter(lambda: fp.read(8192), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
 
-def _write_jobs(path: Path) -> None:
-    jobs = [
-        {
-            "job_id": "1",
-            "title": "Role A",
-            "score": 10,
-            "apply_url": "http://example.com/a",
-            "enrich_status": "enriched",
-        },
-        {
-            "job_id": "2",
-            "title": "Role B",
-            "score": 20,
-            "apply_url": "http://example.com/b",
-            "enrich_status": "enriched",
-        },
-    ]
-    path.write_text(json.dumps(jobs), encoding="utf-8")
+def _write(path: Path, data: bytes) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return _sha256_bytes(data)
 
 
-def test_replay_run_reproducible(tmp_path: Path) -> None:
-    input_path = tmp_path / "input.json"
-    _write_jobs(input_path)
+def test_replay_run_passes_with_matching_hashes(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    scoring_path = run_dir / "inputs" / "openai_enriched_jobs.json"
+    ranked_path = run_dir / "openai_ranked_jobs.cs.json"
 
-    out_dir = tmp_path / "out"
-    out_dir.mkdir()
-    cmd = [
-        sys.executable,
-        "scripts/score_jobs.py",
-        "--profile",
-        "cs",
-        "--in_path",
-        str(input_path),
-        "--out_json",
-        str(out_dir / "ranked_jobs.cs.json"),
-        "--out_csv",
-        str(out_dir / "ranked_jobs.cs.csv"),
-        "--out_families",
-        str(out_dir / "ranked_families.cs.json"),
-        "--out_md",
-        str(out_dir / "shortlist.cs.md"),
-        "--out_md_top_n",
-        str(out_dir / "top.cs.md"),
-        "--min_score",
-        "40",
-    ]
-    subprocess.run(cmd, check=True)
+    scoring_sha = _write(scoring_path, b"[]")
+    ranked_sha = _write(ranked_path, b"[1]")
 
     report = {
-        "run_id": "2026-01-22T00:00:00Z",
-        "flags": {"min_score": 40},
-        "inputs": {
-            "raw_jobs_json": {"path": str(input_path), "sha256": _sha256(input_path)},
-        },
+        "run_report_schema_version": 1,
+        "run_id": "2026-01-01T00:00:00Z",
+        "selection": {"scrape_provenance": {}, "classified_job_count": 0, "classified_job_count_by_provider": {"openai": 0}},
         "scoring_inputs_by_profile": {
-            "cs": {"path": str(input_path), "sha256": _sha256(input_path)},
+            "cs": {"path": str(scoring_path), "sha256": scoring_sha}
         },
         "outputs_by_profile": {
             "cs": {
-                "ranked_json": {"path": str(out_dir / "ranked_jobs.cs.json"), "sha256": _sha256(out_dir / "ranked_jobs.cs.json")},
-                "ranked_csv": {"path": str(out_dir / "ranked_jobs.cs.csv"), "sha256": _sha256(out_dir / "ranked_jobs.cs.csv")},
-                "ranked_families_json": {"path": str(out_dir / "ranked_families.cs.json"), "sha256": _sha256(out_dir / "ranked_families.cs.json")},
-                "shortlist_md": {"path": str(out_dir / "shortlist.cs.md"), "sha256": _sha256(out_dir / "shortlist.cs.md")},
-                "top_md": {"path": str(out_dir / "top.cs.md"), "sha256": _sha256(out_dir / "top.cs.md")},
+                "ranked_json": {"path": str(ranked_path), "sha256": ranked_sha}
             }
         },
     }
-    report_path = tmp_path / "run.json"
+
+    report_path = run_dir / "run_report.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")
 
-    rc = replay_run.main(["--run-report", str(report_path), "--profile", "cs", "--out-dir", str(tmp_path / "replay")])
-    assert rc == 0
+    exit_code, lines, _mismatches, _verified = replay_run._replay_report(report, "cs", strict=True, report_dir=run_dir)
+    assert exit_code == 0
+    assert any(line.startswith("PASS:") for line in lines)
 
 
-def test_replay_run_hash_mismatch_returns_2(tmp_path: Path) -> None:
-    input_path = tmp_path / "input.json"
-    _write_jobs(input_path)
+def test_replay_run_detects_mismatch(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    scoring_path = run_dir / "inputs" / "openai_enriched_jobs.json"
+    ranked_path = run_dir / "openai_ranked_jobs.cs.json"
+
+    scoring_sha = _write(scoring_path, b"[]")
+    ranked_sha = _write(ranked_path, b"[1]")
 
     report = {
-        "run_id": "2026-01-22T00:00:00Z",
-        "flags": {"min_score": 40},
-        "inputs": {
-            "raw_jobs_json": {"path": str(input_path), "sha256": "bad"},
-        },
+        "run_report_schema_version": 1,
+        "run_id": "2026-01-01T00:00:00Z",
+        "selection": {"scrape_provenance": {}, "classified_job_count": 0, "classified_job_count_by_provider": {"openai": 0}},
         "scoring_inputs_by_profile": {
-            "cs": {"path": str(input_path), "sha256": _sha256(input_path)},
+            "cs": {"path": str(scoring_path), "sha256": scoring_sha}
         },
         "outputs_by_profile": {
             "cs": {
-                "ranked_json": {"path": str(tmp_path / "missing.json"), "sha256": "bad"},
+                "ranked_json": {"path": str(ranked_path), "sha256": ranked_sha}
             }
         },
     }
-    report_path = tmp_path / "run.json"
+
+    report_path = run_dir / "run_report.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")
 
-    rc = replay_run.main(["--run-report", str(report_path), "--profile", "cs", "--out-dir", str(tmp_path / "replay")])
-    assert rc == 2
+    # Corrupt ranked output after report was written.
+    ranked_path.write_bytes(b"[2]")
+
+    exit_code, lines, mismatches, _verified = replay_run._replay_report(report, "cs", strict=True, report_dir=run_dir)
+    assert exit_code == 2
+    assert any(line.startswith("FAIL:") for line in lines)
+    assert any("mismatched" in line.lower() for line in lines)
+    assert mismatches
+    assert mismatches[0]["path"].endswith("openai_ranked_jobs.cs.json")
