@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import subprocess
@@ -174,7 +175,6 @@ def test_shell_scripts_syntax() -> None:
         "ecs_verify_task.sh",
         "verify_s3_pointers.sh",
         "show_run_provenance.sh",
-        "verify_publish_s3.sh",
     ],
 )
 def test_shell_script_smoke_no_unbound(script_name: str) -> None:
@@ -288,60 +288,57 @@ def test_show_run_provenance_provider_pointer(tmp_path: Path) -> None:
     assert pointer_uri in log_text
 
 
-def test_verify_publish_s3_success(tmp_path: Path) -> None:
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash not available")
-    repo_root = Path(__file__).resolve().parents[1]
-    script = repo_root / "scripts" / "verify_publish_s3.sh"
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    _install_fake_aws(bin_dir)
-    _install_fake_jq(bin_dir)
+def test_verify_published_s3_offline_plan(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    from scripts import verify_published_s3
+
     run_id = "run-123"
-    bucket = "bucket"
-    prefix = "jobintel"
-    run_report_key = f"{prefix}/runs/{run_id}/run_report.json"
-    ranked_key = f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_families.cs.json"
-    latest_key = f"{prefix}/latest/openai/cs/openai_ranked_families.cs.json"
-    env = {
-        "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
-        "BUCKET": bucket,
-        "PREFIX": prefix,
-        "RUN_ID": run_id,
-        "REGION": "us-east-1",
-        "PROVIDER": "openai",
-        "PROFILE": "cs",
-        "AWS_FAKE_POINTER_URI": f"s3://{bucket}/{prefix}/state/last_success.json",
-        "AWS_FAKE_POINTER_JSON": '{"run_id":"run-123"}',
-        "AWS_FAKE_LIST_PREFIX": f"{prefix}/runs/{run_id}/openai/cs/",
-        "AWS_FAKE_LIST_KEYS": f'["{ranked_key}"]',
-        "AWS_FAKE_LIST_PREFIX_2": f"{prefix}/latest/openai/cs/",
-        "AWS_FAKE_LIST_KEYS_2": f'["{latest_key}"]',
-        "AWS_FAKE_HEAD_KEYS": (
-            f"{run_report_key}|application/json;"
-            f"{ranked_key}|application/json;"
-            f"{latest_key}|application/json"
-        ),
-        "AWS_FAKE_OBJ_URI_1": f"s3://{bucket}/{run_report_key}",
-        "AWS_FAKE_OBJ_BODY_1": '{"run_id":"run-123"}',
-        "AWS_FAKE_OBJ_URI_2": f"s3://{bucket}/{ranked_key}",
-        "AWS_FAKE_OBJ_BODY_2": "[]",
+    verify_published_s3.RUN_METADATA_DIR = tmp_path / "state" / "runs"
+    sanitized = verify_published_s3.publish_s3._sanitize_run_id(run_id)
+    run_dir = verify_published_s3.RUN_METADATA_DIR / sanitized
+    run_dir.mkdir(parents=True, exist_ok=True)
+    report = {
+        "run_id": run_id,
+        "verifiable_artifacts": {
+            "openai:cs:ranked_families_json": {
+                "path": "openai/cs/openai_ranked_families.cs.json",
+                "sha256": "deadbeef",
+                "hash_algo": "sha256",
+            }
+        },
     }
-    result = subprocess.run([bash, str(script)], capture_output=True, text=True, env=env)
-    assert result.returncode == 0
-    combined = (result.stdout or "") + (result.stderr or "")
-    assert "Summary: SUCCESS" in combined
+    (run_dir / "run_report.json").write_text(json.dumps(report), encoding="utf-8")
+
+    exit_code = verify_published_s3.main(
+        [
+            "--bucket",
+            "bucket",
+            "--run-id",
+            run_id,
+            "--prefix",
+            "jobintel",
+            "--offline",
+            "--json",
+        ]
+    )
+    assert exit_code == 0
 
 
-def test_verify_publish_s3_missing_aws(tmp_path: Path) -> None:
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash not available")
-    repo_root = Path(__file__).resolve().parents[1]
-    script = repo_root / "scripts" / "verify_publish_s3.sh"
-    env = {"PATH": "", "BUCKET": "bucket", "PREFIX": "jobintel", "RUN_ID": "run-123"}
-    result = subprocess.run([bash, str(script)], capture_output=True, text=True, env=env)
-    assert result.returncode != 0
-    combined = (result.stdout or "") + (result.stderr or "")
-    assert "aws CLI is required" in combined
+def test_verify_published_s3_missing_run_report(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    from scripts import verify_published_s3
+
+    verify_published_s3.RUN_METADATA_DIR = tmp_path / "state" / "runs"
+
+    exit_code = verify_published_s3.main(
+        [
+            "--bucket",
+            "bucket",
+            "--run-id",
+            "missing-run",
+            "--prefix",
+            "jobintel",
+            "--offline",
+        ]
+    )
+    assert exit_code == 2
