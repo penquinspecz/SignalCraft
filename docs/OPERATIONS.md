@@ -5,7 +5,7 @@
 Local (recommended for debugging):
 
 ```bash
-python scripts/run_daily.py --profiles cs --us_only --no_post
+python scripts/run_daily.py --profiles cs --us_only --no_post --snapshot-only --offline
 ```
 
 Docker (build runs tests):
@@ -16,7 +16,7 @@ docker run --rm \
   -v "$PWD/data:/app/data" \
   -v "$PWD/state:/app/state" \
   --env-file .env \
-  jobintel:local --profiles cs --us_only --no_post
+  jobintel:local --profiles cs --us_only --no_post --snapshot-only --offline
 ```
 
 CI:
@@ -24,6 +24,14 @@ CI:
 ```bash
 pytest -q
 ```
+
+Deterministic gate (recommended):
+
+```bash
+docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+```
+
+Snapshot-only violations fail fast with exit code 2 and a message naming the provider.
 
 ## Input selection rules
 
@@ -57,6 +65,43 @@ State (`./state`):
 Run reports:
 - `state/runs/<run_id>.json` (run metadata)
 - Includes `run_report_schema_version`, inputs, outputs, scoring inputs, and selection reasons per profile.
+
+## Replayability and verification
+
+Replay a prior run (strict verification):
+
+```bash
+make replay RUN_ID=<run_id>
+```
+
+Or directly:
+
+```bash
+python scripts/replay_run.py --run-id <run_id> --profile cs --strict
+```
+
+Snapshot immutability check:
+
+```bash
+make verify-snapshots
+```
+
+Local replay gate (offline-safe):
+
+```bash
+make gate-replay
+```
+
+Exit codes:
+- `0`: all checked artifacts match
+- `2`: missing artifacts or mismatched hashes
+- `>=3`: unexpected runtime errors
+
+Replay JSON output:
+
+```bash
+python scripts/replay_run.py --run-id <run_id> --json
+```
 
 ## Common failure modes and debugging
 
