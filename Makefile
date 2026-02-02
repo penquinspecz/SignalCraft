@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots replay gate-replay verify-publish verify-publish-live
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -78,6 +78,12 @@ gate-ci: gate-truth
 
 verify-snapshots:
 	$(PY) scripts/verify_snapshots_immutable.py
+
+install-hooks:
+	@mkdir -p .git/hooks
+	@cp scripts/hooks/pre-commit-snapshot-guard.sh .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "Installed pre-commit snapshot guard to .git/hooks/pre-commit"
 
 snapshot-guard: verify-snapshots
 
