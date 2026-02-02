@@ -4,11 +4,15 @@ This directory contains a minimal, Kubernetes-native CronJob shape for running J
 It is intentionally plain YAML (no Helm).
 The CronJob YAML uses a placeholder image name; replace it with your registry/repo tag.
 
-## Apply
+## Apply (order)
 
 ```bash
-kubectl create namespace jobintel
+kubectl apply -f ops/k8s/namespace.yaml
+kubectl apply -f ops/k8s/serviceaccount.yaml
+kubectl apply -f ops/k8s/role.yaml
+kubectl apply -f ops/k8s/rolebinding.yaml
 kubectl apply -f ops/k8s/configmap.yaml
+kubectl apply -f ops/k8s/secret.example.yaml  # replace with real secret
 kubectl apply -f ops/k8s/cronjob.yaml
 ```
 
@@ -34,6 +38,7 @@ kubectl -n jobintel create secret generic jobintel-secrets \
 Notes:
 - Secrets-based auth is the primary example.
 - IRSA / workload identity is supported by Kubernetes, but not assumed here.
+- `role.yaml` is intentionally empty; remove Role/RoleBinding if you don’t need in-cluster RBAC.
 
 ## Dry-run / deterministic mode
 
@@ -61,11 +66,23 @@ python scripts/verify_published_s3.py \
   --verify-latest
 ```
 
+Run replay smoke locally against a run report:
+```bash
+python scripts/replay_run.py --run-id <run_id> --strict
+```
+
 ## Expected outputs
 
 - Run report: `state/runs/<run_id>.json`
 - Run artifacts (S3): `s3://<bucket>/<prefix>/runs/<run_id>/...`
 - Latest pointers (S3): `s3://<bucket>/<prefix>/latest/<provider>/<profile>/...`
+
+## Troubleshooting
+
+- Permission errors: ensure the secret exists and S3 credentials are correct.
+- Missing secrets: CronJob will fail on startup; check the namespace and secret name.
+- Stuck or failing jobs: check `kubectl describe job` and pod logs.
+- If GitHub Actions are queued or flaky, rerun the workflow or wait for recovery.
 
 ## Storage notes
 
