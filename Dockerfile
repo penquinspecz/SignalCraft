@@ -18,6 +18,7 @@ COPY pyproject.toml /app/pyproject.toml
 COPY README.md /app/README.md
 
 ARG RUN_TESTS=0
+ARG PRINT_SNAPSHOT_SHA=0
 ENV PYTHONHASHSEED=0
 ENV TZ=UTC
 ENV LC_ALL=C.UTF-8
@@ -54,6 +55,7 @@ RUN ls -la /app/data && \
     ls -la /app/data/anthropic_snapshots
 
 # Run tests during build (deterministic, offline)
+RUN if [ "$PRINT_SNAPSHOT_SHA" = "1" ]; then sha256sum /app/data/openai_snapshots/index.html && wc -c /app/data/openai_snapshots/index.html; fi
 RUN if [ "$RUN_TESTS" = "1" ]; then python -m pytest -q; fi
 
 # Ensure runtime user can write only to /app/data and /app/state (and ashby_cache)
