@@ -31,21 +31,23 @@ def _setup_run(tmp_path: Path) -> tuple[str, Path]:
     run_id = "2026-01-02T00:00:00Z"
     run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
     run_dir.mkdir(parents=True)
-    provider_dir = run_dir / "openai" / "cs"
-    provider_dir.mkdir(parents=True)
-    ranked = provider_dir / "openai_ranked_jobs.cs.json"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True)
+    ranked = data_dir / "openai_ranked_jobs.cs.json"
     ranked.write_text("[]", encoding="utf-8")
-    shortlist = provider_dir / "openai_shortlist.cs.md"
+    shortlist = data_dir / "openai_shortlist.cs.md"
     shortlist.write_text("hi", encoding="utf-8")
     verifiable = {
         "openai:cs:ranked_json": {
-            "path": "openai/cs/openai_ranked_jobs.cs.json",
+            "path": ranked.name,
             "sha256": compute_sha256_file(ranked),
+            "bytes": ranked.stat().st_size,
             "hash_algo": "sha256",
         },
         "openai:cs:shortlist_md": {
-            "path": "openai/cs/openai_shortlist.cs.md",
+            "path": shortlist.name,
             "sha256": compute_sha256_file(shortlist),
+            "bytes": shortlist.stat().st_size,
             "hash_algo": "sha256",
         },
     }
@@ -66,6 +68,7 @@ def _setup_run(tmp_path: Path) -> tuple[str, Path]:
 def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
     run_id, _ = _setup_run(tmp_path)
 
     monkeypatch.setenv("AWS_REGION", "us-east-1")
@@ -93,8 +96,8 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     keys = [call[1] for call in client.calls if call[0] == "upload"]
     assert sorted(keys) == sorted(
         [
-            f"jobintel/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json",
-            f"jobintel/runs/{run_id}/openai/cs/openai_shortlist.cs.md",
+            f"jobintel/runs/{run_id}/openai_ranked_jobs.cs.json",
+            f"jobintel/runs/{run_id}/openai_shortlist.cs.md",
             "jobintel/latest/openai/cs/openai_ranked_jobs.cs.json",
             "jobintel/latest/openai/cs/openai_shortlist.cs.md",
         ]
@@ -111,6 +114,7 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
 def test_publish_s3_dry_run(monkeypatch, tmp_path, caplog):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
     run_id, _ = _setup_run(tmp_path)
 
     monkeypatch.setenv("AWS_REGION", "us-east-1")

@@ -26,21 +26,23 @@ def _write_json(path: Path, payload) -> None:
 
 def _setup_run_dir(tmp_path: Path, run_id: str) -> Path:
     run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
-    provider_dir = run_dir / "openai" / "cs"
-    provider_dir.mkdir(parents=True, exist_ok=True)
-    ranked_json = provider_dir / "openai_ranked_jobs.cs.json"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    ranked_json = data_dir / "openai_ranked_jobs.cs.json"
     ranked_json.write_text("[]", encoding="utf-8")
-    ranked_families = provider_dir / "openai_ranked_families.cs.json"
+    ranked_families = data_dir / "openai_ranked_families.cs.json"
     ranked_families.write_text("[]", encoding="utf-8")
     verifiable = {
         "openai:cs:ranked_json": {
-            "path": "openai/cs/openai_ranked_jobs.cs.json",
+            "path": ranked_json.name,
             "sha256": compute_sha256_file(ranked_json),
+            "bytes": ranked_json.stat().st_size,
             "hash_algo": "sha256",
         },
         "openai:cs:ranked_families_json": {
-            "path": "openai/cs/openai_ranked_families.cs.json",
+            "path": ranked_families.name,
             "sha256": compute_sha256_file(ranked_families),
+            "bytes": ranked_families.stat().st_size,
             "hash_algo": "sha256",
         },
     }
@@ -74,10 +76,10 @@ def test_publish_s3_filters_providers_profiles(tmp_path: Path, monkeypatch) -> N
 
         run_id = "2026-01-01T00:00:00Z"
         run_dir = _setup_run_dir(tmp_path, run_id)
-        other_dir = run_dir / "openai" / "tam"
-        other_dir.mkdir(parents=True, exist_ok=True)
-        (other_dir / "openai_ranked_jobs.tam.json").write_text("[]", encoding="utf-8")
+        other_file = tmp_path / "data" / "openai_ranked_jobs.tam.json"
+        other_file.write_text("[]", encoding="utf-8")
         monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", tmp_path / "state" / "runs")
+        monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
 
         publish_s3.publish_run(
             run_id=run_id,
@@ -110,6 +112,7 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
         run_id = "2026-01-01T00:00:00Z"
         run_dir = _setup_run_dir(tmp_path, run_id)
         monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", tmp_path / "state" / "runs")
+        monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
         verify_published_s3.RUN_METADATA_DIR = tmp_path / "state" / "runs"
 
         publish_s3.publish_run(
@@ -144,8 +147,8 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
                 keys.append(item["Key"])
 
         run_keys = [
-            f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json",
-            f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_families.cs.json",
+            f"{prefix}/runs/{run_id}/openai_ranked_jobs.cs.json",
+            f"{prefix}/runs/{run_id}/openai_ranked_families.cs.json",
         ]
         latest_keys = [
             f"{prefix}/latest/openai/cs/openai_ranked_jobs.cs.json",
@@ -159,7 +162,7 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
         assert sorted(keys) == expected
 
         body = client.get_object(Bucket=bucket, Key=run_keys[0])["Body"].read()
-        assert body == (run_dir / "openai" / "cs" / "openai_ranked_jobs.cs.json").read_bytes()
+        assert body == (tmp_path / "data" / "openai_ranked_jobs.cs.json").read_bytes()
 
         json_ct = client.get_object(Bucket=bucket, Key=run_keys[0])["ContentType"]
         assert json_ct == "application/json"

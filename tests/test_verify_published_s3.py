@@ -25,8 +25,8 @@ def _setup_run_dir(tmp_path: Path, run_id: str) -> Path:
     run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     verifiable = {
-        "openai:cs:ranked_json": {"path": "openai/cs/openai_ranked_jobs.cs.json", "sha256": "x", "hash_algo": "sha256"},
-        "openai:cs:shortlist_md": {"path": "openai/cs/openai_shortlist.cs.md", "sha256": "y", "hash_algo": "sha256"},
+        "openai:cs:ranked_json": {"path": "openai_ranked_jobs.cs.json", "sha256": "x", "bytes": 1, "hash_algo": "sha256"},
+        "openai:cs:shortlist_md": {"path": "openai_shortlist.cs.md", "sha256": "y", "bytes": 1, "hash_algo": "sha256"},
     }
     _write_json(run_dir / "run_report.json", {"run_id": run_id, "verifiable_artifacts": verifiable})
     return run_dir
@@ -96,7 +96,7 @@ def test_verify_published_s3_missing_objects(tmp_path: Path, capsys) -> None:
         bucket = "bucket"
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket=bucket)
-        key = f"jobintel/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json"
+        key = f"jobintel/runs/{run_id}/openai_ranked_jobs.cs.json"
         client.put_object(Bucket=bucket, Key=key, Body=b"[]")
 
         code = verify_published_s3.main(

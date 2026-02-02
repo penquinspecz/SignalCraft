@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
-from ji_engine.config import RUN_METADATA_DIR
+from ji_engine.config import DATA_DIR, RUN_METADATA_DIR
 from jobintel.aws_runs import build_state_payload, write_last_success_state, write_provider_last_success_state
 try:
     from scripts import aws_env_check  # type: ignore
@@ -174,7 +174,7 @@ def _build_upload_plan(
             _fail_validation(f"missing path for verifiable artifact {logical_key}")
         path = Path(path_str)
         if not path.is_absolute():
-            path = run_dir / path
+            path = DATA_DIR / path
         if not path.exists():
             _fail_validation(f"verifiable artifact missing on disk: {path}")
         rel_path = Path(path_str).as_posix()

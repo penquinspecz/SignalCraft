@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ji_engine.config import RUN_METADATA_DIR
+from ji_engine.config import DATA_DIR, RUN_METADATA_DIR
 from ji_engine.utils.verification import compute_sha256_file, verify_verifiable_artifacts
 
 
@@ -58,7 +58,7 @@ def _collect_expected_outputs(report: Dict[str, Any], profile: str) -> List[Tupl
 
 
 def _collect_verifiable_entries(
-    report: Dict[str, Any], report_dir: Optional[Path]
+    report: Dict[str, Any], base_dir: Path
 ) -> List[Tuple[str, Optional[str], Optional[str]]]:
     verifiable = report.get("verifiable_artifacts") or {}
     if not isinstance(verifiable, dict):
@@ -73,8 +73,8 @@ def _collect_verifiable_entries(
             entries.append((f"verifiable:{logical_key}", None, sha256))
             continue
         path = Path(path_str)
-        if not path.is_absolute() and report_dir is not None:
-            path = report_dir / path
+        if not path.is_absolute():
+            path = base_dir / path
         entries.append((f"verifiable:{logical_key}", str(path), sha256))
     return entries
 
@@ -115,11 +115,11 @@ def _replay_report(
     verified: Dict[str, Dict[str, Optional[str]]] = {}
 
     entries = _collect_entries(report, profile)
-    verifiable_entries = _collect_verifiable_entries(report, report_dir)
+    verifiable_entries = _collect_verifiable_entries(report, DATA_DIR)
     verifiable_mismatch_by_label: Dict[str, Dict[str, Optional[str]]] = {}
     if verifiable_entries:
         ok, verifiable_mismatches = verify_verifiable_artifacts(
-            report_dir or Path("."), report.get("verifiable_artifacts") or {}
+            DATA_DIR, report.get("verifiable_artifacts") or {}
         )
         for mismatch in verifiable_mismatches:
             label = mismatch.get("label")

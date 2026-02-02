@@ -814,7 +814,7 @@ def _persist_run_metadata(
     path = _run_metadata_path(run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     return path
@@ -1100,10 +1100,23 @@ def _config_fingerprint(flags: Dict[str, Any], providers_config: Optional[str]) 
     }
     filtered_flags = {key: flags.get(key) for key in sorted(allowed_keys)}
     providers_config_path = Path(providers_config) if providers_config else None
+    env_keys = [
+        "CAREERS_MODE",
+        "EMBED_PROVIDER",
+        "EMBEDDING_MODEL",
+        "OPENAI_MODEL",
+        "ANTHROPIC_MODEL",
+        "JOBINTEL_DATA_DIR",
+        "JOBINTEL_STATE_DIR",
+        "TZ",
+        "PYTHONHASHSEED",
+    ]
+    env_payload = {key: os.environ.get(key) for key in env_keys}
     config_payload = {
         "flags": filtered_flags,
         "providers_config_path": str(providers_config_path) if providers_config_path else None,
         "providers_config_sha256": _hash_file(providers_config_path) if providers_config_path else None,
+        "env": env_payload,
     }
     payload = json.dumps(config_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return compute_sha256_bytes(payload.encode("utf-8"))
@@ -1115,6 +1128,8 @@ def _environment_fingerprint() -> Dict[str, Optional[str]]:
         "platform": platform.platform(),
         "image_tag": os.environ.get("IMAGE_TAG"),
         "git_sha": _best_effort_git_sha(),
+        "tz": os.environ.get("TZ"),
+        "pythonhashseed": os.environ.get("PYTHONHASHSEED"),
     }
 
 
@@ -1132,7 +1147,7 @@ def _verifiable_artifacts(
                     continue
                 logical_key = f"{provider}:{profile}:{output_key}"
                 artifacts[logical_key] = Path(path_str)
-    return build_verifiable_artifacts(run_dir, artifacts)
+    return build_verifiable_artifacts(DATA_DIR, artifacts)
 
 
 def _best_effort_git_sha() -> Optional[str]:

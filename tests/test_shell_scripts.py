@@ -301,8 +301,9 @@ def test_verify_published_s3_offline_plan(tmp_path: Path, monkeypatch) -> None:
         "run_id": run_id,
         "verifiable_artifacts": {
             "openai:cs:ranked_families_json": {
-                "path": "openai/cs/openai_ranked_families.cs.json",
+                "path": "openai_ranked_families.cs.json",
                 "sha256": "deadbeef",
+                "bytes": 1,
                 "hash_algo": "sha256",
             }
         },
