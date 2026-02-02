@@ -4,8 +4,10 @@ metadata:
   name: jobintel-config
   namespace: jobintel
 data:
-  JOBINTEL_DATA_DIR: /app/data
-  JOBINTEL_STATE_DIR: /app/state
-  CAREERS_MODE: AUTO
-  PYTHONDONTWRITEBYTECODE: "1"
-  RUN_DAILY_ARGS: "--profiles cs --us_only --no_post --no_enrich"
+  CAREERS_MODE: "SNAPSHOT"
+  EMBED_PROVIDER: "stub"
+  ENRICH_MAX_WORKERS: "1"
+  JOBINTEL_S3_PREFIX: "jobintel"
+  JOBINTEL_AWS_REGION: "us-east-1"
+  PUBLISH_S3: "1"
+  PUBLISH_S3_DRY_RUN: "0"
