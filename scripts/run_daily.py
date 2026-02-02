@@ -20,7 +20,6 @@ except ModuleNotFoundError:
 
 import argparse
 import atexit
-import hashlib
 import importlib
 import json
 import logging
@@ -54,7 +53,11 @@ from ji_engine.config import (
     ranked_jobs_json,
     state_last_ranked,
 )
-from ji_engine.utils.verification import build_verifiable_artifacts, compute_sha256_file
+from ji_engine.utils.verification import (
+    build_verifiable_artifacts,
+    compute_sha256_bytes,
+    compute_sha256_file,
+)
 from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
@@ -1103,7 +1106,7 @@ def _config_fingerprint(flags: Dict[str, Any], providers_config: Optional[str]) 
         "providers_config_sha256": _hash_file(providers_config_path) if providers_config_path else None,
     }
     payload = json.dumps(config_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    return compute_sha256_bytes(payload.encode("utf-8"))
 
 
 def _environment_fingerprint() -> Dict[str, Optional[str]]:
