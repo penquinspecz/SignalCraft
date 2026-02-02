@@ -79,11 +79,20 @@ python scripts/publish_s3.py --run-id <run_id> --prefix jobintel --dry-run
 
 ## Verify published artifacts (recommended)
 ```bash
-python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --prefix jobintel --verify-latest
+make verify-publish RUN_ID=<run_id>
+make verify-publish RUN_ID=<run_id> VERIFY_LATEST=1
+make verify-publish-live RUN_ID=<run_id> VERIFY_LATEST=1
 ```
 
-Deprecated:
-- `scripts/verify_publish_s3.sh` (use `verify_published_s3.py` instead)
+Offline vs live semantics:
+- `make verify-publish` is offline by default: it computes the expected key list from the run report and does **not** call AWS.
+- `make verify-publish-live` performs real S3 `HeadObject` checks and requires valid AWS credentials.
+
+Exit codes:
+- `0` success (all expected objects present)
+- `2` validation/missing run report or missing objects
+- `>=3` runtime errors
+
 
 ## Publish a run (real upload)
 ```bash
