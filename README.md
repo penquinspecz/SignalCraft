@@ -180,6 +180,10 @@ Use the reproducible harness to confirm host, bind-mount, and docker build all s
 
 The script prints sha256/bytes for each environment and fails if any differ.
 
+## Ops / Determinism
+
+- Determinism contract: `docs/DETERMINISM_CONTRACT.md`
+
 Canonical entrypoint:
 - Use `scripts/run_daily.py` for the pipeline. Legacy runners (`run_full_pipeline.py`, `run_openai_pipeline.py`) are deprecated and exit non-zero with a message.
 
