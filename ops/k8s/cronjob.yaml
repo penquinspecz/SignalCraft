@@ -3,6 +3,11 @@ kind: CronJob
 metadata:
   name: jobintel-daily
   namespace: jobintel
+  labels:
+    app.kubernetes.io/name: jobintel
+    app.kubernetes.io/component: cronjob
+  annotations:
+    app.kubernetes.io/managed-by: jobintel
 spec:
   schedule: "0 13 * * *"
   concurrencyPolicy: Forbid
@@ -10,15 +15,23 @@ spec:
   successfulJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 3600
       backoffLimit: 0
       template:
         spec:
+          terminationGracePeriodSeconds: 30
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
           restartPolicy: Never
           serviceAccountName: jobintel-sa
           containers:
             - name: jobintel
               image: ghcr.io/yourorg/jobintel:latest
               imagePullPolicy: IfNotPresent
+              securityContext:
+                readOnlyRootFilesystem: true
               args:
                 - --profiles
                 - cs

@@ -2,6 +2,7 @@
 
 This directory contains a minimal, Kubernetes-native CronJob shape for running JobIntel daily.
 It is intentionally plain YAML (no Helm).
+The CronJob YAML uses a placeholder image name; replace it with your registry/repo tag.
 
 ## Apply
 
@@ -20,6 +21,16 @@ Create a secret named `jobintel-secrets` with the following keys (use only what 
 - `DISCORD_WEBHOOK_URL`: optional alerts
 - `OPENAI_API_KEY`: optional AI features
 
+Example:
+```bash
+kubectl -n jobintel create secret generic jobintel-secrets \
+  --from-literal=JOBINTEL_S3_BUCKET=your-bucket \
+  --from-literal=AWS_ACCESS_KEY_ID=... \
+  --from-literal=AWS_SECRET_ACCESS_KEY=... \
+  --from-literal=DISCORD_WEBHOOK_URL=... \
+  --from-literal=OPENAI_API_KEY=...
+```
+
 Notes:
 - Secrets-based auth is the primary example.
 - IRSA / workload identity is supported by Kubernetes, but not assumed here.
@@ -35,6 +46,11 @@ Example override:
 kubectl set env cronjob/jobintel-daily -n jobintel PUBLISH_S3_DRY_RUN=1
 ```
 
+To override any env var without editing YAML:
+```bash
+kubectl set env cronjob/jobintel-daily -n jobintel JOBINTEL_S3_PREFIX=jobintel-dev
+```
+
 ## Verification
 
 After a run, verify published artifacts (requires credentials):
@@ -44,6 +60,12 @@ python scripts/verify_published_s3.py \
   --run-id <run_id> \
   --verify-latest
 ```
+
+## Expected outputs
+
+- Run report: `state/runs/<run_id>.json`
+- Run artifacts (S3): `s3://<bucket>/<prefix>/runs/<run_id>/...`
+- Latest pointers (S3): `s3://<bucket>/<prefix>/latest/<provider>/<profile>/...`
 
 ## Storage notes
 
