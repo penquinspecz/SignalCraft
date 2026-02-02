@@ -17,6 +17,7 @@ def test_update_snapshots_writes_job_details(tmp_path: Path, monkeypatch) -> Non
     monkeypatch.setattr(update_snapshots, "_fetch_html", _fake_fetch)
 
     out_dir = tmp_path / "openai_snapshots"
+    manifest_path = tmp_path / "snapshot_bytes.manifest.json"
     rc = update_snapshots.main(
         [
             "--provider",
@@ -25,6 +26,9 @@ def test_update_snapshots_writes_job_details(tmp_path: Path, monkeypatch) -> Non
             "https://openai.com/careers/search/",
             "--out_dir",
             str(out_dir),
+            "--apply",
+            "--manifest-path",
+            str(manifest_path),
         ]
     )
 
@@ -62,6 +66,7 @@ def test_update_snapshots_uses_jobs_json(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(update_snapshots, "_fetch_with_retry", _fake_fetch_with_retry)
 
     out_dir = tmp_path / "openai_snapshots"
+    manifest_path = tmp_path / "snapshot_bytes.manifest.json"
     rc = update_snapshots.main(
         [
             "--provider",
@@ -70,6 +75,9 @@ def test_update_snapshots_uses_jobs_json(tmp_path: Path, monkeypatch) -> None:
             str(out_dir),
             "--jobs_json",
             str(jobs_json),
+            "--apply",
+            "--manifest-path",
+            str(manifest_path),
         ]
     )
 
