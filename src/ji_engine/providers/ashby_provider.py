@@ -133,6 +133,7 @@ def _derive_job_id(apply_url: str, title: str, location: Optional[str], team: Op
 
 
 def _stable_posting_key(job: RawJobPosting) -> tuple[str, str, str, str]:
+    # Deterministic ordering key: apply_url, title, location, team.
     return (job.apply_url or "", job.title or "", job.location or "", job.team or "")
 
 
@@ -179,20 +180,95 @@ def _build_postings_from_payload(
     return results
 
 
-def _parse_snapshot_jobs(html: str, now: datetime, board_url: Optional[str]) -> List[RawJobPosting]:
+def _html_excerpt(html: str, marker: str, radius: int = 200) -> Optional[str]:
+    idx = html.find(marker)
+    if idx == -1:
+        return None
+    start = max(0, idx - radius)
+    end = min(len(html), idx + len(marker) + radius)
+    snippet = html[start:end].replace("\n", "\\n")
+    return snippet
+
+
+def _snapshot_parse_error(html: str, payload_found: bool, payload_source: Optional[str]) -> RuntimeError:
+    excerpts = []
+    for marker in ("__NEXT_DATA__", "window.__appData"):
+        snippet = _html_excerpt(html, marker)
+        if snippet:
+            excerpts.append(f"{marker} excerpt: {snippet}")
+        else:
+            excerpts.append(f"{marker} excerpt: <marker not found>")
+    if payload_found and payload_source:
+        prefix = (
+            "Deterministic Ashby snapshot parse failed "
+            f"(payload source={payload_source} but no postings matched)."
+        )
+    elif payload_found:
+        prefix = "Deterministic Ashby snapshot parse failed (JSON payload found but no postings matched)."
+    else:
+        prefix = "Deterministic Ashby snapshot parse failed (no JSON payload found)."
+    return RuntimeError(f"{prefix} {' | '.join(excerpts)}")
+
+
+def _is_pinned_snapshot(snapshot_file: Path) -> bool:
+    repo_data_dir = Path(__file__).resolve().parents[3] / "data"
+    try:
+        in_repo_data = snapshot_file.resolve().is_relative_to(repo_data_dir.resolve())
+    except AttributeError:
+        in_repo_data = str(snapshot_file.resolve()).startswith(str(repo_data_dir.resolve()))
+    if not in_repo_data:
+        return False
+    return snapshot_file.parent.name.endswith("_snapshots")
+
+
+def _assert_pinned_snapshot_write_allowed(snapshot_file: Path) -> None:
+    if os.environ.get("PYTEST_CURRENT_TEST") and _is_pinned_snapshot(snapshot_file):
+        if os.environ.get("ALLOW_SNAPSHOT_CHANGES", "0") != "1":
+            raise RuntimeError(
+                "Refusing to overwrite pinned snapshot fixture. "
+                "Set ALLOW_SNAPSHOT_CHANGES=1 to allow intentional refresh."
+            )
+
+
+def _parse_snapshot_jobs(
+    html: str,
+    now: datetime,
+    board_url: Optional[str],
+) -> tuple[List[RawJobPosting], Optional[str], bool]:
+    payload_found = False
+
     payload = _extract_next_data_payload(html)
     if payload is not None:
+        payload_found = True
         parsed = _build_postings_from_payload(payload, now, board_url)
         if parsed:
-            return parsed
+            return parsed, "next_data", payload_found
 
     payload = _extract_app_data_payload(html)
     if payload is not None:
+        payload_found = True
         parsed = _build_postings_from_payload(payload, now, board_url)
         if parsed:
-            return parsed
+            return parsed, "app_data", payload_found
 
-    return []
+    return [], None, payload_found
+
+
+def parse_ashby_snapshot_html_with_source(
+    html: str,
+    now: Optional[datetime] = None,
+    *,
+    strict: bool = False,
+) -> tuple[List[Dict[str, Any]], Optional[str]]:
+    """
+    Deterministically parse Ashby snapshot HTML without DOM parsing.
+    """
+    timestamp = now or datetime.utcnow()
+    board_url = _infer_board_url(html)
+    jobs, source, payload_found = _parse_snapshot_jobs(html, timestamp, board_url)
+    if strict and not jobs:
+        raise _snapshot_parse_error(html, payload_found, source)
+    return [job.to_dict() for job in jobs], source
 
 
 def parse_ashby_snapshot_html(
@@ -201,15 +277,8 @@ def parse_ashby_snapshot_html(
     *,
     strict: bool = False,
 ) -> List[Dict[str, Any]]:
-    """
-    Deterministically parse Ashby snapshot HTML without DOM parsing.
-    """
-    timestamp = now or datetime.utcnow()
-    board_url = _infer_board_url(html)
-    jobs = _parse_snapshot_jobs(html, timestamp, board_url)
-    if strict and not jobs:
-        raise RuntimeError("Deterministic Ashby snapshot parse failed (no JSON payload found).")
-    return [job.to_dict() for job in jobs]
+    jobs, _ = parse_ashby_snapshot_html_with_source(html, now, strict=strict)
+    return jobs
 
 
 class AshbyProvider(BaseJobProvider):
@@ -232,6 +301,7 @@ class AshbyProvider(BaseJobProvider):
     def scrape_live(self) -> List[RawJobPosting]:
         html = self._fetch_live_html()
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
+        _assert_pinned_snapshot_write_allowed(self._snapshot_file())
         self._snapshot_file().write_text(html, encoding="utf-8")
         return self._parse_html(html)
 
@@ -245,7 +315,8 @@ class AshbyProvider(BaseJobProvider):
         if not ok:
             raise RuntimeError(f"Invalid snapshot for {self.provider_id} at {snapshot_file}: {reason}")
         html = snapshot_file.read_text(encoding="utf-8")
-        return self._parse_html(html)
+        strict = _is_pinned_snapshot(snapshot_file)
+        return self._parse_html(html, strict=strict)
 
     def _fetch_live_html(self) -> str:
         from ji_engine.providers.retry import fetch_urlopen_with_retry
@@ -263,17 +334,20 @@ class AshbyProvider(BaseJobProvider):
         }
         return fetch_urlopen_with_retry(self.board_url, headers=headers, timeout_s=20)
 
-    def _parse_html(self, html: str) -> List[RawJobPosting]:
+    def _parse_html(self, html: str, *, strict: bool = False) -> List[RawJobPosting]:
         now = datetime.utcnow()
-        parsed = _parse_snapshot_jobs(html, now, self.board_url)
+        parsed, source, payload_found = _parse_snapshot_jobs(html, now, self.board_url)
         if parsed:
             return parsed
+
+        if strict:
+            raise _snapshot_parse_error(html, payload_found, source)
 
         if os.environ.get("JOBINTEL_ALLOW_HTML_FALLBACK", "1") == "1":
             print("[AshbyProvider] WARNING: Falling back to HTML parsing; JSON payload not found.")
             return self._parse_html_fallback(html, now)
 
-        raise RuntimeError("Deterministic Ashby snapshot parse failed (no JSON payload found).")
+        raise _snapshot_parse_error(html, payload_found, source)
 
     def _parse_html_fallback(self, html: str, now: datetime) -> List[RawJobPosting]:
         if BeautifulSoup is None:
