@@ -42,13 +42,14 @@ def test_replay_cli_json_ok(tmp_path: Path, capsys) -> None:
     run_dir = _build_run_dir(tmp_path)
     exit_code = replay_run.main(["--run-dir", str(run_dir), "--json"])
     out = capsys.readouterr().out
-    assert '"elapsed_ms"' in out
-    assert out.index('"elapsed_ms"') < out.index('"mismatches"') < out.index('"ok"') < out.index('"run_id"') < out.index('"verified"')
     payload = json.loads(out)
     assert exit_code == 0
-    assert payload["ok"] is True
     assert payload["run_id"] == "cli-test"
-    assert payload["mismatches"] == []
+    assert payload["checked"] == 1
+    assert payload["matched"] == 1
+    assert payload["mismatched"] == 0
+    assert payload["missing"] == 0
+    assert "openai:cs:ranked_json" in payload["artifacts"]
 
 
 def test_replay_cli_json_mismatch(tmp_path: Path, capsys) -> None:
@@ -59,9 +60,8 @@ def test_replay_cli_json_mismatch(tmp_path: Path, capsys) -> None:
     out = capsys.readouterr().out
     payload = json.loads(out)
     assert exit_code == 2
-    assert payload["ok"] is False
-    assert payload["mismatches"]
-    mismatch = payload["mismatches"][0]
-    assert mismatch["expected"]
-    assert mismatch["actual"]
-    assert mismatch["path"].endswith("openai_ranked_jobs.cs.json")
+    assert payload["mismatched"] == 1
+    artifact = payload["artifacts"]["openai:cs:ranked_json"]
+    assert artifact["expected"]
+    assert artifact["actual"]
+    assert artifact["path"].endswith("openai_ranked_jobs.cs.json")

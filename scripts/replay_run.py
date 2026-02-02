@@ -9,7 +9,6 @@ except ModuleNotFoundError:
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -104,99 +103,129 @@ def _print_report(lines: List[str]) -> None:
 
 
 def _replay_report(
-    report: Dict[str, Any], profile: str, strict: bool, report_dir: Optional[Path] = None
-) -> Tuple[int, List[str], List[Dict[str, Optional[str]]], Dict[str, Dict[str, Optional[str]]]]:
+    report: Dict[str, Any], profile: str, strict: bool
+) -> Tuple[
+    int,
+    List[str],
+    Dict[str, Dict[str, Optional[object]]],
+    Dict[str, int],
+]:
     lines: List[str] = []
     checked = 0
     matched = 0
     mismatched = 0
     missing = 0
-    mismatches: List[Dict[str, Optional[str]]] = []
-    verified: Dict[str, Dict[str, Optional[str]]] = {}
+    artifacts: Dict[str, Dict[str, Optional[object]]] = {}
 
     entries = _collect_entries(report, profile)
+    verifiable = report.get("verifiable_artifacts")
     verifiable_entries = _collect_verifiable_entries(report, DATA_DIR)
     verifiable_mismatch_by_label: Dict[str, Dict[str, Optional[str]]] = {}
-    if verifiable_entries:
-        ok, verifiable_mismatches = verify_verifiable_artifacts(
-            DATA_DIR, report.get("verifiable_artifacts") or {}
-        )
+    if isinstance(verifiable, dict) and verifiable_entries:
+        _, verifiable_mismatches = verify_verifiable_artifacts(DATA_DIR, verifiable)
         for mismatch in verifiable_mismatches:
             label = mismatch.get("label")
             if label:
-                verifiable_mismatch_by_label[f"verifiable:{label}"] = mismatch
+                verifiable_mismatch_by_label[label] = mismatch
         entries.extend(verifiable_entries)
     else:
         entries.extend(_collect_expected_outputs(report, profile))
     if not entries:
-        return 2, ["FAIL: no inputs/outputs to verify in run report"], mismatches, verified
+        return 2, ["FAIL: no inputs/outputs to verify in run report"], artifacts, {
+            "checked": 0,
+            "matched": 0,
+            "mismatched": 0,
+            "missing": 0,
+        }
 
     lines.append("REPLAY REPORT")
     for label, path_str, expected_hash in entries:
+        logical_name = label
+        if label.startswith("verifiable:"):
+            logical_name = label.split("verifiable:", 1)[1]
         checked += 1
         if not path_str or not expected_hash:
             missing += 1
             lines.append(f"{label}: missing path/hash expected={expected_hash} actual=None match=False")
-            verified[label] = {"expected": expected_hash, "actual": None, "match": False}
-            mismatches.append(
-                {
-                    "label": label,
-                    "path": path_str,
-                    "expected": expected_hash,
-                    "actual": None,
-                    "reason": "missing_path_or_hash",
-                }
-            )
+            artifacts[logical_name] = {
+                "path": path_str,
+                "expected": expected_hash,
+                "actual": None,
+                "bytes": None,
+                "match": False,
+                "missing": True,
+            }
             continue
         path = Path(path_str)
         if not path.exists():
             missing += 1
             lines.append(f"{label}: missing file expected={expected_hash} actual=None match=False")
-            verified[label] = {"expected": expected_hash, "actual": None, "match": False}
-            mismatches.append(
-                {"label": label, "path": path_str, "expected": expected_hash, "actual": None, "reason": "missing_file"}
-            )
+            artifacts[logical_name] = {
+                "path": path_str,
+                "expected": expected_hash,
+                "actual": None,
+                "bytes": None,
+                "match": False,
+                "missing": True,
+            }
             continue
         actual = compute_sha256_file(path)
         ok = actual == expected_hash
-        if label in verifiable_mismatch_by_label:
-            mismatch = verifiable_mismatch_by_label[label]
+        if logical_name in verifiable_mismatch_by_label:
+            mismatch = verifiable_mismatch_by_label[logical_name]
             reason = mismatch.get("reason") or "mismatch"
             if reason in {"missing_path_or_hash", "missing_file"}:
                 missing += 1
             else:
                 mismatched += 1
-            mismatches.append(
-                {
-                    "label": label,
-                    "path": path_str,
-                    "expected": mismatch.get("expected") or expected_hash,
-                    "actual": mismatch.get("actual") or actual,
-                    "reason": reason,
-                }
-            )
-            verified[label] = {"expected": expected_hash, "actual": actual, "match": False}
+            artifacts[logical_name] = {
+                "path": path_str,
+                "expected": mismatch.get("expected") or expected_hash,
+                "actual": mismatch.get("actual") or actual,
+                "bytes": path.stat().st_size,
+                "match": False,
+                "missing": reason in {"missing_path_or_hash", "missing_file"},
+            }
             lines.append(f"{label}: expected={expected_hash} actual={actual} match=False")
         else:
             if ok:
                 matched += 1
             else:
                 mismatched += 1
-                mismatches.append(
-                    {"label": label, "path": path_str, "expected": expected_hash, "actual": actual, "reason": "mismatch"}
-                )
-            verified[label] = {"expected": expected_hash, "actual": actual, "match": ok}
+            artifacts[logical_name] = {
+                "path": path_str,
+                "expected": expected_hash,
+                "actual": actual,
+                "bytes": path.stat().st_size,
+                "match": ok,
+                "missing": False,
+            }
             lines.append(f"{label}: expected={expected_hash} actual={actual} match={str(ok)}")
 
     lines.append(f"SUMMARY: checked={checked} matched={matched} mismatched={mismatched} missing={missing}")
     if missing > 0:
         lines.insert(0, "FAIL: missing artifacts")
-        return 2, lines, mismatches, verified
+        return 2, lines, artifacts, {
+            "checked": checked,
+            "matched": matched,
+            "mismatched": mismatched,
+            "missing": missing,
+        }
     if mismatched > 0:
         lines.insert(0, "FAIL: mismatched artifacts")
-        return 2 if strict else 2, lines, mismatches, verified
+        return 2 if strict else 2, lines, artifacts, {
+            "checked": checked,
+            "matched": matched,
+            "mismatched": mismatched,
+            "missing": missing,
+        }
     lines.insert(0, "PASS: all artifacts match run report hashes")
-    return 0, lines, mismatches, verified
+    return 0, lines, artifacts, {
+        "checked": checked,
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing": missing,
+    }
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -211,7 +240,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--quiet", action="store_true", help="Suppress non-JSON output.")
     args = parser.parse_args(argv)
 
-    start = time.monotonic()
     runs_dir = Path(args.runs_dir) if args.runs_dir else RUN_METADATA_DIR
     try:
         report_path = _resolve_report_path(args.run_id, args.run_report, args.run_dir, runs_dir)
@@ -232,15 +260,15 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"ERROR: failed to load run report: {exc!r}", file=sys.stderr)
         return 3
 
-    exit_code, lines, mismatches, verified = _replay_report(report, args.profile, args.strict, report_path.parent)
-    elapsed_ms = int((time.monotonic() - start) * 1000)
+    exit_code, lines, artifacts, counts = _replay_report(report, args.profile, args.strict)
     if args.json:
         payload = {
-            "ok": exit_code == 0,
             "run_id": report.get("run_id"),
-            "mismatches": mismatches,
-            "verified": verified,
-            "elapsed_ms": elapsed_ms,
+            "checked": counts["checked"],
+            "matched": counts["matched"],
+            "mismatched": counts["mismatched"],
+            "missing": counts["missing"],
+            "artifacts": artifacts,
         }
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     elif not args.quiet:
