@@ -77,6 +77,14 @@ Publish controls:
 python scripts/publish_s3.py --run-id <run_id> --prefix jobintel --dry-run
 ```
 
+## Verify published artifacts (recommended)
+```bash
+python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --prefix jobintel --verify-latest
+```
+
+Deprecated:
+- `scripts/verify_publish_s3.sh` (use `verify_published_s3.py` instead)
+
 ## Publish a run (real upload)
 ```bash
 python scripts/publish_s3.py --run-id <run_id> --bucket <bucket> --prefix jobintel
