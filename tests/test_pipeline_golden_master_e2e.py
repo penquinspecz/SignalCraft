@@ -19,7 +19,6 @@ HASHED_OUTPUT_FILES = [
 REQUIRED_OUTPUT_FILES = HASHED_OUTPUT_FILES
 
 _CANONICAL_JSON_KWARGS = {"ensure_ascii": False, "sort_keys": True, "separators": (",", ":")}
-_JOB_PROJECTION_FIELDS = ("job_id", "apply_url", "title", "score_bucket")
 
 
 def _stable_job_key(job: Dict[str, Any]) -> str:
@@ -178,6 +177,25 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
     results = json.loads(ranked_path.read_text())
     assert isinstance(results, list) and results
     assert len(results) >= 20
+    # Contract: ranked outputs must be structurally complete and deterministic.
+    assert all(job.get("job_id") for job in results)
+    assert all(job.get("apply_url") for job in results)
+    assert all(job.get("title") for job in results)
+
+    job_ids = [job.get("job_id") for job in results]
+    apply_urls = [job.get("apply_url") for job in results]
+    assert len(set(job_ids)) == len(job_ids), "job_id must be unique across ranked jobs"
+    assert len(set(apply_urls)) == len(apply_urls), "apply_url must be unique across ranked jobs"
+
+    def _rank_key(job: Dict[str, Any]) -> tuple[float, str]:
+        try:
+            score = float(job.get("score", 0) or 0)
+        except (TypeError, ValueError):
+            score = 0.0
+        return (-score, _stable_job_key(job))
+
+    ranked_keys = [_rank_key(job) for job in results]
+    assert ranked_keys == sorted(ranked_keys), "ranked jobs must be ordered by score then stable id"
 
     top20 = results[:20]
     seen_urls = set()
@@ -196,6 +214,27 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
         url = item.get("apply_url")
         assert url not in seen_urls, f"apply_url must be unique in top 20 but found duplicate {url}"
         seen_urls.add(url)
+
+    # Families output must be a stable grouping over ranked jobs.
+    families_path = data_dir / "openai_ranked_families.cs.json"
+    families = json.loads(families_path.read_text(encoding="utf-8"))
+    assert isinstance(families, list) and families
+
+    family_titles = [str(entry.get("title_family") or "") for entry in families]
+    assert all(family_titles), "title_family must be present for all families"
+    assert family_titles == sorted(family_titles, key=lambda t: t.lower()), "families must be sorted by title_family"
+
+    ranked_id_set = set(job_ids)
+    for entry in families:
+        variants = entry.get("family_variants") or []
+        variant_ids = []
+        for variant in variants:
+            job_id = variant.get("job_id") or variant.get("apply_url")
+            if job_id:
+                variant_ids.append(str(job_id).strip())
+        assert len(variant_ids) == len(set(variant_ids)), "family_variants must not contain duplicates"
+        assert set(variant_ids).issubset(ranked_id_set), "family_variants must reference ranked jobs"
+        assert variant_ids == sorted(variant_ids), "family_variants must be deterministically ordered"
 
     # Build manifest of generated artifacts
     manifest = {
@@ -233,6 +272,7 @@ def test_pipeline_golden_master_e2e(tmp_path, monkeypatch, request):
     else:
         expected_manifest = json.loads(fixture_path.read_text())
         assert manifest["files"] == expected_manifest.get("files", {})
+        assert manifest["stats"]["ranked_jobs_count"] == expected_manifest["stats"]["ranked_jobs_count"]
         assert manifest["stats"]["top20_scores_non_increasing"] is True
         assert manifest["stats"]["top20_unique_apply_urls"] == len(seen_urls)
         assert manifest["stats"]["top20_count"] == top20_count

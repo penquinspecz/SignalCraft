@@ -15,6 +15,7 @@ except Exception:  # pragma: no cover
 
 import scripts.publish_s3 as publish_s3
 import scripts.run_daily as run_daily_module
+from ji_engine.utils.verification import compute_sha256_file
 
 pytestmark = pytest.mark.skipif(boto3 is None or mock_s3 is None, reason="boto3/moto not installed")
 
@@ -28,19 +29,30 @@ def _setup_run_dir(tmp_path: Path, run_id: str, provider: str = "openai", profil
     run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
     provider_dir = run_dir / provider / profile
     provider_dir.mkdir(parents=True, exist_ok=True)
-    (provider_dir / f"{provider}_ranked_jobs.{profile}.json").write_text(
+    ranked = provider_dir / f"{provider}_ranked_jobs.{profile}.json"
+    ranked.write_text(
         json.dumps([
             {"job_id": "1", "title": "A", "apply_url": "x", "score": 10},
             {"job_id": "2", "title": "B", "apply_url": "y", "score": 9},
         ]),
         encoding="utf-8",
     )
+    verifiable = {
+        f"{provider}:{profile}:ranked_json": {
+            "path": f"{provider}/{profile}/{provider}_ranked_jobs.{profile}.json",
+            "sha256": compute_sha256_file(ranked),
+            "hash_algo": "sha256",
+        }
+    }
     _write_json(
-        run_dir / "index.json",
+        run_dir / "run_report.json",
         {
             "run_id": run_id,
-            "timestamp": run_id,
-            "providers": {provider: {"profiles": {profile: {"diff_counts": {"new": 2}}}}},
+            "run_report_schema_version": 1,
+            "providers": [provider],
+            "profiles": [profile],
+            "timestamps": {"ended_at": run_id},
+            "verifiable_artifacts": verifiable,
         },
     )
     return run_dir
