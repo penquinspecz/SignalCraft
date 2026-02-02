@@ -362,6 +362,10 @@ def test_publish_s3_plan_is_deterministic(tmp_path: Path, monkeypatch, capsys) -
     assert any(key.endswith("openai_ranked_jobs.cs.json") for key in keys)
     assert any("/latest/openai/cs/" in key for key in keys)
     assert all(entry["kind"] in {"runs", "latest"} for entry in plan)
+    assert all("local_path" in entry for entry in plan)
+    assert all("content_type" in entry for entry in plan)
+    assert any(entry["local_path"] == "openai_ranked_jobs.cs.json" for entry in plan)
+    assert any(entry["content_type"] == "application/json" for entry in plan)
 
 
 def test_publish_s3_plan_requires_verifiable(tmp_path: Path, monkeypatch) -> None:
@@ -392,3 +396,36 @@ def test_publish_s3_plan_requires_verifiable(tmp_path: Path, monkeypatch) -> Non
     with pytest.raises(SystemExit) as exc:
         publish_s3.main()
     assert exc.value.code == 2
+
+
+def test_publish_s3_plan_does_not_call_boto3(tmp_path: Path, monkeypatch, capsys) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
+    run_id, _ = _setup_run(tmp_path)
+
+    monkeypatch.setenv("JOBINTEL_S3_BUCKET", "my-bucket")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA_TEST_KEY")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "SUPER_SECRET")
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("boto3.client should not be called in --plan mode")
+
+    monkeypatch.setattr(boto3, "client", _boom)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--plan",
+            "--json",
+        ],
+    )
+
+    publish_s3.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True

@@ -214,13 +214,6 @@ def _build_upload_plan(
     return uploads, latest_prefixes
 
 
-def _src_rel(run_dir: Path, source: Path) -> str:
-    try:
-        return source.relative_to(run_dir).as_posix()
-    except ValueError:
-        return source.name
-
-
 def _build_plan_entries(
     *,
     run_dir: Path,
@@ -231,17 +224,22 @@ def _build_plan_entries(
     for item in uploads:
         meta = verifiable.get(item.logical_key, {}) if isinstance(verifiable, dict) else {}
         sha = meta.get("sha256")
-        bytes_size = None
-        try:
-            bytes_size = item.source.stat().st_size
-        except OSError:
-            bytes_size = None
+        bytes_value = meta.get("bytes")
+        if not isinstance(bytes_value, int):
+            try:
+                bytes_value = item.source.stat().st_size
+            except OSError:
+                bytes_value = None
+        local_path = meta.get("path")
+        if not local_path:
+            local_path = item.source.name
         entries.append(
             {
                 "logical_key": item.logical_key,
-                "src_rel": _src_rel(run_dir, item.source),
+                "local_path": local_path,
                 "sha256": sha,
-                "bytes": bytes_size,
+                "bytes": bytes_value,
+                "content_type": item.content_type,
                 "s3_key": item.key,
                 "kind": item.scope,
             }
