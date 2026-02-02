@@ -15,6 +15,14 @@ def test_schema_validate_ok() -> None:
     report = {
         "run_report_schema_version": 1,
         "run_id": "run-1",
+        "verifiable_artifacts": {},
+        "config_fingerprint": "a" * 64,
+        "environment_fingerprint": {
+            "python_version": "3.10.14",
+            "platform": "test",
+            "image_tag": None,
+            "git_sha": None,
+        },
         "flags": {"min_score": 40, "min_alert_score": 80},
         "selection": {
             "scrape_provenance": {"openai": {"scrape_mode": "snapshot"}},
@@ -59,6 +67,14 @@ def test_schema_validate_missing_required() -> None:
     report = {
         "run_report_schema_version": 1,
         "run_id": "run-1",
+        "verifiable_artifacts": {},
+        "config_fingerprint": "a" * 64,
+        "environment_fingerprint": {
+            "python_version": "3.10.14",
+            "platform": "test",
+            "image_tag": None,
+            "git_sha": None,
+        },
         "selection": {"scrape_provenance": {}},
     }
 
@@ -73,6 +89,14 @@ def test_schema_validate_selection_reason_enum() -> None:
     report = {
         "run_report_schema_version": 1,
         "run_id": "run-1",
+        "verifiable_artifacts": {},
+        "config_fingerprint": "a" * 64,
+        "environment_fingerprint": {
+            "python_version": "3.10.14",
+            "platform": "test",
+            "image_tag": None,
+            "git_sha": None,
+        },
         "selection": {
             "scrape_provenance": {"openai": {"scrape_mode": "snapshot"}},
             "classified_job_count": 3,
