@@ -214,6 +214,42 @@ def _build_upload_plan(
     return uploads, latest_prefixes
 
 
+def _src_rel(run_dir: Path, source: Path) -> str:
+    try:
+        return source.relative_to(run_dir).as_posix()
+    except ValueError:
+        return source.name
+
+
+def _build_plan_entries(
+    *,
+    run_dir: Path,
+    uploads: List[UploadItem],
+    verifiable: Dict[str, Dict[str, str]],
+) -> List[Dict[str, Any]]:
+    entries: List[Dict[str, Any]] = []
+    for item in uploads:
+        meta = verifiable.get(item.logical_key, {}) if isinstance(verifiable, dict) else {}
+        sha = meta.get("sha256")
+        bytes_size = None
+        try:
+            bytes_size = item.source.stat().st_size
+        except OSError:
+            bytes_size = None
+        entries.append(
+            {
+                "logical_key": item.logical_key,
+                "src_rel": _src_rel(run_dir, item.source),
+                "sha256": sha,
+                "bytes": bytes_size,
+                "s3_key": item.key,
+                "kind": item.scope,
+            }
+        )
+    entries.sort(key=lambda entry: entry["s3_key"])
+    return entries
+
+
 def _upload_plan(client, bucket: str, plan: List[UploadItem], dry_run: bool) -> int:
     uploaded = 0
     for item in plan:
@@ -447,6 +483,7 @@ def main() -> int:
     ap.add_argument("--latest", action="store_true")
     ap.add_argument("--dry-run", "--dry_run", dest="dry_run", action="store_true")
     ap.add_argument("--require-s3", "--require_s3", dest="require_s3", action="store_true")
+    ap.add_argument("--plan", action="store_true", help="Emit a deterministic upload plan (no AWS calls).")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON output.")
     ap.add_argument(
         "--providers",
@@ -468,7 +505,18 @@ def main() -> int:
     )
     if not preflight.get("ok"):
         if args.json:
-            print(json.dumps({"ok": False, "preflight": preflight}, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "preflight": preflight,
+                        "plan": [],
+                        "warnings": preflight.get("warnings", []),
+                        "errors": preflight.get("errors", []),
+                    },
+                    sort_keys=True,
+                )
+            )
         _fail_validation(f"AWS preflight failed: {', '.join(preflight.get('errors', []))}")
 
     if args.latest and args.run_dir:
@@ -488,6 +536,37 @@ def main() -> int:
     providers = [p.strip() for p in args.providers.split(",") if p.strip()]
     profiles = [p.strip() for p in args.profiles.split(",") if p.strip()]
     run_dir = Path(args.run_dir) if args.run_dir else None
+    if args.plan:
+        plan_run_dir = run_dir or _run_dir(run_id)
+        report = _load_run_report(plan_run_dir)
+        verifiable = _collect_verifiable(report)
+        plan, _latest = _build_upload_plan(
+            run_id=run_id,
+            run_dir=plan_run_dir,
+            prefix=_resolve_bucket_prefix(args.bucket, args.prefix)[1],
+            verifiable=verifiable,
+            providers=providers,
+            profiles=profiles,
+        )
+        plan_entries = _build_plan_entries(run_dir=plan_run_dir, uploads=plan, verifiable=verifiable)
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "ok": True,
+                        "preflight": preflight,
+                        "plan": plan_entries,
+                        "warnings": preflight.get("warnings", []),
+                        "errors": preflight.get("errors", []),
+                    },
+                    sort_keys=True,
+                )
+            )
+        else:
+            bucket = _resolve_bucket_prefix(args.bucket, args.prefix)[0]
+            for entry in plan_entries:
+                print(f"{entry['src_rel']} -> s3://{bucket}/{entry['s3_key']}")
+        return 0
     result = publish_run(
         run_id=run_id,
         bucket=args.bucket,
