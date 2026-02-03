@@ -47,9 +47,7 @@ def verify_verifiable_artifacts(
     mismatches: List[Dict[str, str]] = []
     for logical_key, meta in verifiable_artifacts.items():
         if not isinstance(meta, dict):
-            mismatches.append(
-                {"label": logical_key, "expected": None, "actual": None, "reason": "invalid_metadata"}
-            )
+            mismatches.append({"label": logical_key, "expected": None, "actual": None, "reason": "invalid_metadata"})
             continue
         expected = meta.get("sha256")
         path_str = meta.get("path")

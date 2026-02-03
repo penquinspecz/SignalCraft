@@ -199,10 +199,7 @@ def _snapshot_parse_error(html: str, payload_found: bool, payload_source: Option
         else:
             excerpts.append(f"{marker} excerpt: <marker not found>")
     if payload_found and payload_source:
-        prefix = (
-            "Deterministic Ashby snapshot parse failed "
-            f"(payload source={payload_source} but no postings matched)."
-        )
+        prefix = f"Deterministic Ashby snapshot parse failed (payload source={payload_source} but no postings matched)."
     elif payload_found:
         prefix = "Deterministic Ashby snapshot parse failed (JSON payload found but no postings matched)."
     else:
