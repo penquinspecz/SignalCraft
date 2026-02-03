@@ -80,6 +80,7 @@ pip install -e .
 pip install ".[dev]"        # contributors
 pip install ".[dashboard]"  # dashboard runtime
 pip install ".[snapshots]"  # Playwright snapshots
+```
 
 pyproject.toml is the canonical source of dependencies. requirements.txt is the Docker/CI export.
 
