@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import importlib.metadata
+import os
 import re
 import shutil
 import subprocess
@@ -48,7 +49,31 @@ def _pip_compile_available() -> bool:
     return shutil.which("pip-compile") is not None
 
 
-def _run_pip_compile(requirements_in: Path, output_path: Path) -> None:
+def _is_writable_dir(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+    return os.access(path, os.W_OK)
+
+
+def _select_pip_tools_cache_dir(repo_root: Path) -> Path:
+    env_cache = os.environ.get("PIP_TOOLS_CACHE_DIR")
+    if env_cache:
+        env_path = Path(env_cache).expanduser()
+        if _is_writable_dir(env_path):
+            return env_path
+        print(f"Warning: PIP_TOOLS_CACHE_DIR not writable: {env_path}", file=sys.stderr)
+    repo_cache = repo_root / ".cache" / "pip-tools"
+    if _is_writable_dir(repo_cache):
+        return repo_cache
+    fallback = Path("/tmp/pip-tools-cache")
+    if _is_writable_dir(fallback):
+        return fallback
+    raise SystemExit("No writable pip-tools cache dir found.")
+
+
+def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) -> None:
     cmd = [
         sys.executable,
         "-m",
@@ -58,6 +83,8 @@ def _run_pip_compile(requirements_in: Path, output_path: Path) -> None:
         "--no-annotate",
         "--quiet",
         "--resolver=backtracking",
+        "--cache-dir",
+        str(cache_dir),
         "--output-file",
         str(output_path),
         str(requirements_in),
@@ -96,13 +123,14 @@ def _resolve_env_deps(deps: list[str]) -> list[str]:
     return [f"{name}=={version}" for name, version in sorted(pinned.items())]
 
 
-def _render_requirements(deps: list[str]) -> str:
+def _render_requirements(deps: list[str], repo_root: Path) -> str:
     if _pip_compile_available():
         with tempfile.TemporaryDirectory(prefix="req-export-") as tmpdir:
             req_in = Path(tmpdir) / "requirements.in"
             req_out = Path(tmpdir) / "requirements.txt"
             req_in.write_text("\n".join(sorted(deps)) + "\n", encoding="utf-8")
-            _run_pip_compile(req_in, req_out)
+            cache_dir = _select_pip_tools_cache_dir(repo_root)
+            _run_pip_compile(req_in, req_out, cache_dir)
             return req_out.read_text(encoding="utf-8")
 
     lines = _resolve_env_deps(deps)
@@ -159,6 +187,7 @@ def main(argv: list[str] | None = None) -> int:
     pyproject_path = Path(args.pyproject)
     output_path = Path(args.output)
     extras = args.extra or []
+    repo_root = Path(__file__).resolve().parents[1]
 
     pyproject = _load_pyproject(pyproject_path)
     deps = _collect_deps(pyproject, extras)
@@ -166,7 +195,7 @@ def main(argv: list[str] | None = None) -> int:
     if not deps:
         raise SystemExit("No dependencies found in pyproject.")
 
-    content = _render_requirements(deps)
+    content = _render_requirements(deps, repo_root)
 
     if args.check:
         _check_matches(output_path, content)
