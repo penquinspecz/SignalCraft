@@ -86,132 +86,154 @@ pip install -e .
 pip install ".[dev]"        # contributors
 pip install ".[dashboard]"  # dashboard runtime
 pip install ".[snapshots]"  # Playwright snapshots
-    **Canonical dependency source:** `pyproject.toml`  
-    **Docker / CI export:** `requirements.txt`
+```
 
-    ## Example run (no Discord post)
+**Canonical dependency source:** `pyproject.toml`  
+**Docker / CI export:** `requirements.txt`
 
-        python scripts/run_daily.py --profiles cs --us_only --no_post
+## Example run (no Discord post)
 
-    ---
+```bash
+python scripts/run_daily.py --profiles cs --us_only --no_post
+```
 
-    ## Local Quickstart
+---
 
-    After creating the virtual environment above, run common stages via `make`:
+## Local Quickstart
 
-        make test
-        make enrich
-        make score            # default PROFILE=cs
-        make all              # test + enrich + score
+After creating the virtual environment above, run common stages via `make`:
 
-    ---
+```bash
+make test
+make enrich
+make score            # default PROFILE=cs
+make all              # test + enrich + score
+```
 
-    ## Canonical Entrypoint & Run Outputs
+---
 
-    **Entrypoint:** `scripts/run_daily.py`
+## Canonical Entrypoint & Run Outputs
 
-    **Runs produce artifacts under:**
-    - `state/runs/<run_id>/` — run registry, artifacts, and reports
-    - `data/` — inputs, snapshots, and outputs (depending on mode)
+**Entrypoint:** `scripts/run_daily.py`
 
-    **Exit code contract:**
-    - `0` — success
-    - `2` — validation failure, missing inputs, or deterministic “not runnable”
-    - `>=3` — runtime or provider failures
+**Runs produce artifacts under:**
+- `state/runs/<run_id>/` — run registry, artifacts, and reports
+- `data/` — inputs, snapshots, and outputs (depending on mode)
 
-    ---
+**Exit code contract:**
+- `0` — success
+- `2` — validation failure, missing inputs, or deterministic “not runnable”
+- `>=3` — runtime or provider failures
 
-    ## Docker (AWS-ready)
+---
 
-    ### Build and run locally
+## Docker (AWS-ready)
 
-    Expects `./data` and `./state` to be mounted:
+### Build and run locally
 
-        docker build -t jobintel:local .
-        docker run --rm \
-          -v "$PWD/data:/app/data" \
-          -v "$PWD/state:/app/state" \
-          --env-file .env \
-          jobintel:local --profiles cs --us_only --no_post
+Expects `./data` and `./state` to be mounted:
 
-    ### Run with AI augmentation (guardrailed; opt-in)
+```bash
+docker build -t jobintel:local .
+docker run --rm \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/state:/app/state" \
+  --env-file .env \
+  jobintel:local --profiles cs --us_only --no_post
+```
 
-        docker run --rm \
-          -v "$PWD/data:/app/data" \
-          -v "$PWD/state:/app/state" \
-          --env-file .env \
-          jobintel:local --profiles cs --us_only --no_post --ai
+### Run with AI augmentation (guardrailed; opt-in)
 
-    ---
+```bash
+docker run --rm \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/state:/app/state" \
+  --env-file .env \
+  jobintel:local --profiles cs --us_only --no_post --ai
+```
 
-    ## Determinism & Goldens
+---
 
-    - Snapshots under `data/*_snapshots/` are pinned fixtures; do not mutate them during tests.
-    - Golden tests assert deterministic transforms over pinned snapshots, not upstream job volatility.
-    - Snapshot bytes are guarded by `tests/fixtures/golden/snapshot_bytes.manifest.json`.
-    - Verify locally:
+## Determinism & Goldens
 
-        python scripts/verify_snapshots_immutable.py
+- Snapshots under `data/*_snapshots/` are pinned fixtures; do not mutate them during tests.
+- Golden tests assert deterministic transforms over pinned snapshots, not upstream job volatility.
+- Snapshot bytes are guarded by `tests/fixtures/golden/snapshot_bytes.manifest.json`.
+- Verify locally:
 
-    - Docker (no-cache) is the CI parity source of truth:
+```bash
+python scripts/verify_snapshots_immutable.py
+```
 
-        DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+- Docker (no-cache) is the CI parity source of truth:
 
-    **Determinism contract:** `docs/DETERMINISM_CONTRACT.md`
+```bash
+DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+```
 
-    ---
+**Determinism contract:** `docs/DETERMINISM_CONTRACT.md`
 
-    ## CI / Local Truth Gates
+---
 
-    Fast local gate (matches PR expectations without AWS secrets):
+## CI / Local Truth Gates
 
-        make gate-fast
+Fast local gate (matches PR expectations without AWS secrets):
 
-    CI-equivalent Docker truth gate:
+```bash
+make gate-fast
+```
 
-        DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+CI-equivalent Docker truth gate:
 
-    ---
+```bash
+DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+```
 
-    ## Kubernetes Ops (CronJob + run-once)
+---
 
-    K8s manifests and runbooks live under `ops/k8s/`.
+## Kubernetes Ops (CronJob + run-once)
 
-    - CronJob is intended for scheduled, deterministic runs (offline-safe where required).
-    - A run-once Job exists for ad-hoc parity runs and debugging.
+K8s manifests and runbooks live under `ops/k8s/`.
 
-    See: `ops/k8s/README.md`
+- CronJob is intended for scheduled, deterministic runs (offline-safe where required).
+- A run-once Job exists for ad-hoc parity runs and debugging.
 
-    ---
+See: `ops/k8s/README.md`
 
-    ## AWS Ops (ECS scheduled run + S3 publish)
+---
 
-    AWS runbooks and templates live under `ops/aws/`.
+## AWS Ops (ECS scheduled run + S3 publish)
 
-    Milestone proof-run artifacts and verification checklist:
-    - CloudWatch log line showing `run_id`
-    - S3 objects under `runs/<run_id>/` and `latest/`
-    - Offline verification via publish plan + verifier script
+AWS runbooks and templates live under `ops/aws/`.
 
-    See roadmap and runbooks under `docs/`.
+Milestone proof-run artifacts and verification checklist:
+- CloudWatch log line showing `run_id`
+- S3 objects under `runs/<run_id>/` and `latest/`
+- Offline verification via publish plan + verifier script
 
-    ---
+See roadmap and runbooks under `docs/`.
 
-    ## Troubleshooting
+---
 
-    - CI “ji_engine not found”: ensure CI installs the package (`pip install -e .`)
-    - Ruff failures:
+## Troubleshooting
 
-        python -m ruff check --fix .
-        python -m ruff format .
+- CI “ji_engine not found”: ensure CI installs the package (`pip install -e .`)
+- Ruff failures:
 
-    - Docker “no space left on device”:
+```bash
+python -m ruff check --fix .
+python -m ruff format .
+```
 
-        docker builder prune -af
-        docker system prune -af --volumes
+- Docker “no space left on device”:
 
-    ---
+```bash
+docker builder prune -af
+docker system prune -af --volumes
+```
 
-    ## License
+---
 
-    TBD.
+## License
+
+TBD.
