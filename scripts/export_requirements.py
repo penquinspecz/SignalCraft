@@ -90,7 +90,7 @@ def _pip_args_for_ci() -> list[str]:
         return []
     return [
         "--pip-args=--platform manylinux_2_17_x86_64 --implementation cp "
-        "--python-version 3.12 --abi cp312 --only-binary=:all:",
+        "--python-version 3.12 --abi cp312",
     ]
 
 
@@ -111,14 +111,7 @@ def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) 
         str(output_path),
         str(requirements_in),
     ]
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError:
-        if any("--only-binary=:all:" in arg for arg in cmd):
-            cmd = [arg for arg in cmd if "--only-binary=:all:" not in arg]
-            subprocess.run(cmd, check=True)
-            return
-        raise
+    subprocess.run(cmd, check=True)
 
 
 def _resolve_env_deps(deps: list[str]) -> list[str]:
