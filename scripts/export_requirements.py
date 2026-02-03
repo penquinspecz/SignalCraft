@@ -111,6 +111,7 @@ def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) 
         str(output_path),
         str(requirements_in),
     ]
+    print(f"piptools: {' '.join(cmd)}", file=sys.stderr)
     subprocess.run(cmd, check=True)
 
 
