@@ -29,6 +29,7 @@ def test_verify_verifiable_artifacts_reports_mismatch(tmp_path: Path) -> None:
         "openai:cs:ranked_json": {
             "path": "artifact.json",
             "sha256": "0" * 64,
+            "bytes": 2,
             "hash_algo": "sha256",
         }
     }

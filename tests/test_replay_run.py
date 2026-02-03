@@ -42,7 +42,7 @@ def test_replay_run_passes_with_matching_hashes(tmp_path: Path) -> None:
     report_path = run_dir / "run_report.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")
 
-    exit_code, lines, _mismatches, _verified = replay_run._replay_report(report, "cs", strict=True, report_dir=run_dir)
+    exit_code, lines, _artifacts, _counts = replay_run._replay_report(report, "cs", strict=True)
     assert exit_code == 0
     assert any(line.startswith("PASS:") for line in lines)
 
@@ -75,9 +75,9 @@ def test_replay_run_detects_mismatch(tmp_path: Path) -> None:
     # Corrupt ranked output after report was written.
     ranked_path.write_bytes(b"[2]")
 
-    exit_code, lines, mismatches, _verified = replay_run._replay_report(report, "cs", strict=True, report_dir=run_dir)
+    exit_code, lines, artifacts, _counts = replay_run._replay_report(report, "cs", strict=True)
     assert exit_code == 2
     assert any(line.startswith("FAIL:") for line in lines)
     assert any("mismatched" in line.lower() for line in lines)
-    assert mismatches
-    assert mismatches[0]["path"].endswith("openai_ranked_jobs.cs.json")
+    assert artifacts
+    assert artifacts["output:ranked_json"]["path"].endswith("openai_ranked_jobs.cs.json")

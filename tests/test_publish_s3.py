@@ -31,21 +31,23 @@ def _setup_run(tmp_path: Path) -> tuple[str, Path]:
     run_id = "2026-01-02T00:00:00Z"
     run_dir = tmp_path / "state" / "runs" / publish_s3._sanitize_run_id(run_id)
     run_dir.mkdir(parents=True)
-    provider_dir = run_dir / "openai" / "cs"
-    provider_dir.mkdir(parents=True)
-    ranked = provider_dir / "openai_ranked_jobs.cs.json"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True)
+    ranked = data_dir / "openai_ranked_jobs.cs.json"
     ranked.write_text("[]", encoding="utf-8")
-    shortlist = provider_dir / "openai_shortlist.cs.md"
+    shortlist = data_dir / "openai_shortlist.cs.md"
     shortlist.write_text("hi", encoding="utf-8")
     verifiable = {
         "openai:cs:ranked_json": {
-            "path": "openai/cs/openai_ranked_jobs.cs.json",
+            "path": ranked.name,
             "sha256": compute_sha256_file(ranked),
+            "bytes": ranked.stat().st_size,
             "hash_algo": "sha256",
         },
         "openai:cs:shortlist_md": {
-            "path": "openai/cs/openai_shortlist.cs.md",
+            "path": shortlist.name,
             "sha256": compute_sha256_file(shortlist),
+            "bytes": shortlist.stat().st_size,
             "hash_algo": "sha256",
         },
     }
@@ -66,6 +68,7 @@ def _setup_run(tmp_path: Path) -> tuple[str, Path]:
 def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
     run_id, _ = _setup_run(tmp_path)
 
     monkeypatch.setenv("AWS_REGION", "us-east-1")
@@ -93,8 +96,8 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     keys = [call[1] for call in client.calls if call[0] == "upload"]
     assert sorted(keys) == sorted(
         [
-            f"jobintel/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json",
-            f"jobintel/runs/{run_id}/openai/cs/openai_shortlist.cs.md",
+            f"jobintel/runs/{run_id}/openai_ranked_jobs.cs.json",
+            f"jobintel/runs/{run_id}/openai_shortlist.cs.md",
             "jobintel/latest/openai/cs/openai_ranked_jobs.cs.json",
             "jobintel/latest/openai/cs/openai_shortlist.cs.md",
         ]
@@ -111,6 +114,7 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
 def test_publish_s3_dry_run(monkeypatch, tmp_path, caplog):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
     run_id, _ = _setup_run(tmp_path)
 
     monkeypatch.setenv("AWS_REGION", "us-east-1")
@@ -244,6 +248,7 @@ def test_resolve_bucket_prefix_fallback_alias(monkeypatch) -> None:
 def test_publish_s3_pointer_write_error(monkeypatch, tmp_path):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
     run_id, _ = _setup_run(tmp_path)
 
     class ErrorClient(DummyClient):
@@ -327,6 +332,42 @@ def test_publish_s3_requires_verifiable_artifacts(tmp_path: Path, monkeypatch) -
     assert exc.value.code == 2
 
 
+def test_publish_s3_dry_run_allows_missing_files(tmp_path: Path, monkeypatch) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
+    run_id, _ = _setup_run(tmp_path)
+    missing = tmp_path / "data" / "openai_ranked_jobs.cs.json"
+    missing.unlink()
+
+    publish_s3.publish_run(
+        run_id=run_id,
+        bucket="target-bucket",
+        prefix="jobintel",
+        dry_run=True,
+        require_s3=False,
+    )
+
+
+def test_publish_s3_strict_missing_files_raises(tmp_path: Path, monkeypatch) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
+    run_id, _ = _setup_run(tmp_path)
+    missing = tmp_path / "data" / "openai_ranked_jobs.cs.json"
+    missing.unlink()
+
+    with pytest.raises(SystemExit) as exc:
+        publish_s3.publish_run(
+            run_id=run_id,
+            bucket="target-bucket",
+            prefix="jobintel",
+            dry_run=False,
+            require_s3=False,
+        )
+    assert exc.value.code == 2
+
+
 def test_publish_s3_plan_is_deterministic(tmp_path: Path, monkeypatch, capsys) -> None:
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
@@ -358,6 +399,10 @@ def test_publish_s3_plan_is_deterministic(tmp_path: Path, monkeypatch, capsys) -
     assert any(key.endswith("openai_ranked_jobs.cs.json") for key in keys)
     assert any("/latest/openai/cs/" in key for key in keys)
     assert all(entry["kind"] in {"runs", "latest"} for entry in plan)
+    assert all("local_path" in entry for entry in plan)
+    assert all("content_type" in entry for entry in plan)
+    assert any(entry["local_path"] == "openai_ranked_jobs.cs.json" for entry in plan)
+    assert any(entry["content_type"] == "application/json" for entry in plan)
 
 
 def test_publish_s3_plan_requires_verifiable(tmp_path: Path, monkeypatch) -> None:
@@ -388,3 +433,106 @@ def test_publish_s3_plan_requires_verifiable(tmp_path: Path, monkeypatch) -> Non
     with pytest.raises(SystemExit) as exc:
         publish_s3.main()
     assert exc.value.code == 2
+
+
+def test_publish_s3_plan_does_not_call_boto3(tmp_path: Path, monkeypatch, capsys) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
+    run_id, _ = _setup_run(tmp_path)
+
+    monkeypatch.setenv("JOBINTEL_S3_BUCKET", "my-bucket")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "AKIA_TEST_KEY")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "SUPER_SECRET")
+
+    def _boom(*args, **kwargs):
+        raise AssertionError("boto3.client should not be called in --plan mode")
+
+    monkeypatch.setattr(boto3, "client", _boom)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--plan",
+            "--json",
+        ],
+    )
+
+    publish_s3.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+
+
+def test_publish_s3_plan_allows_missing_creds(tmp_path: Path, monkeypatch, capsys) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id, _ = _setup_run(tmp_path)
+
+    for var in (
+        "JOBINTEL_S3_BUCKET",
+        "AWS_REGION",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+        "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+        "AWS_PROFILE",
+        "AWS_SHARED_CREDENTIALS_FILE",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--plan",
+            "--json",
+        ],
+    )
+
+    publish_s3.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["preflight"]["ok"] is False
+
+
+def test_publish_s3_dry_run_allows_missing_creds(tmp_path: Path, monkeypatch, capsys) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    run_id, _ = _setup_run(tmp_path)
+
+    for var in (
+        "JOBINTEL_S3_BUCKET",
+        "AWS_REGION",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+        "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+        "AWS_PROFILE",
+        "AWS_SHARED_CREDENTIALS_FILE",
+    ):
+        monkeypatch.delenv(var, raising=False)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "publish_s3.py",
+            "--run_id",
+            run_id,
+            "--dry-run",
+            "--json",
+        ],
+    )
+
+    publish_s3.main()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["preflight"]["ok"] is False

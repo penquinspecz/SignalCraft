@@ -1,0 +1,44 @@
+{
+  "family": "jobintel-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/<ECS_EXEC_ROLE>",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/<ECS_TASK_ROLE>",
+  "containerDefinitions": [
+    {
+      "name": "jobintel",
+      "image": "<IMAGE_URI>",
+      "essential": true,
+      "command": [
+        "python",
+        "scripts/run_daily.py",
+        "--profiles",
+        "cs",
+        "--us_only",
+        "--no_post",
+        "--snapshot-only",
+        "--offline"
+      ],
+      "environment": [
+        {"name": "CAREERS_MODE", "value": "SNAPSHOT"},
+        {"name": "EMBED_PROVIDER", "value": "stub"},
+        {"name": "ENRICH_MAX_WORKERS", "value": "1"},
+        {"name": "JOBINTEL_S3_BUCKET", "value": "<S3_BUCKET>"},
+        {"name": "JOBINTEL_S3_PREFIX", "value": "jobintel"},
+        {"name": "AWS_REGION", "value": "<AWS_REGION>"},
+        {"name": "PUBLISH_S3", "value": "1"},
+        {"name": "PUBLISH_S3_DRY_RUN", "value": "0"}
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/jobintel",
+          "awslogs-region": "<AWS_REGION>",
+          "awslogs-stream-prefix": "jobintel"
+        }
+      }
+    }
+  ]
+}

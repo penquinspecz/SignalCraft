@@ -77,6 +77,8 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         "platform": "test-platform",
         "image_tag": "jobintel:test",
         "git_sha": "deadbeef",
+        "tz": "UTC",
+        "pythonhashseed": "0",
     }
     scoring_input_selection_by_profile = {
         "cs": {
@@ -237,6 +239,8 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert all(ch in "0123456789abcdef" for ch in data["config_fingerprint"])
     assert data["environment_fingerprint"]["python_version"] == "3.10.14"
     assert data["environment_fingerprint"]["platform"] == "test-platform"
+    assert data["environment_fingerprint"]["tz"] == "UTC"
+    assert data["environment_fingerprint"]["pythonhashseed"] == "0"
     verifiable = data["verifiable_artifacts"]
     assert isinstance(verifiable, dict)
     for profile in profiles:
@@ -248,7 +252,8 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
             expected_path = Path(expected_meta["path"]).name
             assert verifiable[logical_key]["sha256"] == expected_sha
             assert verifiable[logical_key]["hash_algo"] == "sha256"
-            assert verifiable[logical_key]["path"] == f"openai/{profile}/{expected_path}"
+            assert verifiable[logical_key]["path"] == expected_path
+            assert verifiable[logical_key]["bytes"] == Path(expected_meta["path"]).stat().st_size
     assert data["scoring_input_selection_by_profile"]["cs"]["decision"]["rule"] == "default_enriched_required"
     assert data["scoring_input_selection_by_profile"]["tam"]["decision"]["rule"] == "no_enrich_compare"
     assert (

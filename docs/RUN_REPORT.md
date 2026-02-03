@@ -27,9 +27,9 @@ debugging, and audit trails. They are versioned with `run_report_schema_version`
 - `inputs_by_provider`, `outputs_by_provider`: provider-specific input/output metadata.
 - `verifiable_artifacts`: mapping of logical artifact keys to hashes:
   - Keys are `"<provider>:<profile>:<output_key>"`.
-  - Values include `path` (run-dir-relative), `sha256`, `hash_algo`.
+  - Values include `path` (relative to `JOBINTEL_DATA_DIR`), `sha256`, `bytes`, and `hash_algo`.
 - `config_fingerprint`: sha256 of the effective, non-secret configuration inputs.
-- `environment_fingerprint`: best-effort environment details (python version, platform, image tag, git sha).
+- `environment_fingerprint`: best-effort environment details (python version, platform, image tag, git sha, TZ, PYTHONHASHSEED).
 - `scoring_inputs_by_profile`: selected scoring input metadata (path/mtime/sha256).
 - `scoring_input_selection_by_profile`: decision metadata for scoring inputs:
   - `selected_path`
