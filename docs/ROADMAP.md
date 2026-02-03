@@ -139,6 +139,10 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 - [ ] Minimal IAM policy documented (least privilege)
 - [ ] Domain-backed dashboard endpoint (API first; UI can come later)
 - [ ] Runbook: deploy, inspect last run, roll back, rotate secrets
+ - [ ] Proof artifacts captured (for verification):
+   - CloudWatch log line with `run_id`
+   - `s3://<bucket>/<prefix>/runs/<run_id>/...` populated
+   - `python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --verify-latest` outputs OK
 
 ### Work Items
 - [ ] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)

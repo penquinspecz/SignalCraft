@@ -1,0 +1,24 @@
+{
+  "Name": "jobintel-daily",
+  "ScheduleExpression": "cron(0 13 * * ? *)",
+  "State": "ENABLED",
+  "Targets": [
+    {
+      "Id": "jobintel-ecs-task",
+      "Arn": "arn:aws:ecs:<AWS_REGION>:<ACCOUNT_ID>:cluster/<CLUSTER_NAME>",
+      "RoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/<EVENTBRIDGE_ROLE>",
+      "EcsParameters": {
+        "TaskDefinitionArn": "arn:aws:ecs:<AWS_REGION>:<ACCOUNT_ID>:task-definition/jobintel-task:<REV>",
+        "LaunchType": "FARGATE",
+        "PlatformVersion": "LATEST",
+        "NetworkConfiguration": {
+          "awsvpcConfiguration": {
+            "Subnets": ["<SUBNET_ID_1>", "<SUBNET_ID_2>"],
+            "SecurityGroups": ["<SECURITY_GROUP_ID>"],
+            "AssignPublicIp": "DISABLED"
+          }
+        }
+      }
+    }
+  ]
+}
