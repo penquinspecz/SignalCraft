@@ -71,3 +71,14 @@ def test_job_identity_normalizes_url_fragments():
     base = {"detail_url": "https://example.com/jobs/123#section-a"}
     variant = {"detail_url": "https://example.com/jobs/123#section-b"}
     assert job_identity(base) == job_identity(variant)
+
+
+def test_job_identity_drops_tracking_params():
+    base = {"apply_url": "https://example.com/jobs/123?gh_jid=abc&utm_campaign=x"}
+    variant = {"apply_url": "https://example.com/jobs/123?gh_jid=def&utm_campaign=y"}
+    assert job_identity(base) == job_identity(variant)
+
+
+def test_job_identity_normalizes_whitespace_and_case():
+    job = {"job_id": " AbC-123 "}
+    assert job_identity(job) == "abc-123"

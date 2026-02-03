@@ -45,6 +45,23 @@ Each run writes deterministic diff artifacts per provider/profile:
 - `<provider>_diff.<profile>.json` (added/changed/removed lists, sorted by identity)
 - `<provider>_diff.<profile>.md` (short human summary)
 
+Identity normalization rules:
+- `job_id` is casefolded and whitespace-normalized.
+- URLs drop tracking parameters (`utm_*`, `gh_*`, `lever_*`, `ref`, `source`) and fragments.
+- URL scheme/host are lowercased; paths are stripped of trailing `/`.
+
+Changed fields (stable only):
+- `title`, `location`, `team/department`, normalized `apply_url`
+- `score_bucket` (5-point buckets when score is present)
+
+Diff reports include a deterministic `summary_hash` for CI comparisons.
+
+Previous-run selection rule (deterministic, offline-safe):
+1) local `state/<provider>/<profile>/last_success.json` pointer if present
+2) local `state/last_success.json` pointer if present
+3) most recent local run metadata under `state/runs/`
+4) S3 `state/<provider>/<profile>/last_success.json` (if enabled)
+
 Discord notify mode is deterministic and defaults to **diff-only**:
 - `DISCORD_NOTIFY_MODE=diff` (default): post only when diffs exist
 - `DISCORD_NOTIFY_MODE=always`: always post summaries

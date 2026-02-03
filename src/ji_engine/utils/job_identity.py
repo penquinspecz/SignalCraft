@@ -3,7 +3,54 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Dict, Literal, Optional
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+_DROP_QUERY_PREFIXES = ("utm_", "gh_", "lever_")
+_DROP_QUERY_KEYS = {
+    "gh_jid",
+    "gh_src",
+    "gh_source",
+    "lever-source",
+    "lever_source",
+    "source",
+    "sourceid",
+    "ref",
+    "referrer",
+    "icid",
+    "mc_cid",
+    "mc_eid",
+}
+
+
+def normalize_job_text(value: str, *, casefold: bool = True) -> str:
+    normalized = " ".join(value.split()).strip()
+    return normalized.casefold() if casefold else normalized
+
+
+def _should_drop_param(key: str) -> bool:
+    lowered = key.casefold()
+    if lowered in _DROP_QUERY_KEYS:
+        return True
+    return any(lowered.startswith(prefix) for prefix in _DROP_QUERY_PREFIXES)
+
+
+def normalize_job_url(value: str) -> str:
+    normalized = normalize_job_text(value, casefold=False)
+    if not normalized:
+        return ""
+    parts = urlsplit(normalized)
+    scheme = parts.scheme.lower()
+    netloc = parts.netloc.lower()
+    path = parts.path.rstrip("/")
+    query_pairs = parse_qsl(parts.query, keep_blank_values=True)
+    filtered = [
+        (key, val)
+        for key, val in query_pairs
+        if key and not _should_drop_param(key)
+    ]
+    filtered.sort(key=lambda item: (item[0].casefold(), item[1]))
+    query = urlencode(filtered, doseq=True)
+    return urlunsplit((scheme, netloc, path, query, ""))
 
 
 def job_identity(job: Dict[str, object], *, mode: Literal["legacy", "provider"] = "legacy") -> str:
@@ -26,18 +73,8 @@ def job_identity(job: Dict[str, object], *, mode: Literal["legacy", "provider"] 
     """
 
     def _normalize(value: str, *, lower: bool = False) -> str:
-        normalized = " ".join(value.split()).strip()
-        return normalized.lower() if lower else normalized
-
-    def _normalize_url(value: str) -> str:
-        normalized = _normalize(value)
-        if not normalized:
-            return ""
-        parts = urlsplit(normalized)
-        scheme = parts.scheme.lower()
-        netloc = parts.netloc.lower()
-        path = parts.path.rstrip("/")
-        return urlunsplit((scheme, netloc, path, "", ""))
+        normalized = normalize_job_text(value, casefold=False)
+        return normalized.casefold() if lower else normalized
 
     job_id = job.get("job_id")
     if isinstance(job_id, str):
@@ -57,7 +94,7 @@ def job_identity(job: Dict[str, object], *, mode: Literal["legacy", "provider"] 
         def _hash_url_field(value: Optional[str], field: str) -> Optional[str]:
             if not isinstance(value, str):
                 return None
-            normalized_url = _normalize_url(value)
+            normalized_url = normalize_job_url(value)
             if not normalized_url:
                 return None
             payload = {"provider": provider_norm, field: normalized_url, "title": title_norm}
@@ -74,7 +111,7 @@ def job_identity(job: Dict[str, object], *, mode: Literal["legacy", "provider"] 
     for field in ("apply_url", "detail_url"):
         value = job.get(field)
         if isinstance(value, str):
-            normalized = _normalize_url(value)
+            normalized = normalize_job_url(value)
             if normalized:
                 return normalized
 

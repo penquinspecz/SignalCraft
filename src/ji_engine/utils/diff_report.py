@@ -4,18 +4,17 @@ import hashlib
 import json
 from typing import Any, Dict, Iterable, List, Tuple
 
-from .content_fingerprint import content_fingerprint
-from .job_identity import job_identity
+from .job_identity import job_identity, normalize_job_text, normalize_job_url
 
-_DIFF_FIELDS: Tuple[str, ...] = ("title", "location", "team", "description_text")
+_DIFF_FIELDS: Tuple[str, ...] = ("title", "location", "team", "apply_url", "score_bucket")
 
 
 def _normalize(value: Any) -> str:
     if value is None:
         return ""
     if isinstance(value, str):
-        return " ".join(value.split()).strip()
-    return str(value).strip()
+        return normalize_job_text(value)
+    return normalize_job_text(str(value))
 
 
 def _job_description_text(job: Dict[str, Any]) -> str:
@@ -31,8 +30,17 @@ def _job_description_text(job: Dict[str, Any]) -> str:
 def _field_value(job: Dict[str, Any], field: str) -> str:
     if field == "location":
         return _normalize(job.get("location") or job.get("locationName"))
+    if field == "apply_url":
+        url = job.get("apply_url") or job.get("detail_url") or ""
+        return normalize_job_url(str(url)) if url else ""
     if field == "description_text":
         return _normalize(_job_description_text(job))
+    if field == "score_bucket":
+        score = job.get("score")
+        if isinstance(score, (int, float)):
+            bucket = int(score // 5) * 5
+            return str(bucket)
+        return ""
     return _normalize(job.get(field))
 
 
@@ -56,6 +64,12 @@ def _changed_fields(prev_job: Dict[str, Any], curr_job: Dict[str, Any]) -> List[
     return changed
 
 
+def _stable_fingerprint(job: Dict[str, Any]) -> str:
+    payload = {field: _field_value(job, field) for field in _DIFF_FIELDS}
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
 def _sorted_items(items: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return sorted(items, key=lambda x: x.get("id") or "")
 
@@ -68,8 +82,8 @@ def build_diff_report(
     profile: str,
     baseline_exists: bool,
 ) -> Dict[str, Any]:
-    prev_map = {job_identity(job, mode="provider"): (job, content_fingerprint(job)) for job in prev_jobs}
-    curr_map = {job_identity(job, mode="provider"): (job, content_fingerprint(job)) for job in curr_jobs}
+    prev_map = {job_identity(job, mode="provider"): (job, _stable_fingerprint(job)) for job in prev_jobs}
+    curr_map = {job_identity(job, mode="provider"): (job, _stable_fingerprint(job)) for job in curr_jobs}
 
     prev_ids = set(prev_map)
     curr_ids = set(curr_map)
@@ -106,6 +120,7 @@ def build_diff_report(
         "changed": _sorted_items(changed_items),
         "removed": _sorted_items(removed_items),
     }
+    report["summary_hash"] = diff_report_digest(report)
     return report
 
 
@@ -141,5 +156,7 @@ def build_diff_markdown(report: Dict[str, Any], *, limit: int = 10) -> str:
 
 
 def diff_report_digest(report: Dict[str, Any]) -> str:
-    raw = json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    payload = dict(report)
+    payload.pop("summary_hash", None)
+    raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()

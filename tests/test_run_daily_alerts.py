@@ -51,3 +51,25 @@ def test_maybe_post_run_summary_skips_when_no_diffs(monkeypatch):
 
     assert status == "skipped"
     assert not called
+
+
+def test_maybe_post_run_summary_posts_when_diffs_exist(monkeypatch):
+    called = []
+
+    def fake_post(*args, **kwargs):
+        called.append((args, kwargs))
+        return "ok"
+
+    monkeypatch.setattr(run_daily, "_post_run_summary", fake_post)
+    status = run_daily._maybe_post_run_summary(
+        provider="openai",
+        profile="cs",
+        ranked_json=Path("dummy.json"),
+        diff_counts={"new": 1, "changed": 0, "removed": 0},
+        min_score=40,
+        notify_mode="diff",
+        no_post=False,
+    )
+
+    assert status == "ok"
+    assert len(called) == 1

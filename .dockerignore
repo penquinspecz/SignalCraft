@@ -17,6 +17,10 @@ venv/
 
 # ---- Default: do NOT ignore the whole data/ dir ----
 
+# ---- Local infra caches ----
+ops/aws/infra/.terraform/
+ops/aws/infra/.terraform/**
+
 # ---- Local generated outputs (safe to ignore) ----
 data/openai_enriched_jobs_ai.json
 data/openai_ranked_jobs*.json
@@ -34,3 +38,5 @@ data/*_shortlist*.md
 !data/*_snapshots/
 !data/*_snapshots/**
 !data/candidate_profile.json
+.terraform/
+**/.terraform/

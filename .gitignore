@@ -83,3 +83,4 @@ ops/aws/infra/.terraform/
 ops/aws/infra/terraform.tfstate*
 ops/aws/infra/terraform.tfvars
 ops/aws/infra/.terraform.lock.hcl
+.terraform/

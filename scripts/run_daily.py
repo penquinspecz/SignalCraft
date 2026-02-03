@@ -570,6 +570,56 @@ def _state_last_ranked(provider: str, profile: str) -> Path:
     return STATE_DIR / f"last_ranked.{provider}.{profile}.json"
 
 
+def _local_last_success_pointer_paths(provider: str, profile: str) -> List[Path]:
+    return [
+        STATE_DIR / provider / profile / "last_success.json",
+        STATE_DIR / "last_success.json",
+    ]
+
+
+def _resolve_local_last_success_ranked(
+    provider: str, profile: str, current_run_id: str
+) -> Optional[Path]:
+    for pointer_path in _local_last_success_pointer_paths(provider, profile):
+        if not pointer_path.exists():
+            continue
+        try:
+            payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        run_id = parse_pointer(payload) if isinstance(payload, dict) else None
+        if not run_id or run_id == current_run_id:
+            continue
+        run_dir = _run_registry_dir(run_id)
+        ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
+        if ranked_path.exists():
+            return ranked_path
+    return None
+
+
+def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
+    if not RUN_METADATA_DIR.exists():
+        return None
+    candidates: List[Tuple[float, str, Path]] = []
+    current_name = _sanitize_run_id(current_run_id)
+    for run_dir in RUN_METADATA_DIR.iterdir():
+        if not run_dir.is_dir() or run_dir.name == current_name:
+            continue
+        ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
+        if not ranked_path.exists():
+            continue
+        report_path = run_dir / "run_report.json"
+        try:
+            mtime = report_path.stat().st_mtime if report_path.exists() else run_dir.stat().st_mtime
+        except OSError:
+            continue
+        candidates.append((mtime, run_dir.name, ranked_path))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[-1][2]
+
+
 def _history_run_dir(run_id: str, profile: str, provider: Optional[str] = None) -> Path:
     run_date = run_id.split("T")[0]
     sanitized = _sanitize_run_id(run_id)
@@ -2837,9 +2887,22 @@ def main() -> int:
                     )
                     continue
 
-                prev = _read_json(state_path) if state_exists else []
-                baseline_exists = state_exists
-                if not state_exists and s3_enabled():
+                prev: List[Dict[str, Any]] = []
+                baseline_exists = False
+                local_ranked = _resolve_local_last_success_ranked(provider, profile, run_id)
+                if local_ranked:
+                    prev = _read_json(local_ranked)
+                    baseline_exists = True
+                elif state_exists:
+                    prev = _read_json(state_path)
+                    baseline_exists = True
+                else:
+                    latest_ranked = _resolve_latest_run_ranked(provider, profile, run_id)
+                    if latest_ranked:
+                        prev = _read_json(latest_ranked)
+                        baseline_exists = True
+
+                if not baseline_exists and s3_enabled():
                     bucket = os.environ.get("JOBINTEL_S3_BUCKET", "").strip()
                     prefix = os.environ.get("JOBINTEL_S3_PREFIX", "jobintel").strip("/")
                     if bucket:
