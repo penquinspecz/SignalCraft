@@ -82,123 +82,140 @@ pip install ".[dashboard]"  # dashboard runtime
 pip install ".[snapshots]"  # Playwright snapshots
 ```
 
-pyproject.toml is the canonical source of dependencies. requirements.txt is the Docker/CI export.
+`pyproject.toml` is the canonical source of dependencies. `requirements.txt` is the Docker/CI export.
 
 Example run (no Discord post):
 
+```bash
 python scripts/run_daily.py --profiles cs --us_only --no_post
+```
 
 
-⸻
+---
 
 Local quickstart
 
 After creating the venv above, you can run the common stages via make:
 
+```bash
 make test
 make enrich
 make score            # default PROFILE=cs
 make all              # test + enrich + score
+```
 
 
-⸻
+---
 
 Canonical entrypoint + run outputs
 
-Entrypoint: scripts/run_daily.py
+Entrypoint: `scripts/run_daily.py`
 
 Runs produce artifacts under:
-	•	state/runs/<run_id>/... (run registry + artifacts + reports)
-	•	data/... (inputs/snapshots/outputs; depending on mode)
+- `state/runs/<run_id>/...` (run registry + artifacts + reports)
+- `data/...` (inputs/snapshots/outputs; depending on mode)
 
 Exit code contract:
-	•	0 success
-	•	2 validation / missing inputs / deterministic “not runnable”
-	•	>=3 runtime/provider failures
+- `0` success
+- `2` validation / missing inputs / deterministic “not runnable”
+- `>=3` runtime/provider failures
 
-⸻
+---
 
 Docker (AWS-ready)
 
 Build and run locally (expects ./data and ./state mounted):
 
+```bash
 docker build -t jobintel:local .
 docker run --rm \
   -v "$PWD/data:/app/data" \
   -v "$PWD/state:/app/state" \
   --env-file .env \
   jobintel:local --profiles cs --us_only --no_post
+```
 
 Run with AI augmentation (guardrailed; opt-in):
 
+```bash
 docker run --rm \
   -v "$PWD/data:/app/data" \
   -v "$PWD/state:/app/state" \
   --env-file .env \
   jobintel:local --profiles cs --us_only --no_post --ai
+```
 
 
-⸻
+---
 
 Determinism & goldens
-	•	Snapshots under data/*_snapshots/ are pinned fixtures; do not mutate them during tests.
-	•	Golden tests assert deterministic transforms over pinned snapshots, not upstream job volatility.
-	•	Snapshot bytes are guarded by tests/fixtures/golden/snapshot_bytes.manifest.json.
-	•	Verify locally: python scripts/verify_snapshots_immutable.py
-	•	Docker (no-cache) is the source of truth for CI parity:
+- Snapshots under `data/*_snapshots/` are pinned fixtures; do not mutate them during tests.
+- Golden tests assert deterministic transforms over pinned snapshots, not upstream job volatility.
+- Snapshot bytes are guarded by `tests/fixtures/golden/snapshot_bytes.manifest.json`.
+- Verify locally: `python scripts/verify_snapshots_immutable.py`
+- Docker (no-cache) is the source of truth for CI parity:
 
+```bash
 DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+```
 
-Determinism contract: docs/DETERMINISM_CONTRACT.md
+Determinism contract: `docs/DETERMINISM_CONTRACT.md`
 
-⸻
+---
 
 CI / local truth gates
 
 Fast local gate (matches PR expectations without requiring AWS secrets):
 
+```bash
 make gate-fast
+```
 
 CI-equivalent Docker truth gate:
 
+```bash
 DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
+```
 
 
-⸻
+---
 
 Kubernetes ops (CronJob + run-once)
 
-K8s manifests + runbooks live under ops/k8s/.
-	•	CronJob is intended for scheduled, deterministic runs (offline-safe where required by contract).
-	•	A run-once Job exists for ad-hoc parity runs and debugging.
+K8s manifests + runbooks live under `ops/k8s/`.
+- CronJob is intended for scheduled, deterministic runs (offline-safe where required by contract).
+- A run-once Job exists for ad-hoc parity runs and debugging.
 
-See: ops/k8s/README.md
+See: `ops/k8s/README.md`
 
-⸻
+---
 
 AWS ops (ECS scheduled run + S3 publish)
 
-AWS runbooks and templates live under ops/aws/ and associated docs.
+AWS runbooks and templates live under `ops/aws/` and associated docs.
 
 Milestone proof-run artifacts and verification checklist are documented (when enabled in your branch):
-	•	CloudWatch log line showing run_id
-	•	S3 objects under runs/<run_id>/... and latest/...
-	•	Offline verification via publish plan + verifier script
+- CloudWatch log line showing run_id
+- S3 objects under `runs/<run_id>/...` and `latest/...`
+- Offline verification via publish plan + verifier script
 
-See roadmap + runbooks under docs/.
+See roadmap + runbooks under `docs/`.
 
-⸻
+---
 
 Troubleshooting
 
 Common issues:
-	•	CI “ji_engine not found”: ensure CI installs the package (pip install -e .) before running scripts.
-	•	Ruff format/lint failures: run python -m ruff check --fix . and python -m ruff format ..
-	•	Docker “no space left on device”: prune Docker build cache:
-	•	docker builder prune -af
-	•	docker system prune -af --volumes (more aggressive)
+- CI “ji_engine not found”: ensure CI installs the package (`pip install -e .`) before running scripts.
+- Ruff format/lint failures: run `python -m ruff check --fix .` and `python -m ruff format .`
+- Docker “no space left on device”: prune Docker build cache:
 
-⸻
+```bash
+docker builder prune -af
+docker system prune -af --volumes (more aggressive)
+```
+
+---
 
 License
 
