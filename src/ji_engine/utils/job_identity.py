@@ -43,11 +43,7 @@ def normalize_job_url(value: str) -> str:
     netloc = parts.netloc.lower()
     path = parts.path.rstrip("/")
     query_pairs = parse_qsl(parts.query, keep_blank_values=True)
-    filtered = [
-        (key, val)
-        for key, val in query_pairs
-        if key and not _should_drop_param(key)
-    ]
+    filtered = [(key, val) for key, val in query_pairs if key and not _should_drop_param(key)]
     filtered.sort(key=lambda item: (item[0].casefold(), item[1]))
     query = urlencode(filtered, doseq=True)
     return urlunsplit((scheme, netloc, path, query, ""))

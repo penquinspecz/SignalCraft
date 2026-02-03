@@ -19,11 +19,7 @@ def _normalize(value: Any) -> str:
 
 def _job_description_text(job: Dict[str, Any]) -> str:
     return (
-        job.get("description_text")
-        or job.get("jd_text")
-        or job.get("description")
-        or job.get("descriptionHtml")
-        or ""
+        job.get("description_text") or job.get("jd_text") or job.get("description") or job.get("descriptionHtml") or ""
     )
 
 
