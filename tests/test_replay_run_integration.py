@@ -42,6 +42,7 @@ def test_replay_run_integration_snapshot(tmp_path: Path, monkeypatch, capsys) ->
 
     importlib.reload(config)
     importlib.reload(run_daily)
+    replay_run.DATA_DIR = run_daily.DATA_DIR
 
     fixed_run_id = "2026-01-01T00:00:00+00:00"
     monkeypatch.setattr(run_daily, "_utcnow_iso", lambda: fixed_run_id)
@@ -71,7 +72,7 @@ def test_replay_run_integration_snapshot(tmp_path: Path, monkeypatch, capsys) ->
     for logical_key, meta in verifiable.items():
         assert isinstance(meta, dict)
         rel_path = Path(meta["path"])
-        artifact_path = run_dir / rel_path
+        artifact_path = run_daily.DATA_DIR / rel_path
         assert artifact_path.exists(), f"missing {logical_key} at {artifact_path}"
         assert _sha256(artifact_path) == meta["sha256"]
 
@@ -82,7 +83,7 @@ def test_replay_run_integration_snapshot(tmp_path: Path, monkeypatch, capsys) ->
 
     # Corrupt one artifact to ensure mismatch reporting is explicit.
     first_key = next(iter(verifiable))
-    corrupt_path = run_dir / Path(verifiable[first_key]["path"])
+    corrupt_path = run_daily.DATA_DIR / Path(verifiable[first_key]["path"])
     corrupt_path.write_bytes(b"corrupt")
     exit_code = replay_run.main(["--run-dir", str(run_dir), "--profile", "cs", "--strict"])
     out = capsys.readouterr().out

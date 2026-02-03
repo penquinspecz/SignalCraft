@@ -39,8 +39,9 @@ def _setup_run_dir(tmp_path: Path, run_id: str, provider: str = "openai", profil
     )
     verifiable = {
         f"{provider}:{profile}:ranked_json": {
-            "path": f"{provider}/{profile}/{provider}_ranked_jobs.{profile}.json",
+            "path": f"{provider}_ranked_jobs.{profile}.json",
             "sha256": compute_sha256_file(ranked),
+            "bytes": ranked.stat().st_size,
             "hash_algo": "sha256",
         }
     }

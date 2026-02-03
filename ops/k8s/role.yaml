@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jobintel-role
+  namespace: jobintel
+  labels:
+    app.kubernetes.io/name: jobintel
+    app.kubernetes.io/component: cronjob
+rules: []

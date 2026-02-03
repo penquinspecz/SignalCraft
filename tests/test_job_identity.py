@@ -47,6 +47,11 @@ def test_job_identity_is_deterministic_for_identical_dicts():
     assert job_identity(job) == job_identity({"apply_url": "https://example.com/a", "title": "A"})
 
 
+def test_job_identity_provider_mode_prefixes_job_id():
+    job = {"provider": "OpenAI", "job_id": "ABC-123", "apply_url": "https://example.com/a"}
+    assert job_identity(job, mode="provider") == "openai:abc-123"
+
+
 def test_job_identity_returns_hash_if_missing():
     first = job_identity({})
     second = job_identity({})
@@ -66,3 +71,14 @@ def test_job_identity_normalizes_url_fragments():
     base = {"detail_url": "https://example.com/jobs/123#section-a"}
     variant = {"detail_url": "https://example.com/jobs/123#section-b"}
     assert job_identity(base) == job_identity(variant)
+
+
+def test_job_identity_drops_tracking_params():
+    base = {"apply_url": "https://example.com/jobs/123?gh_jid=abc&utm_campaign=x"}
+    variant = {"apply_url": "https://example.com/jobs/123?gh_jid=def&utm_campaign=y"}
+    assert job_identity(base) == job_identity(variant)
+
+
+def test_job_identity_normalizes_whitespace_and_case():
+    job = {"job_id": " AbC-123 "}
+    assert job_identity(job) == "abc-123"

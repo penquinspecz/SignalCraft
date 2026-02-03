@@ -53,17 +53,18 @@ from ji_engine.config import (
     ranked_jobs_json,
     state_last_ranked,
 )
+from ji_engine.config import (
+    shortlist_md as shortlist_md_path,
+)
+from ji_engine.utils.content_fingerprint import content_fingerprint
+from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
+from ji_engine.utils.dotenv import load_dotenv
+from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.verification import (
     build_verifiable_artifacts,
     compute_sha256_bytes,
     compute_sha256_file,
 )
-from ji_engine.config import (
-    shortlist_md as shortlist_md_path,
-)
-from ji_engine.utils.content_fingerprint import content_fingerprint
-from ji_engine.utils.dotenv import load_dotenv
-from ji_engine.utils.job_identity import job_identity
 from jobintel.alerts import (
     build_last_seen,
     compute_alerts,
@@ -315,6 +316,12 @@ def _write_json(path: Path, obj: Any) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_canonical_json(path: Path, obj: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    path.write_text(payload, encoding="utf-8")
+
+
 def _update_run_metadata_s3(path: Path, s3_meta: Dict[str, Any]) -> None:
     if not path.exists():
         return
@@ -550,10 +557,67 @@ def _provider_top_md(provider: str, profile: str) -> Path:
     return DATA_DIR / f"{provider}_top.{profile}.md"
 
 
+def _provider_diff_paths(provider: str, profile: str) -> Tuple[Path, Path]:
+    return (
+        DATA_DIR / f"{provider}_diff.{profile}.json",
+        DATA_DIR / f"{provider}_diff.{profile}.md",
+    )
+
+
 def _state_last_ranked(provider: str, profile: str) -> Path:
     if provider == "openai":
         return state_last_ranked(profile)
     return STATE_DIR / f"last_ranked.{provider}.{profile}.json"
+
+
+def _local_last_success_pointer_paths(provider: str, profile: str) -> List[Path]:
+    return [
+        STATE_DIR / provider / profile / "last_success.json",
+        STATE_DIR / "last_success.json",
+    ]
+
+
+def _resolve_local_last_success_ranked(
+    provider: str, profile: str, current_run_id: str
+) -> Optional[Path]:
+    for pointer_path in _local_last_success_pointer_paths(provider, profile):
+        if not pointer_path.exists():
+            continue
+        try:
+            payload = json.loads(pointer_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        run_id = parse_pointer(payload) if isinstance(payload, dict) else None
+        if not run_id or run_id == current_run_id:
+            continue
+        run_dir = _run_registry_dir(run_id)
+        ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
+        if ranked_path.exists():
+            return ranked_path
+    return None
+
+
+def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
+    if not RUN_METADATA_DIR.exists():
+        return None
+    candidates: List[Tuple[float, str, Path]] = []
+    current_name = _sanitize_run_id(current_run_id)
+    for run_dir in RUN_METADATA_DIR.iterdir():
+        if not run_dir.is_dir() or run_dir.name == current_name:
+            continue
+        ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
+        if not ranked_path.exists():
+            continue
+        report_path = run_dir / "run_report.json"
+        try:
+            mtime = report_path.stat().st_mtime if report_path.exists() else run_dir.stat().st_mtime
+        except OSError:
+            continue
+        candidates.append((mtime, run_dir.name, ranked_path))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[-1][2]
 
 
 def _history_run_dir(run_id: str, profile: str, provider: Optional[str] = None) -> Path:
@@ -814,7 +878,7 @@ def _persist_run_metadata(
     path = _run_metadata_path(run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     return path
@@ -1100,10 +1164,23 @@ def _config_fingerprint(flags: Dict[str, Any], providers_config: Optional[str]) 
     }
     filtered_flags = {key: flags.get(key) for key in sorted(allowed_keys)}
     providers_config_path = Path(providers_config) if providers_config else None
+    env_keys = [
+        "CAREERS_MODE",
+        "EMBED_PROVIDER",
+        "EMBEDDING_MODEL",
+        "OPENAI_MODEL",
+        "ANTHROPIC_MODEL",
+        "JOBINTEL_DATA_DIR",
+        "JOBINTEL_STATE_DIR",
+        "TZ",
+        "PYTHONHASHSEED",
+    ]
+    env_payload = {key: os.environ.get(key) for key in env_keys}
     config_payload = {
         "flags": filtered_flags,
         "providers_config_path": str(providers_config_path) if providers_config_path else None,
         "providers_config_sha256": _hash_file(providers_config_path) if providers_config_path else None,
+        "env": env_payload,
     }
     payload = json.dumps(config_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return compute_sha256_bytes(payload.encode("utf-8"))
@@ -1115,6 +1192,8 @@ def _environment_fingerprint() -> Dict[str, Optional[str]]:
         "platform": platform.platform(),
         "image_tag": os.environ.get("IMAGE_TAG"),
         "git_sha": _best_effort_git_sha(),
+        "tz": os.environ.get("TZ"),
+        "pythonhashseed": os.environ.get("PYTHONHASHSEED"),
     }
 
 
@@ -1132,7 +1211,7 @@ def _verifiable_artifacts(
                     continue
                 logical_key = f"{provider}:{profile}:{output_key}"
                 artifacts[logical_key] = Path(path_str)
-    return build_verifiable_artifacts(run_dir, artifacts)
+    return build_verifiable_artifacts(DATA_DIR, artifacts)
 
 
 def _best_effort_git_sha() -> Optional[str]:
@@ -1770,6 +1849,46 @@ def _dispatch_alerts(
     logger.info(f"✅ Discord alert sent ({profile})." if ok else "⚠️ Discord alert NOT sent (pipeline still completed).")
 
 
+def _resolve_notify_mode(raw_mode: Optional[str]) -> str:
+    mode = (raw_mode or "diff").strip().lower()
+    if mode not in {"diff", "always"}:
+        return "diff"
+    return mode
+
+
+def _should_notify(diff_counts: Dict[str, Any], mode: str) -> bool:
+    if diff_counts.get("suppressed") is True:
+        return False
+    if mode == "always":
+        return True
+    return any(diff_counts.get(k, 0) > 0 for k in ("new", "changed", "removed"))
+
+
+def _maybe_post_run_summary(
+    provider: str,
+    profile: str,
+    ranked_json: Path,
+    diff_counts: Dict[str, Any],
+    min_score: int,
+    *,
+    notify_mode: str,
+    no_post: bool,
+    extra_lines: Optional[List[str]] = None,
+) -> str:
+    if not _should_notify(diff_counts, notify_mode):
+        logger.info("Discord notify skipped (mode=%s, no diffs).", notify_mode)
+        return "skipped"
+    return _post_run_summary(
+        provider,
+        profile,
+        ranked_json,
+        diff_counts,
+        min_score,
+        no_post=no_post,
+        extra_lines=extra_lines,
+    )
+
+
 def _post_discord(webhook_url: str, message: str) -> bool:
     """
     Returns True if posted successfully, False otherwise.
@@ -1981,6 +2100,7 @@ def main() -> int:
     USE_SUBPROCESS = not args.no_subprocess
     _setup_logging(args.log_json)
     webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+    notify_mode = _resolve_notify_mode(os.environ.get("DISCORD_NOTIFY_MODE"))
 
     validate_config(args, webhook)
 
@@ -2745,12 +2865,13 @@ def main() -> int:
                     )
                     if unavailable_line:
                         extra_lines.append(unavailable_line)
-                    discord_status = _post_run_summary(
+                    discord_status = _maybe_post_run_summary(
                         provider,
                         profile,
                         ranked_json,
                         diff_counts,
                         args.min_score,
+                        notify_mode=notify_mode,
                         no_post=args.no_post or all_unavailable,
                         extra_lines=extra_lines or None,
                     )
@@ -2766,8 +2887,22 @@ def main() -> int:
                     )
                     continue
 
-                prev = _read_json(state_path) if state_exists else []
-                if not state_exists and s3_enabled():
+                prev: List[Dict[str, Any]] = []
+                baseline_exists = False
+                local_ranked = _resolve_local_last_success_ranked(provider, profile, run_id)
+                if local_ranked:
+                    prev = _read_json(local_ranked)
+                    baseline_exists = True
+                elif state_exists:
+                    prev = _read_json(state_path)
+                    baseline_exists = True
+                else:
+                    latest_ranked = _resolve_latest_run_ranked(provider, profile, run_id)
+                    if latest_ranked:
+                        prev = _read_json(latest_ranked)
+                        baseline_exists = True
+
+                if not baseline_exists and s3_enabled():
                     bucket = os.environ.get("JOBINTEL_S3_BUCKET", "").strip()
                     prefix = os.environ.get("JOBINTEL_S3_PREFIX", "jobintel").strip("/")
                     if bucket:
@@ -2776,6 +2911,7 @@ def main() -> int:
                         )
                         if s3_info.ranked_path and s3_info.ranked_path.exists():
                             prev = _read_json(s3_info.ranked_path)
+                            baseline_exists = True
                 new_jobs, changed_jobs, removed_jobs, changed_fields = _diff(prev, curr)
 
                 # Append "Changes since last run" section to shortlist (filtered by min_alert_score)
@@ -2790,6 +2926,17 @@ def main() -> int:
                     prev_jobs=prev,
                     min_alert_score=args.min_alert_score,
                 )
+
+                diff_json_path, diff_md_path = _provider_diff_paths(provider, profile)
+                diff_report = build_diff_report(
+                    prev,
+                    curr,
+                    provider=provider,
+                    profile=profile,
+                    baseline_exists=baseline_exists,
+                )
+                _write_canonical_json(diff_json_path, diff_report)
+                diff_md_path.write_text(build_diff_markdown(diff_report), encoding="utf-8")
 
                 label = _profile_label(provider, profile)
                 logger.info(
@@ -2863,12 +3010,13 @@ def main() -> int:
                 )
                 if unavailable_line:
                     extra_lines.append(unavailable_line)
-                discord_status = _post_run_summary(
+                discord_status = _maybe_post_run_summary(
                     provider,
                     profile,
                     ranked_json,
                     diff_counts,
                     args.min_score,
+                    notify_mode=notify_mode,
                     no_post=args.no_post or all_unavailable,
                     extra_lines=extra_lines or None,
                 )
@@ -2936,7 +3084,9 @@ def main() -> int:
                             lines.append(f"  {j['apply_url']}")
                     lines.append("")
 
-                if all_unavailable:
+                if not _should_notify(diff_counts, notify_mode):
+                    logger.info("Discord alerts skipped (mode=%s, no diffs).", notify_mode)
+                elif all_unavailable:
                     logger.info("All providers unavailable; suppressing alerts.")
                 else:
                     _dispatch_alerts(

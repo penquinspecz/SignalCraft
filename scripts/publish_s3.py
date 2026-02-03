@@ -11,8 +11,9 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
-from ji_engine.config import RUN_METADATA_DIR
+from ji_engine.config import DATA_DIR, RUN_METADATA_DIR
 from jobintel.aws_runs import build_state_payload, write_last_success_state, write_provider_last_success_state
+
 try:
     from scripts import aws_env_check  # type: ignore
 except ModuleNotFoundError:
@@ -160,6 +161,7 @@ def _build_upload_plan(
     verifiable: Dict[str, Dict[str, str]],
     providers: Iterable[str],
     profiles: Iterable[str],
+    allow_missing: bool = False,
 ) -> Tuple[List[UploadItem], Dict[str, Dict[str, str]]]:
     uploads: List[UploadItem] = []
     latest_prefixes: Dict[str, Dict[str, str]] = {}
@@ -174,9 +176,13 @@ def _build_upload_plan(
             _fail_validation(f"missing path for verifiable artifact {logical_key}")
         path = Path(path_str)
         if not path.is_absolute():
-            path = run_dir / path
+            path = DATA_DIR / path
         if not path.exists():
-            _fail_validation(f"verifiable artifact missing on disk: {path}")
+            msg = f"verifiable artifact missing on disk: {path}"
+            if allow_missing:
+                logger.warning("%s; including in upload plan", msg)
+            else:
+                _fail_validation(msg)
         rel_path = Path(path_str).as_posix()
         key = f"{prefix}/runs/{run_id}/{rel_path}".strip("/")
         uploads.append(
@@ -214,13 +220,6 @@ def _build_upload_plan(
     return uploads, latest_prefixes
 
 
-def _src_rel(run_dir: Path, source: Path) -> str:
-    try:
-        return source.relative_to(run_dir).as_posix()
-    except ValueError:
-        return source.name
-
-
 def _build_plan_entries(
     *,
     run_dir: Path,
@@ -231,17 +230,22 @@ def _build_plan_entries(
     for item in uploads:
         meta = verifiable.get(item.logical_key, {}) if isinstance(verifiable, dict) else {}
         sha = meta.get("sha256")
-        bytes_size = None
-        try:
-            bytes_size = item.source.stat().st_size
-        except OSError:
-            bytes_size = None
+        bytes_value = meta.get("bytes")
+        if not isinstance(bytes_value, int):
+            try:
+                bytes_value = item.source.stat().st_size
+            except OSError:
+                bytes_value = None
+        local_path = meta.get("path")
+        if not local_path:
+            local_path = item.source.name
         entries.append(
             {
                 "logical_key": item.logical_key,
-                "src_rel": _src_rel(run_dir, item.source),
+                "local_path": local_path,
                 "sha256": sha,
-                "bytes": bytes_size,
+                "bytes": bytes_value,
+                "content_type": item.content_type,
                 "s3_key": item.key,
                 "kind": item.scope,
             }
@@ -346,6 +350,7 @@ def publish_run(
         verifiable=verifiable,
         providers=providers or [],
         profiles=profiles or [],
+        allow_missing=dry_run,
     )
     if not plan:
         logger.error("no verifiable artifacts found for run %s", run_id)
@@ -503,21 +508,25 @@ def main() -> int:
         prefix=args.prefix,
         dry_run=args.dry_run,
     )
+    allow_preflight_fail = args.plan or args.dry_run
     if not preflight.get("ok"):
-        if args.json:
-            print(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "preflight": preflight,
-                        "plan": [],
-                        "warnings": preflight.get("warnings", []),
-                        "errors": preflight.get("errors", []),
-                    },
-                    sort_keys=True,
+        if allow_preflight_fail:
+            logger.warning("AWS preflight failed (plan/dry-run): %s", ", ".join(preflight.get("errors", [])))
+        else:
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "preflight": preflight,
+                            "plan": [],
+                            "warnings": preflight.get("warnings", []),
+                            "errors": preflight.get("errors", []),
+                        },
+                        sort_keys=True,
+                    )
                 )
-            )
-        _fail_validation(f"AWS preflight failed: {', '.join(preflight.get('errors', []))}")
+            _fail_validation(f"AWS preflight failed: {', '.join(preflight.get('errors', []))}")
 
     if args.latest and args.run_dir:
         raise SystemExit("cannot specify --latest and --run-dir together")
@@ -547,6 +556,7 @@ def main() -> int:
             verifiable=verifiable,
             providers=providers,
             profiles=profiles,
+            allow_missing=True,
         )
         plan_entries = _build_plan_entries(run_dir=plan_run_dir, uploads=plan, verifiable=verifiable)
         if args.json:
@@ -565,7 +575,7 @@ def main() -> int:
         else:
             bucket = _resolve_bucket_prefix(args.bucket, args.prefix)[0]
             for entry in plan_entries:
-                print(f"{entry['src_rel']} -> s3://{bucket}/{entry['s3_key']}")
+                print(f"{entry['local_path']} -> s3://{bucket}/{entry['s3_key']}")
         return 0
     result = publish_run(
         run_id=run_id,

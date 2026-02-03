@@ -1,80 +1,139 @@
-# Kubernetes (CronJob)
+# Kubernetes CronJob (JobIntel)
 
-## What this deploys
+This directory contains a minimal, Kubernetes-native CronJob shape for running JobIntel daily.
+It is intentionally plain YAML (no Helm).
+The CronJob YAML uses a placeholder image name; replace it with your registry/repo tag.
 
-Minimal manifests under `ops/k8s/`:
-- `CronJob` that runs `python scripts/run_daily.py --profiles cs --us_only --no_post --no_enrich` (configurable).
-- `ConfigMap` for non-secret config.
-- Two `PVC`s for `/app/data` and `/app/state`.
+## Apply (order)
 
-The `CronJob` uses an init container to seed `data/openai_snapshots/index.html` and `data/candidate_profile.json` into the data volume if they are missing (no network).
+```bash
+kubectl apply -f ops/k8s/namespace.yaml
+kubectl apply -f ops/k8s/serviceaccount.yaml
+kubectl apply -f ops/k8s/role.yaml
+kubectl apply -f ops/k8s/rolebinding.yaml
+kubectl apply -f ops/k8s/configmap.yaml
+kubectl apply -f ops/k8s/secret.example.yaml  # replace with real secret
+kubectl apply -f ops/k8s/cronjob.yaml
+kubectl apply -f ops/k8s/job.once.yaml  # optional: one-off Job template
+```
 
-## Prereqs
+## Run a one-off Job
 
-- Build/push the image to a registry your cluster can pull, and update `ops/k8s/cronjob.yaml` `image:` values accordingly.
-- Provide a secret named `jobintel-secrets` (in the same namespace) if you want optional tokens:
-  - `OPENAI_API_KEY` (only needed if you run with `--ai`)
-  - `DISCORD_WEBHOOK_URL` (only needed if you remove `--no_post`)
+Canonical one-off execution (offline-safe, deterministic):
+```bash
+kubectl apply -f ops/k8s/job.once.yaml
+kubectl logs -n jobintel job/jobintel-once
+```
 
-Example secret creation:
+You can print the full run-once command sequence locally:
+```bash
+make k8s-run-once
+```
 
+Alternative: use the CronJob template to run a single execution:
+```bash
+kubectl create job -n jobintel --from=cronjob/jobintel-daily jobintel-run-once
+kubectl logs -n jobintel job/jobintel-run-once
+```
+
+## Required secrets
+
+Create a secret named `jobintel-secrets` with the following keys (use only what you need):
+- `JOBINTEL_S3_BUCKET`: target bucket for publish
+- `AWS_ACCESS_KEY_ID`: AWS access key
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `DISCORD_WEBHOOK_URL`: optional alerts
+- `OPENAI_API_KEY`: optional AI features
+
+Example:
 ```bash
 kubectl -n jobintel create secret generic jobintel-secrets \
-  --from-literal=OPENAI_API_KEY='...' \
-  --from-literal=DISCORD_WEBHOOK_URL='...'
+  --from-literal=JOBINTEL_S3_BUCKET=your-bucket \
+  --from-literal=AWS_ACCESS_KEY_ID=... \
+  --from-literal=AWS_SECRET_ACCESS_KEY=... \
+  --from-literal=DISCORD_WEBHOOK_URL=... \
+  --from-literal=OPENAI_API_KEY=...
 ```
 
-## Apply
+Notes:
+- Secrets-based auth is the primary example.
+- IRSA / workload identity is supported by Kubernetes, but not assumed here.
+- `role.yaml` is intentionally empty; remove Role/RoleBinding if you don’t need in-cluster RBAC.
 
+## ConfigMap + Secret expectations
+
+ConfigMap defaults (ops/k8s/configmap.yaml):
+- Required for publish: `JOBINTEL_S3_PREFIX` (optional; defaults to `jobintel`), `JOBINTEL_AWS_REGION` (or set `AWS_REGION`).
+- Deterministic defaults baked in: `CAREERS_MODE=SNAPSHOT`, `EMBED_PROVIDER=stub`, `ENRICH_MAX_WORKERS=1`.
+- Publish toggles: `PUBLISH_S3` and `PUBLISH_S3_DRY_RUN` (set `PUBLISH_S3_DRY_RUN=1` for offline plan-only runs).
+
+Secret expectations (ops/k8s/secret.example.yaml):
+- Required to actually publish: `JOBINTEL_S3_BUCKET` + AWS credentials (or IRSA/workload identity instead).
+- Optional: `DISCORD_WEBHOOK_URL`, `OPENAI_API_KEY`.
+
+## Dry-run / deterministic mode
+
+To run without AWS calls:
+- Set `PUBLISH_S3_DRY_RUN=1` (or `PUBLISH_S3=0`) in the ConfigMap or at runtime.
+- CronJob args already include `--snapshot-only` for offline determinism.
+
+Example override:
 ```bash
-kubectl apply -k ops/k8s
+kubectl set env cronjob/jobintel-daily -n jobintel PUBLISH_S3_DRY_RUN=1
 ```
 
-Check status/logs:
-
+To override any env var without editing YAML:
 ```bash
-kubectl -n jobintel get cronjob,job,pod
-kubectl -n jobintel logs job/<job-name> -c jobintel
+kubectl set env cronjob/jobintel-daily -n jobintel JOBINTEL_S3_PREFIX=jobintel-dev
 ```
 
-## Configuration
+## Verification
 
-Default args are set in `ops/k8s/configmap.yaml` as `RUN_DAILY_ARGS`. Edit it to change profiles/flags.
+Generate a publish plan (offline, no AWS calls):
+```bash
+python scripts/publish_s3.py --run-id <run_id> --plan --json > /tmp/jobintel_plan.json
+```
 
-Storage:
-- Default uses two PVCs: `jobintel-data` and `jobintel-state`.
-- If you switch either mount to `emptyDir`, outputs/history will be ephemeral and disappear when the pod exits.
-- Recommended retention: enable pruning and tune keep counts/max age based on your PVC size (e.g., keep 60 run reports, 30 history snapshots per profile, max age 90 days).
+Verify the plan offline (no AWS calls):
+```bash
+python scripts/verify_published_s3.py --offline --plan-json /tmp/jobintel_plan.json
+```
 
-Pruning:
-- Enable by setting `JOBINTEL_PRUNE=1` in the CronJob env (see `ops/k8s/cronjob.yaml`).
-- Defaults: keep 60 run reports, keep 30 history snapshots per profile, max age 90 days.
-- Override defaults by running `scripts/prune_state.py` with `--keep-runs`, `--keep-history`, and `--max-age-days` in a separate Job.
+After a real publish, verify S3 objects (requires credentials):
+```bash
+python scripts/verify_published_s3.py \
+  --bucket "$JOBINTEL_S3_BUCKET" \
+  --run-id <run_id> \
+  --verify-latest
+```
 
-PVC sizing:
-- `state` grows with history snapshots and run reports; pruning keeps it bounded.
-- `data` grows with snapshots and outputs; consider limiting profiles or retention if PVC is small.
+Run replay smoke locally against a run report:
+```bash
+python scripts/replay_run.py --run-id <run_id> --strict
+```
 
-## Optional: publish artifacts to S3
+## Local smoke
 
-This is not enabled by default.
+Simulate the CronJob shape locally (offline, deterministic):
+```bash
+make cronjob-smoke
+```
 
-Mode A (PVC only):
-- Use the CronJob as-is; artifacts stay on the PVCs.
+## Expected outputs
 
-Mode B (PVC + publish to S3):
-- Run `scripts/publish_s3.py` after the daily run, using the same `/app/state` mount.
-- You can do this either by:
-  - adding a second container in the CronJob that runs after the main container completes, or
-  - scheduling a separate `Job` that mounts the same PVC and runs `python scripts/publish_s3.py --profile cs --latest --bucket ...`.
+- Run report: `state/runs/<run_id>/run_report.json`
+- Run artifacts (S3): `s3://<bucket>/<prefix>/runs/<run_id>/...`
+- Latest pointers (S3): `s3://<bucket>/<prefix>/latest/<provider>/<profile>/...`
 
-Required env vars for publish:
-- `JOBINTEL_S3_BUCKET` (or pass `--bucket`).
-- Optional `JOBINTEL_S3_PREFIX`.
-- AWS credentials via standard env/IRSA.
+## Troubleshooting
 
-Security defaults:
-- Runs as non-root.
-- Drops all Linux capabilities.
-- Uses `seccompProfile: RuntimeDefault`.
-- Uses `readOnlyRootFilesystem: true` and mounts `/tmp`, `/app/data`, `/app/state` as writable volumes.
+- Permission errors: ensure the secret exists and S3 credentials are correct.
+- Missing secrets: CronJob will fail on startup; check the namespace and secret name.
+- Stuck or failing jobs: check `kubectl describe job` and pod logs.
+- Plan/verify failures: confirm `run_report.json` exists and `verifiable_artifacts` is populated.
+- If GitHub Actions are queued or flaky, rerun the workflow or wait for recovery.
+
+## Storage notes
+
+The CronJob uses `emptyDir` for `/app/data` and `/app/state` by default.
+For persistence across runs, replace these with PVCs or a CSI-backed volume.
