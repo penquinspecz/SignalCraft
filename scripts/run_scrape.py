@@ -140,6 +140,11 @@ def main(argv: List[str] | None = None) -> int:
         "--snapshot-write-dir",
         help="Explicit directory for live snapshot writes (required to persist HTML).",
     )
+    ap.add_argument(
+        "--snapshot-only",
+        action="store_true",
+        help="Fail if any provider would use live scraping; enforce snapshot-only determinism.",
+    )
     args = ap.parse_args(argv or [])
 
     providers = load_providers_config(Path(args.providers_config))
@@ -156,6 +161,13 @@ def main(argv: List[str] | None = None) -> int:
         provider_cfg = provider_map[provider_id]
         provider_type = provider_cfg.get("type", "snapshot")
         mode = (args.mode or provider_cfg.get("mode") or "snapshot").upper()
+        if args.snapshot_only and mode != "SNAPSHOT":
+            logger.error(
+                "[run_scrape] snapshot-only enforced; provider %s requested %s",
+                provider_id,
+                mode,
+            )
+            raise SystemExit(2)
         provenance: Dict[str, Any] = {
             "provider_id": provider_id,
             "mode": mode,

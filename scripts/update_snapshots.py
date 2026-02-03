@@ -62,6 +62,25 @@ def _meta_path(out_dir: Path) -> Path:
     return out_dir / "index.meta.json"
 
 
+def _manifest_key(out_dir: Path) -> str:
+    parts = out_dir.parts
+    if "data" in parts:
+        idx = parts.index("data")
+        return str(Path(*parts[idx:]) / "index.html")
+    return str(out_dir / "index.html")
+
+
+def _update_manifest(manifest_path: Path, key: str, sha256: Optional[str], bytes_count: int) -> None:
+    if manifest_path.exists():
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict):
+            payload = {}
+    else:
+        payload = {}
+    payload[key] = {"sha256": sha256, "bytes": bytes_count}
+    _atomic_write(manifest_path, json.dumps(payload, indent=2, sort_keys=True).encode("utf-8"))
+
+
 def _build_meta(
     *,
     provider: str,
@@ -234,7 +253,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     ap.add_argument("--user_agent", default="job-intelligence-engine/0.1")
     ap.add_argument("--jobs_json", help="OpenAI jobs JSON to source apply_url values from.")
     ap.add_argument("--max_jobs", type=int, default=None, help="Limit job detail snapshots.")
-    ap.add_argument("--dry_run", action="store_true")
+    ap.add_argument("--dry_run", dest="dry_run", action="store_true")
+    ap.add_argument("--dry-run", dest="dry_run", action="store_true")
+    ap.add_argument("--apply", action="store_true", help="Apply snapshot updates to the output dir.")
+    ap.add_argument("--manifest-path", dest="manifest_path")
+    ap.add_argument("--temp-dir", dest="temp_dir")
     ap.add_argument("--force", action="store_true")
     ap.add_argument(
         "--providers_config",
@@ -256,6 +279,11 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     providers_cfg = load_providers_config(Path(args.providers_config))
     provider_map = {p["provider_id"]: p for p in providers_cfg}
+    dry_run = bool(args.dry_run)
+    apply = bool(args.apply) or not dry_run
+    if args.apply:
+        dry_run = False
+    manifest_path = Path(args.manifest_path) if args.manifest_path else None
 
     exit_code = 0
     for provider in providers_list:
@@ -266,7 +294,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         provider_cfg = provider_map.get(provider)
         url = args.url or (provider_cfg.get("board_url") if provider_cfg else None) or CAREERS_SEARCH_URL
         out_dir = Path(args.out_dir)
-        html_path = out_dir / "index.html"
+        write_dir = out_dir
+        if dry_run:
+            temp_root = Path(args.temp_dir) if args.temp_dir else Path(tempfile.mkdtemp(prefix="snapshot_refresh_"))
+            write_dir = temp_root / out_dir.name
+        html_path = write_dir / "index.html"
 
         data, status, error = _fetch_html(url, args.timeout, args.user_agent)
         ok = status == 200 and data is not None
@@ -274,7 +306,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         if not ok:
             note = error or f"HTTP status {status}"
         if not ok and not args.force:
-            if not args.dry_run:
+            if apply:
                 payload = _build_meta(
                     provider=provider,
                     url=url,
@@ -283,12 +315,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                     sha256=_sha256_file(html_path),
                     note=note,
                 )
-                _write_meta(out_dir, payload)
+                _write_meta(write_dir, payload)
             exit_code = max(exit_code, 1)
-            continue
-
-        if args.dry_run:
-            exit_code = max(exit_code, 0 if ok else 1)
             continue
 
         if data is not None:
@@ -304,8 +332,11 @@ def main(argv: Optional[list[str]] = None) -> int:
             sha256=sha256,
             note=note,
         )
-        _write_meta(out_dir, payload)
-        if provider == "openai":
+        _write_meta(write_dir, payload)
+        if manifest_path is not None and apply:
+            key = _manifest_key(out_dir)
+            _update_manifest(manifest_path, key, sha256, len(data or b""))
+        if provider == "openai" and apply:
             html_text = html_path.read_text(encoding="utf-8", errors="ignore")
             jobs_json_path: Optional[Path] = Path(args.jobs_json) if args.jobs_json else None
             if jobs_json_path is None:

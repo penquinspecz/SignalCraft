@@ -18,6 +18,21 @@ from jobintel.snapshots.validate import validate_snapshot_file
 _ASHBY_JOB_ID_RE = re.compile(r"/([0-9a-f-]{36})/application", re.IGNORECASE)
 
 
+def parse_ashby_snapshot_html_with_source(html: str, *, strict: bool = False) -> tuple[list[dict[str, Any]], str]:
+    provider = AshbyProvider("snapshot", "https://jobs.ashbyhq.com/", Path("."))
+    now = datetime.utcnow()
+    soup = BeautifulSoup(html, "html.parser")
+    parsed = provider._parse_next_data(soup, now)
+    if parsed:
+        return [job.to_dict() for job in parsed], "next_data"
+    parsed = provider._parse_app_data(html, now)
+    if parsed:
+        return [job.to_dict() for job in parsed], "app_data"
+    if strict:
+        raise RuntimeError("Ashby snapshot JSON payload not found; HTML fallback disallowed.")
+    return [], "html_fallback"
+
+
 class AshbyProvider(BaseJobProvider):
     def __init__(
         self,
