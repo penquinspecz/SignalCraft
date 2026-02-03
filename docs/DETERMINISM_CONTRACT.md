@@ -65,7 +65,12 @@ Docker truth gate:
 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
 ```
 
-## 6) CI Contract Checks
+## 6) Kubernetes runbook
+
+For in-cluster execution (CronJob shape, secrets, one-off Job runs, and offline publish plan/replay steps),
+see `ops/k8s/README.md`.
+
+## 7) CI Contract Checks
 The CI gate runs deterministic, offline-safe contract checks in addition to tests:
 ```bash
 export JOBINTEL_DATA_DIR=/tmp/jobintel_ci_data
@@ -101,7 +106,7 @@ python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --prof
 - `publish_s3 --plan --json` must emit a deterministic plan based only on `verifiable_artifacts`.
 - `replay_run --strict --json` must verify hashes against the run report without regeneration.
 
-## 7) Common failure modes + fixes (top 5)
+## 8) Common failure modes + fixes (top 5)
 
 1) **Snapshot bytes drift**
    - Symptom: immutability check fails or Docker/local mismatch.
@@ -123,7 +128,7 @@ python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --prof
    - Symptom: golden hash mismatch after deterministic change.
    - Fix: update golden fixtures only after confirming snapshot-only mode.
 
-## 8) CI vs local parity notes
+## 9) CI vs local parity notes
 
 - Docker no-cache build is the source of truth.
 - Local fast gate is for quick feedback; it must match Docker behavior.

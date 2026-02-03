@@ -16,6 +16,14 @@ kubectl apply -f ops/k8s/secret.example.yaml  # replace with real secret
 kubectl apply -f ops/k8s/cronjob.yaml
 ```
 
+## Run a one-off Job
+
+Use the CronJob template to run a single execution:
+```bash
+kubectl create job -n jobintel --from=cronjob/jobintel-daily jobintel-run-once
+kubectl logs -n jobintel job/jobintel-run-once
+```
+
 ## Required secrets
 
 Create a secret named `jobintel-secrets` with the following keys (use only what you need):
@@ -58,7 +66,17 @@ kubectl set env cronjob/jobintel-daily -n jobintel JOBINTEL_S3_PREFIX=jobintel-d
 
 ## Verification
 
-After a run, verify published artifacts (requires credentials):
+Generate a publish plan (offline, no AWS calls):
+```bash
+python scripts/publish_s3.py --run-id <run_id> --plan --json > /tmp/jobintel_plan.json
+```
+
+Verify the plan offline (no AWS calls):
+```bash
+python scripts/verify_published_s3.py --offline --plan-json /tmp/jobintel_plan.json
+```
+
+After a real publish, verify S3 objects (requires credentials):
 ```bash
 python scripts/verify_published_s3.py \
   --bucket "$JOBINTEL_S3_BUCKET" \
@@ -80,7 +98,7 @@ make cronjob-smoke
 
 ## Expected outputs
 
-- Run report: `state/runs/<run_id>.json`
+- Run report: `state/runs/<run_id>/run_report.json`
 - Run artifacts (S3): `s3://<bucket>/<prefix>/runs/<run_id>/...`
 - Latest pointers (S3): `s3://<bucket>/<prefix>/latest/<provider>/<profile>/...`
 
@@ -89,6 +107,7 @@ make cronjob-smoke
 - Permission errors: ensure the secret exists and S3 credentials are correct.
 - Missing secrets: CronJob will fail on startup; check the namespace and secret name.
 - Stuck or failing jobs: check `kubectl describe job` and pod logs.
+- Plan/verify failures: confirm `run_report.json` exists and `verifiable_artifacts` is populated.
 - If GitHub Actions are queued or flaky, rerun the workflow or wait for recovery.
 
 ## Storage notes
