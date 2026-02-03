@@ -73,13 +73,25 @@ def _select_pip_tools_cache_dir(repo_root: Path) -> Path:
     raise SystemExit("No writable pip-tools cache dir found.")
 
 
+def _is_ci() -> bool:
+    return os.environ.get("GITHUB_ACTIONS") == "true"
+
+
+def _ensure_ci_cache_dir() -> None:
+    if _is_ci() and not os.environ.get("PIP_TOOLS_CACHE_DIR"):
+        os.environ["PIP_TOOLS_CACHE_DIR"] = "/tmp/pip-tools-cache"
+    cache_dir = os.environ.get("PIP_TOOLS_CACHE_DIR")
+    if cache_dir:
+        Path(cache_dir).mkdir(parents=True, exist_ok=True)
+
+
 def _pip_args_for_ci() -> list[str]:
-    if os.environ.get("JIE_DEPS_TARGET") == "ci" or os.environ.get("GITHUB_ACTIONS") == "true":
-        return [
-            "--pip-args=--platform manylinux_2_17_x86_64 --implementation cp "
-            "--python-version 3.12 --abi cp312 --only-binary=:all:",
-        ]
-    return []
+    if not _is_ci() and os.environ.get("JIE_DEPS_TARGET") != "ci":
+        return []
+    return [
+        "--pip-args=--platform manylinux_2_17_x86_64 --implementation cp "
+        "--python-version 3.12 --abi cp312 --only-binary=:all:",
+    ]
 
 
 def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) -> None:
@@ -99,7 +111,14 @@ def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) 
         str(output_path),
         str(requirements_in),
     ]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError:
+        if any("--only-binary=:all:" in arg for arg in cmd):
+            cmd = [arg for arg in cmd if "--only-binary=:all:" not in arg]
+            subprocess.run(cmd, check=True)
+            return
+        raise
 
 
 def _resolve_env_deps(deps: list[str]) -> list[str]:
@@ -139,6 +158,9 @@ def _render_requirements(deps: list[str], repo_root: Path) -> str:
             req_in = Path(tmpdir) / "requirements.in"
             req_out = Path(tmpdir) / "requirements.txt"
             req_in.write_text("\n".join(sorted(deps)) + "\n", encoding="utf-8")
+            _ensure_ci_cache_dir()
+            if _is_ci():
+                print("export_requirements: CI mode enabled (linux cp312 target)", file=sys.stderr)
             cache_dir = _select_pip_tools_cache_dir(repo_root)
             _run_pip_compile(req_in, req_out, cache_dir)
             return req_out.read_text(encoding="utf-8")
