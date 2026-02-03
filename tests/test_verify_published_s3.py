@@ -195,6 +195,47 @@ def test_verify_published_s3_offline_modified_bytes(tmp_path: Path, capsys) -> N
     assert payload["mismatched"]
 
 
+def test_verify_published_s3_offline_plan_json_missing(tmp_path: Path, capsys) -> None:
+    run_id = "2026-01-02T00:00:00Z"
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps(
+            [
+                {
+                    "logical_key": "openai:cs:ranked_json",
+                    "local_path": "openai_ranked_jobs.cs.json",
+                    "sha256": "x",
+                    "bytes": 2,
+                    "content_type": "application/json",
+                    "s3_key": "jobintel/runs/2026-01-02T00:00:00Z/openai_ranked_jobs.cs.json",
+                    "kind": "runs",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    verify_published_s3.DATA_DIR = tmp_path / "data"
+    verify_published_s3.DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    code = verify_published_s3.main(
+        [
+            "--bucket",
+            "bucket",
+            "--run-id",
+            run_id,
+            "--prefix",
+            "jobintel",
+            "--offline",
+            "--plan-json",
+            str(plan_path),
+            "--json",
+        ]
+    )
+    assert code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["missing"]
+
+
 def test_verify_published_s3_offline_skips_boto3(tmp_path: Path, monkeypatch, capsys) -> None:
     if boto3 is None:  # pragma: no cover
         pytest.skip("boto3 not installed")

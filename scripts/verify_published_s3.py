@@ -60,7 +60,9 @@ def _plan_entries_from_report(
     run_dir: Path,
     prefix: str,
     verify_latest: bool,
+    allow_missing: bool,
 ) -> List[Dict[str, Any]]:
+    publish_s3.DATA_DIR = DATA_DIR
     report = _load_run_report(run_id, run_dir)
     verifiable = _collect_verifiable(report)
     plan, _latest = publish_s3._build_upload_plan(
@@ -70,6 +72,7 @@ def _plan_entries_from_report(
         verifiable=verifiable,
         providers=[],
         profiles=[],
+        allow_missing=allow_missing,
     )
     entries = publish_s3._build_plan_entries(run_dir=run_dir, uploads=plan, verifiable=verifiable)
     if verify_latest:
@@ -88,6 +91,7 @@ def _load_plan_entries(
     prefix: str,
     verify_latest: bool,
     plan_json: str | None,
+    allow_missing: bool,
 ) -> List[Dict[str, Any]]:
     if plan_json:
         payload = json.loads(Path(plan_json).read_text(encoding="utf-8"))
@@ -95,10 +99,20 @@ def _load_plan_entries(
             raise SystemExit(2)
         return payload
     entries = _plan_entries_from_report(
-        run_id=run_id, run_dir=run_dir, prefix=prefix, verify_latest=verify_latest
+        run_id=run_id,
+        run_dir=run_dir,
+        prefix=prefix,
+        verify_latest=verify_latest,
+        allow_missing=allow_missing,
     )
     if _plan_bytes(entries) != _plan_bytes(
-        _plan_entries_from_report(run_id=run_id, run_dir=run_dir, prefix=prefix, verify_latest=verify_latest)
+        _plan_entries_from_report(
+            run_id=run_id,
+            run_dir=run_dir,
+            prefix=prefix,
+            verify_latest=verify_latest,
+            allow_missing=allow_missing,
+        )
     ):
         raise SystemExit(2)
     return entries
@@ -165,6 +179,7 @@ def main(argv: List[str] | None = None) -> int:
             prefix=args.prefix,
             verify_latest=bool(args.verify_latest),
             plan_json=args.plan_json,
+            allow_missing=bool(args.offline),
         )
         missing: List[str] = []
         mismatched: List[str] = []

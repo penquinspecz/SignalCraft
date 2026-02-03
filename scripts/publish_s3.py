@@ -160,6 +160,7 @@ def _build_upload_plan(
     verifiable: Dict[str, Dict[str, str]],
     providers: Iterable[str],
     profiles: Iterable[str],
+    allow_missing: bool = False,
 ) -> Tuple[List[UploadItem], Dict[str, Dict[str, str]]]:
     uploads: List[UploadItem] = []
     latest_prefixes: Dict[str, Dict[str, str]] = {}
@@ -176,7 +177,11 @@ def _build_upload_plan(
         if not path.is_absolute():
             path = DATA_DIR / path
         if not path.exists():
-            _fail_validation(f"verifiable artifact missing on disk: {path}")
+            msg = f"verifiable artifact missing on disk: {path}"
+            if allow_missing:
+                logger.warning("%s; including in upload plan", msg)
+            else:
+                _fail_validation(msg)
         rel_path = Path(path_str).as_posix()
         key = f"{prefix}/runs/{run_id}/{rel_path}".strip("/")
         uploads.append(
@@ -344,6 +349,7 @@ def publish_run(
         verifiable=verifiable,
         providers=providers or [],
         profiles=profiles or [],
+        allow_missing=dry_run,
     )
     if not plan:
         logger.error("no verifiable artifacts found for run %s", run_id)
@@ -545,6 +551,7 @@ def main() -> int:
             verifiable=verifiable,
             providers=providers,
             profiles=profiles,
+            allow_missing=True,
         )
         plan_entries = _build_plan_entries(run_dir=plan_run_dir, uploads=plan, verifiable=verifiable)
         if args.json:
@@ -563,7 +570,7 @@ def main() -> int:
         else:
             bucket = _resolve_bucket_prefix(args.bucket, args.prefix)[0]
             for entry in plan_entries:
-                print(f"{entry['src_rel']} -> s3://{bucket}/{entry['s3_key']}")
+                print(f"{entry['local_path']} -> s3://{bucket}/{entry['s3_key']}")
         return 0
     result = publish_run(
         run_id=run_id,

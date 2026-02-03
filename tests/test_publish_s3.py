@@ -248,6 +248,7 @@ def test_resolve_bucket_prefix_fallback_alias(monkeypatch) -> None:
 def test_publish_s3_pointer_write_error(monkeypatch, tmp_path):
     runs = tmp_path / "state" / "runs"
     monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
     run_id, _ = _setup_run(tmp_path)
 
     class ErrorClient(DummyClient):
@@ -326,6 +327,42 @@ def test_publish_s3_requires_verifiable_artifacts(tmp_path: Path, monkeypatch) -
             bucket=None,
             prefix="jobintel",
             dry_run=True,
+            require_s3=False,
+        )
+    assert exc.value.code == 2
+
+
+def test_publish_s3_dry_run_allows_missing_files(tmp_path: Path, monkeypatch) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
+    run_id, _ = _setup_run(tmp_path)
+    missing = tmp_path / "data" / "openai_ranked_jobs.cs.json"
+    missing.unlink()
+
+    publish_s3.publish_run(
+        run_id=run_id,
+        bucket="target-bucket",
+        prefix="jobintel",
+        dry_run=True,
+        require_s3=False,
+    )
+
+
+def test_publish_s3_strict_missing_files_raises(tmp_path: Path, monkeypatch) -> None:
+    runs = tmp_path / "state" / "runs"
+    monkeypatch.setattr(publish_s3, "RUN_METADATA_DIR", runs)
+    monkeypatch.setattr(publish_s3, "DATA_DIR", tmp_path / "data")
+    run_id, _ = _setup_run(tmp_path)
+    missing = tmp_path / "data" / "openai_ranked_jobs.cs.json"
+    missing.unlink()
+
+    with pytest.raises(SystemExit) as exc:
+        publish_s3.publish_run(
+            run_id=run_id,
+            bucket="target-bucket",
+            prefix="jobintel",
+            dry_run=False,
             require_s3=False,
         )
     assert exc.value.code == 2
