@@ -62,6 +62,7 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.utils.content_fingerprint import content_fingerprint
+from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
 from ji_engine.utils.dotenv import load_dotenv
 from ji_engine.utils.job_identity import job_identity
 from jobintel.alerts import (
@@ -315,6 +316,12 @@ def _write_json(path: Path, obj: Any) -> None:
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_canonical_json(path: Path, obj: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    path.write_text(payload, encoding="utf-8")
+
+
 def _update_run_metadata_s3(path: Path, s3_meta: Dict[str, Any]) -> None:
     if not path.exists():
         return
@@ -548,6 +555,13 @@ def _provider_shortlist_md(provider: str, profile: str) -> Path:
 
 def _provider_top_md(provider: str, profile: str) -> Path:
     return DATA_DIR / f"{provider}_top.{profile}.md"
+
+
+def _provider_diff_paths(provider: str, profile: str) -> Tuple[Path, Path]:
+    return (
+        DATA_DIR / f"{provider}_diff.{profile}.json",
+        DATA_DIR / f"{provider}_diff.{profile}.md",
+    )
 
 
 def _state_last_ranked(provider: str, profile: str) -> Path:
@@ -1785,6 +1799,46 @@ def _dispatch_alerts(
     logger.info(f"✅ Discord alert sent ({profile})." if ok else "⚠️ Discord alert NOT sent (pipeline still completed).")
 
 
+def _resolve_notify_mode(raw_mode: Optional[str]) -> str:
+    mode = (raw_mode or "diff").strip().lower()
+    if mode not in {"diff", "always"}:
+        return "diff"
+    return mode
+
+
+def _should_notify(diff_counts: Dict[str, Any], mode: str) -> bool:
+    if diff_counts.get("suppressed") is True:
+        return False
+    if mode == "always":
+        return True
+    return any(diff_counts.get(k, 0) > 0 for k in ("new", "changed", "removed"))
+
+
+def _maybe_post_run_summary(
+    provider: str,
+    profile: str,
+    ranked_json: Path,
+    diff_counts: Dict[str, Any],
+    min_score: int,
+    *,
+    notify_mode: str,
+    no_post: bool,
+    extra_lines: Optional[List[str]] = None,
+) -> str:
+    if not _should_notify(diff_counts, notify_mode):
+        logger.info("Discord notify skipped (mode=%s, no diffs).", notify_mode)
+        return "skipped"
+    return _post_run_summary(
+        provider,
+        profile,
+        ranked_json,
+        diff_counts,
+        min_score,
+        no_post=no_post,
+        extra_lines=extra_lines,
+    )
+
+
 def _post_discord(webhook_url: str, message: str) -> bool:
     """
     Returns True if posted successfully, False otherwise.
@@ -1996,6 +2050,7 @@ def main() -> int:
     USE_SUBPROCESS = not args.no_subprocess
     _setup_logging(args.log_json)
     webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
+    notify_mode = _resolve_notify_mode(os.environ.get("DISCORD_NOTIFY_MODE"))
 
     validate_config(args, webhook)
 
@@ -2760,12 +2815,13 @@ def main() -> int:
                     )
                     if unavailable_line:
                         extra_lines.append(unavailable_line)
-                    discord_status = _post_run_summary(
+                    discord_status = _maybe_post_run_summary(
                         provider,
                         profile,
                         ranked_json,
                         diff_counts,
                         args.min_score,
+                        notify_mode=notify_mode,
                         no_post=args.no_post or all_unavailable,
                         extra_lines=extra_lines or None,
                     )
@@ -2782,6 +2838,7 @@ def main() -> int:
                     continue
 
                 prev = _read_json(state_path) if state_exists else []
+                baseline_exists = state_exists
                 if not state_exists and s3_enabled():
                     bucket = os.environ.get("JOBINTEL_S3_BUCKET", "").strip()
                     prefix = os.environ.get("JOBINTEL_S3_PREFIX", "jobintel").strip("/")
@@ -2791,6 +2848,7 @@ def main() -> int:
                         )
                         if s3_info.ranked_path and s3_info.ranked_path.exists():
                             prev = _read_json(s3_info.ranked_path)
+                            baseline_exists = True
                 new_jobs, changed_jobs, removed_jobs, changed_fields = _diff(prev, curr)
 
                 # Append "Changes since last run" section to shortlist (filtered by min_alert_score)
@@ -2805,6 +2863,17 @@ def main() -> int:
                     prev_jobs=prev,
                     min_alert_score=args.min_alert_score,
                 )
+
+                diff_json_path, diff_md_path = _provider_diff_paths(provider, profile)
+                diff_report = build_diff_report(
+                    prev,
+                    curr,
+                    provider=provider,
+                    profile=profile,
+                    baseline_exists=baseline_exists,
+                )
+                _write_canonical_json(diff_json_path, diff_report)
+                diff_md_path.write_text(build_diff_markdown(diff_report), encoding="utf-8")
 
                 label = _profile_label(provider, profile)
                 logger.info(
@@ -2878,12 +2947,13 @@ def main() -> int:
                 )
                 if unavailable_line:
                     extra_lines.append(unavailable_line)
-                discord_status = _post_run_summary(
+                discord_status = _maybe_post_run_summary(
                     provider,
                     profile,
                     ranked_json,
                     diff_counts,
                     args.min_score,
+                    notify_mode=notify_mode,
                     no_post=args.no_post or all_unavailable,
                     extra_lines=extra_lines or None,
                 )
@@ -2951,7 +3021,9 @@ def main() -> int:
                             lines.append(f"  {j['apply_url']}")
                     lines.append("")
 
-                if all_unavailable:
+                if not _should_notify(diff_counts, notify_mode):
+                    logger.info("Discord alerts skipped (mode=%s, no diffs).", notify_mode)
+                elif all_unavailable:
                     logger.info("All providers unavailable; suppressing alerts.")
                 else:
                     _dispatch_alerts(

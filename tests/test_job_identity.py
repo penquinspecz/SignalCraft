@@ -47,6 +47,11 @@ def test_job_identity_is_deterministic_for_identical_dicts():
     assert job_identity(job) == job_identity({"apply_url": "https://example.com/a", "title": "A"})
 
 
+def test_job_identity_provider_mode_prefixes_job_id():
+    job = {"provider": "OpenAI", "job_id": "ABC-123", "apply_url": "https://example.com/a"}
+    assert job_identity(job, mode="provider") == "openai:abc-123"
+
+
 def test_job_identity_returns_hash_if_missing():
     first = job_identity({})
     second = job_identity({})

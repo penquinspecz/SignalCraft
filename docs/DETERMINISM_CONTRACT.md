@@ -39,7 +39,17 @@ Exit codes:
 
 Replay never regenerates artifacts. It only verifies recorded hashes.
 
-## 4) S3 publish verification contract
+## 4) Diff artifacts + diff-only alerts
+
+Each run writes deterministic diff artifacts per provider/profile:
+- `<provider>_diff.<profile>.json` (added/changed/removed lists, sorted by identity)
+- `<provider>_diff.<profile>.md` (short human summary)
+
+Discord notify mode is deterministic and defaults to **diff-only**:
+- `DISCORD_NOTIFY_MODE=diff` (default): post only when diffs exist
+- `DISCORD_NOTIFY_MODE=always`: always post summaries
+
+## 5) S3 publish verification contract
 
 Publish verification asserts that objects exist for each verifiable artifact recorded in the run report.
 
@@ -53,7 +63,7 @@ Exit codes:
 - `2` missing objects or validation failure
 - `>=3` runtime errors
 
-## 5) Gates
+## 6) Gates
 
 Local fast gate:
 ```bash
@@ -65,12 +75,12 @@ Docker truth gate:
 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
 ```
 
-## 6) Kubernetes runbook
+## 7) Kubernetes runbook
 
 For in-cluster execution (CronJob shape, secrets, one-off Job runs, and offline publish plan/replay steps),
 see `ops/k8s/README.md`.
 
-## 7) CI Contract Checks
+## 8) CI Contract Checks
 The CI gate runs deterministic, offline-safe contract checks in addition to tests:
 ```bash
 export JOBINTEL_DATA_DIR=/tmp/jobintel_ci_data
@@ -106,7 +116,7 @@ python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --prof
 - `publish_s3 --plan --json` must emit a deterministic plan based only on `verifiable_artifacts`.
 - `replay_run --strict --json` must verify hashes against the run report without regeneration.
 
-## 8) Common failure modes + fixes (top 5)
+## 9) Common failure modes + fixes (top 5)
 
 1) **Snapshot bytes drift**
    - Symptom: immutability check fails or Docker/local mismatch.
@@ -128,7 +138,7 @@ python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --prof
    - Symptom: golden hash mismatch after deterministic change.
    - Fix: update golden fixtures only after confirming snapshot-only mode.
 
-## 9) CI vs local parity notes
+## 10) CI vs local parity notes
 
 - Docker no-cache build is the source of truth.
 - Local fast gate is for quick feedback; it must match Docker behavior.
