@@ -57,6 +57,12 @@ kubectl -n jobintel create secret generic jobintel-secrets \
   --from-literal=OPENAI_API_KEY=...
 ```
 
+## Permissions checklist
+
+- Runtime (IRSA / pod role): can `PutObject` to `s3://<bucket>/<prefix>/...` and `ListBucket` for that prefix.
+- Operator (your AWS user/role): can `GetObject`/`HeadObject` for `runs/` and `latest/` to verify.
+- See `ops/aws/IAM.md` for the exact policy shapes.
+
 ## 5) Run one-off job from the CronJob template
 
 ```bash
@@ -96,3 +102,8 @@ python scripts/verify_published_s3.py \
   --run-id <run_id> \
   --verify-latest
 ```
+
+## Troubleshooting
+
+- `AccessDenied` during publish: IRSA role missing `s3:PutObject` or `s3:ListBucket` prefix condition.
+- `AccessDenied` during verify: operator role missing `s3:GetObject`/`s3:HeadObject`.
