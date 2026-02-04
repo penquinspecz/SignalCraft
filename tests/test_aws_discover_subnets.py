@@ -70,7 +70,7 @@ def test_discover_subnets_deterministic(monkeypatch, capsys):
 
     monkeypatch.setattr(subprocess, "run", _fake_run)
 
-    exit_code = aws_discover_subnets.main()
+    exit_code = aws_discover_subnets.main([])
     assert exit_code == 0
 
     output = capsys.readouterr().out.strip().splitlines()
@@ -79,3 +79,55 @@ def test_discover_subnets_deterministic(monkeypatch, capsys):
     assert json_payload["preferred_vpc_ids"] == ["vpc-2"]
     assert json_payload["selected_subnet_ids"] == ["subnet-a", "subnet-b"]
     assert 'terraform apply -var \'subnet_ids=["subnet-a","subnet-b"]\'' in json_payload["terraform_snippet"]
+
+
+def test_discover_subnets_excludes_az(monkeypatch, capsys):
+    vpcs = {
+        "Vpcs": [
+            {
+                "VpcId": "vpc-2",
+                "CidrBlock": "10.1.0.0/16",
+                "IsDefault": False,
+                "Tags": [{"Key": "Name", "Value": "jobintel-main"}],
+            }
+        ]
+    }
+    subnets = {
+        "Subnets": [
+            {
+                "SubnetId": "subnet-a",
+                "VpcId": "vpc-2",
+                "AvailabilityZone": "us-east-1a",
+                "CidrBlock": "10.1.1.0/24",
+                "MapPublicIpOnLaunch": False,
+                "Tags": [{"Key": "Name", "Value": "jobintel-a"}],
+            },
+            {
+                "SubnetId": "subnet-e",
+                "VpcId": "vpc-2",
+                "AvailabilityZone": "us-east-1e",
+                "CidrBlock": "10.1.5.0/24",
+                "MapPublicIpOnLaunch": False,
+                "Tags": [{"Key": "Name", "Value": "jobintel-e"}],
+            },
+        ]
+    }
+
+    def _fake_run(cmd, check=False, capture_output=False, text=False):
+        if cmd[:3] == ["aws", "ec2", "describe-vpcs"]:
+            return _Result(json.dumps(vpcs))
+        if cmd[:3] == ["aws", "ec2", "describe-subnets"]:
+            return _Result(json.dumps(subnets))
+        if cmd[:3] == ["aws", "configure", "get"]:
+            return _Result("us-east-1")
+        raise AssertionError(f"unexpected command: {cmd}")
+
+    monkeypatch.setattr(subprocess, "run", _fake_run)
+
+    exit_code = aws_discover_subnets.main(["--exclude-az", "us-east-1e"])
+    assert exit_code == 0
+
+    output = capsys.readouterr().out.strip().splitlines()
+    json_payload = json.loads(output[-1])
+    assert json_payload["excluded_azs"] == ["us-east-1e"]
+    assert json_payload["selected_subnet_ids"] == ["subnet-a"]
