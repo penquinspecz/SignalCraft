@@ -20,6 +20,12 @@ terraform apply \
   -var 'subnet_ids=["subnet-aaaa","subnet-bbbb"]'
 ```
 
+Non-interactive apply (Makefile):
+
+```bash
+make tf-eks-apply-vars EKS_S3_BUCKET=<bucket> EKS_SUBNET_IDS='["subnet-aaaa","subnet-bbbb"]'
+```
+
 ## 2) Configure kubectl (from Terraform output)
 
 ```bash
