@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-commands k8s-run-once
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -96,6 +96,9 @@ gate-replay:
 	$(MAKE) verify-snapshots
 	$(PY) scripts/replay_smoke_fixture.py
 
+ecs-shape-smoke:
+	$(PY) scripts/ecs_shape_smoke.py
+
 cronjob-smoke:
 	@tmp_data=$$(mktemp -d); tmp_state=$$(mktemp -d); \
 		JOBINTEL_DATA_DIR=$$tmp_data JOBINTEL_STATE_DIR=$$tmp_state \
@@ -104,6 +107,40 @@ cronjob-smoke:
 		$(PY) scripts/cronjob_simulate.py; \
 		$(PY) scripts/replay_run.py --run-dir $$tmp_state/runs/20260101T000000Z --profile cs --strict --json >/dev/null; \
 		rm -rf $$tmp_data $$tmp_state
+
+k8s-render:
+	$(PY) scripts/k8s_render.py --secrets
+
+k8s-validate:
+	$(PY) scripts/k8s_render.py --secrets --validate || true
+
+prove-cloud-run:
+	@echo "Usage: scripts/prove_cloud_run.py --bucket <bucket> --prefix <prefix> --namespace <ns> --job-name <job> [--kube-context <ctx>] [--run-id <id>]"
+
+eks-proof-run-help:
+	@role_arn="$$(terraform -chdir=ops/aws/infra/eks output -raw jobintel_irsa_role_arn 2>/dev/null || true)"; \
+	update_kube="$$(terraform -chdir=ops/aws/infra/eks output -raw update_kubeconfig_command 2>/dev/null || true)"; \
+	if [ -z "$$role_arn" ]; then role_arn="arn:aws:iam::<account>:role/<role>"; fi; \
+	if [ -z "$$update_kube" ]; then update_kube="aws eks update-kubeconfig --region <region> --name <cluster>"; fi; \
+	echo "$$update_kube"; \
+	echo "kubectl config use-context <your-eks-context>"; \
+	echo "export JOBINTEL_IRSA_ROLE_ARN=$$role_arn"; \
+	echo "export JOBINTEL_S3_BUCKET=<bucket>"; \
+	echo "python scripts/k8s_render.py --overlay aws-eks > /tmp/jobintel.yaml"; \
+	echo "kubectl apply -f /tmp/jobintel.yaml"; \
+	echo "kubectl -n jobintel create secret generic jobintel-secrets --from-literal=JOBINTEL_S3_BUCKET=$$JOBINTEL_S3_BUCKET --from-literal=DISCORD_WEBHOOK_URL=... --from-literal=OPENAI_API_KEY=..."; \
+	echo "kubectl -n jobintel create job --from=cronjob/jobintel-daily jobintel-manual-<yyyymmdd>"; \
+	echo "kubectl -n jobintel logs -f job/jobintel-manual-<yyyymmdd>"; \
+	echo "python scripts/prove_cloud_run.py --bucket $$JOBINTEL_S3_BUCKET --prefix jobintel --namespace jobintel --job-name jobintel-manual-<yyyymmdd> --kube-context <context>"; \
+	echo "python scripts/verify_published_s3.py --bucket $$JOBINTEL_S3_BUCKET --run-id <run_id> --verify-latest"
+
+proof-run-vars:
+	@echo "Required:"
+	@echo "  BUCKET=<s3_bucket>"
+	@echo "  KUBE_CONTEXT=<kubectl_context>"
+	@echo "  NAMESPACE=jobintel"
+	@echo "Optional:"
+	@echo "  PREFIX=jobintel"
 
 k8s-commands:
 	@echo "kubectl apply -f ops/k8s/namespace.yaml"
@@ -274,6 +311,21 @@ aws-env-check:
 	@if [ -z "$${JOBINTEL_S3_BUCKET:-}" ]; then \
 		echo "Missing JOBINTEL_S3_BUCKET"; exit 2; \
 	fi
+
+preflight:
+	$(PY) scripts/preflight_env.py
+
+tf-eks-init:
+	terraform -chdir=ops/aws/infra/eks init
+
+tf-eks-validate:
+	terraform -chdir=ops/aws/infra/eks validate
+
+tf-eks-plan:
+	terraform -chdir=ops/aws/infra/eks plan
+
+tf-eks-apply:
+	terraform -chdir=ops/aws/infra/eks apply
 
 aws-deploy:
 	@cd ops/aws/infra && terraform apply

@@ -42,7 +42,9 @@ def test_replay_run_passes_with_matching_hashes(tmp_path: Path) -> None:
     report_path = run_dir / "run_report.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")
 
-    exit_code, lines, _artifacts, _counts = replay_run._replay_report(report, "cs", strict=True)
+    exit_code, lines, _artifacts, _counts = replay_run._replay_report(
+        report, "cs", strict=True, state_dir=replay_run.STATE_DIR
+    )
     assert exit_code == 0
     assert any(line.startswith("PASS:") for line in lines)
 
@@ -75,7 +77,9 @@ def test_replay_run_detects_mismatch(tmp_path: Path) -> None:
     # Corrupt ranked output after report was written.
     ranked_path.write_bytes(b"[2]")
 
-    exit_code, lines, artifacts, _counts = replay_run._replay_report(report, "cs", strict=True)
+    exit_code, lines, artifacts, _counts = replay_run._replay_report(
+        report, "cs", strict=True, state_dir=replay_run.STATE_DIR
+    )
     assert exit_code == 2
     assert any(line.startswith("FAIL:") for line in lines)
     assert any("mismatched" in line.lower() for line in lines)

@@ -10,7 +10,7 @@
       "Effect": "Allow",
       "Action": [
         "s3:PutObject",
-        "s3:PutObjectAcl",
+        "s3:GetObject",
         "s3:ListBucket"
       ],
       "Resource": [
@@ -32,6 +32,26 @@
 }
 ```
 
+Notes:
+- `PutObjectAcl` is not required (no ACLs are set in code).
+- `GetObject` + `ListBucket` are required for baseline resolution and run history lookups.
+- `HeadObject` is only needed for live verification (`verify_published_s3.py` without `--offline`). Treat that as an
+  operator/debug role rather than the runtime role.
+
+## IRSA and role separation (EKS)
+
+Runtime role (CronJob / Job pods):
+- Attach the least-privilege S3 policy above to the IAM role referenced by the ServiceAccount annotation.
+- This role is used by the running JobIntel pod to publish artifacts and resolve baselines.
+
+Operator verify role (human/automation):
+- For `verify_published_s3.py` without `--offline`, grant `s3:HeadObject` (and optionally `s3:GetObject`) to the
+  role used by the operator or verification job.
+
+Cluster admin steps (out-of-band):
+- Create the IAM role and map it to the ServiceAccount via IRSA.
+- Apply the K8s manifests/overlays that reference the ServiceAccount annotation.
+
 ## Required environment (no secrets printed here)
 Minimum for publish:
 - `JOBINTEL_S3_BUCKET`
@@ -52,7 +72,8 @@ Publish controls:
 - `PUBLISH_S3_DRY_RUN=1` (log-only publish)
 
 ## Artifact key layout (deterministic)
-- `s3://<bucket>/<prefix>/runs/<run_id>/<relative_path>` (only artifacts in `run_report.json:verifiable_artifacts`)
+- `s3://<bucket>/<prefix>/runs/<run_id>/<provider>/<profile>/<artifact_name>` (verifiable outputs; allowlist)
+- `s3://<bucket>/<prefix>/runs/<run_id>/<relative_path>` (non-provider artifacts like input archives)
 - `s3://<bucket>/<prefix>/latest/<provider>/<profile>/<artifact_name>` (allowlist: ranked JSON/CSV, ranked families, shortlist, top)
 - `s3://<bucket>/<prefix>/state/last_success.json`
 - `s3://<bucket>/<prefix>/state/<provider>/<profile>/last_success.json`
@@ -99,13 +120,16 @@ Exit codes:
 python scripts/publish_s3.py --run-id <run_id> --bucket <bucket> --prefix jobintel
 ```
 
+Ordering:
+- Publish uploads `runs/<run_id>/...` keys first, then updates `latest/<provider>/<profile>/...` keys.
+
 ## Retention strategy
-- Keep full run artifacts under `runs/<run_id>/` for as long as required by compliance.
-- `latest/` keys and `state/last_success.json` are overwritten each successful run.
+- Keep full run artifacts under `runs/<run_id>/` for as long as required by compliance (recommended: lifecycle rule).
+- `latest/` keys and `state/last_success.json` are overwritten each successful run and should be retained indefinitely.
 
 ## Verify publish
 ```bash
-aws s3 ls "s3://$JOBINTEL_S3_BUCKET/$JOBINTEL_S3_PREFIX/runs/<run_id>/"
+aws s3 ls "s3://$JOBINTEL_S3_BUCKET/$JOBINTEL_S3_PREFIX/runs/<run_id>/<provider>/<profile>/"
 aws s3 ls "s3://$JOBINTEL_S3_BUCKET/$JOBINTEL_S3_PREFIX/latest/openai/cs/"
 aws s3 cp "s3://$JOBINTEL_S3_BUCKET/$JOBINTEL_S3_PREFIX/state/last_success.json" -
 aws s3 cp "s3://$JOBINTEL_S3_BUCKET/$JOBINTEL_S3_PREFIX/state/last_success.json" - | jq -r '.run_id'

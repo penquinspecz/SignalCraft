@@ -25,6 +25,12 @@ CI:
 make gate-ci
 ```
 
+Kubernetes CronJob (portable, K8s-first):
+
+Use the kustomize base at `ops/k8s/jobintel` or the AWS EKS overlay at
+`ops/k8s/overlays/aws-eks` for IRSA + publish toggles. See `ops/k8s/README.md`
+for the runtime contract and apply steps.
+
 Deterministic gate (recommended):
 
 ```bash
@@ -38,6 +44,24 @@ make gate-fast
 ```
 
 Snapshot-only violations fail fast with exit code 2 and a message naming the provider.
+
+## Provider failure policy
+
+Live scraping is guarded by deterministic, fail-closed thresholds:
+- Transient or unavailable error rate above `JOBINTEL_PROVIDER_ERROR_RATE_MAX` (default `0.25`) fails the run.
+- Parsed job count below `JOBINTEL_PROVIDER_MIN_JOBS` (default `1`) in live mode fails the run.
+- Parsed job count below `JOBINTEL_PROVIDER_MIN_SNAPSHOT_RATIO` (default `0.2`) of the snapshot baseline fails the run
+  (when a baseline count is available).
+
+These outcomes are recorded under `provenance_by_provider[*].failure_policy` in the run report and surfaced in Discord
+run summaries (when enabled).
+
+## Discord diff gating
+
+Discord run summaries are diff-gated by default:
+- Post only when diffs exist (new/changed/removed) or the run fails.
+- Override with `JOBINTEL_DISCORD_ALWAYS_POST=1` to always post a summary.
+- `--no_post` still suppresses posting entirely.
 
 ## Input selection rules
 
@@ -72,6 +96,14 @@ Run reports:
 - `state/runs/<run_id>.json` (run metadata)
 - Includes `run_report_schema_version`, inputs, outputs, scoring inputs, and selection reasons per profile.
 
+Run ID in logs:
+- Every run prints a machine-parseable line early: `JOBINTEL_RUN_ID=<run_id>`.
+- Use this as the canonical run_id for orchestrators and log parsers.
+
+Success pointer:
+- `state/last_success.json` is updated only on successful runs.
+- It includes `run_id`, completion timestamp, provider/profile summaries, and key artifact hashes.
+
 ## Replayability and verification
 
 Replay a prior run (strict verification):
@@ -84,6 +116,12 @@ Or directly:
 
 ```bash
 python scripts/replay_run.py --run-id <run_id> --profile cs --strict
+```
+
+Replay with recompute (archived inputs → regenerated outputs):
+
+```bash
+python scripts/replay_run.py --run-id <run_id> --profile cs --strict --recalc
 ```
 
 Snapshot immutability check:

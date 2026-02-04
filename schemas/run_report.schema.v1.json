@@ -373,6 +373,78 @@
         }
       }
     },
+    "archived_inputs_by_provider_profile": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "selected_scoring_input": {
+              "type": "object",
+              "required": [
+                "source_path",
+                "archived_path",
+                "sha256",
+                "bytes"
+              ],
+              "properties": {
+                "source_path": {
+                  "type": "string"
+                },
+                "archived_path": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "bytes": {
+                  "type": "integer"
+                },
+                "hash_algo": {
+                  "type": "string",
+                  "enum": [
+                    "sha256"
+                  ]
+                }
+              },
+              "additionalProperties": true
+            },
+            "profile_config": {
+              "type": "object",
+              "required": [
+                "source_path",
+                "archived_path",
+                "sha256",
+                "bytes"
+              ],
+              "properties": {
+                "source_path": {
+                  "type": "string"
+                },
+                "archived_path": {
+                  "type": "string"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "bytes": {
+                  "type": "integer"
+                },
+                "hash_algo": {
+                  "type": "string",
+                  "enum": [
+                    "sha256"
+                  ]
+                }
+              },
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
     "verifiable_artifacts": {
       "type": "object",
       "additionalProperties": {

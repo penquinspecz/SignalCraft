@@ -46,6 +46,8 @@ def _get_float_env(name: str, default: float) -> float:
 def _classify_status(status: int) -> str:
     if status in (401, 403):
         return "auth_error"
+    if status in (404, 410):
+        return "unavailable"
     if status == 429:
         return "rate_limited"
     if status in (408, 504):
@@ -61,6 +63,18 @@ def _should_retry(reason: str, status: Optional[int]) -> bool:
     if status is not None and 500 <= status <= 599:
         return True
     return False
+
+
+def classify_failure_type(reason: Optional[str]) -> Optional[str]:
+    if not reason:
+        return None
+    if reason in {"network_error", "timeout", "rate_limited"}:
+        return "transient_error"
+    if reason in {"auth_error", "unavailable"}:
+        return "unavailable"
+    if reason in {"parse_error", "invalid_response"}:
+        return "invalid_response"
+    return "transient_error"
 
 
 def _sleep_backoff(attempt: int, base_s: float, max_s: float) -> None:
@@ -165,5 +179,56 @@ def fetch_urlopen_with_retry(
 
     raise ProviderFetchError(last_reason, attempts, last_status)
 
+def fetch_json_with_retry(
+    url: str,
+    *,
+    headers: Optional[dict[str, str]] = None,
+    payload: Optional[dict[str, object]] = None,
+    timeout_s: float = 30,
+    max_attempts: Optional[int] = None,
+    backoff_base_s: Optional[float] = None,
+    backoff_max_s: Optional[float] = None,
+) -> dict:
+    attempts, backoff_base, backoff_max = _retry_config(max_attempts, backoff_base_s, backoff_max_s)
+    last_reason = "network_error"
+    last_status: Optional[int] = None
 
-__all__ = ["ProviderFetchError", "fetch_text_with_retry", "fetch_urlopen_with_retry"]
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = requests.post(url, headers=headers or {}, json=payload or {}, timeout=timeout_s)
+            last_status = resp.status_code
+            if resp.status_code != 200:
+                last_reason = _classify_status(resp.status_code)
+                if attempt < attempts and _should_retry(last_reason, resp.status_code):
+                    _sleep_backoff(attempt, backoff_base, backoff_max)
+                    continue
+                raise ProviderFetchError(last_reason, attempt, resp.status_code)
+            try:
+                data = resp.json()
+            except ValueError:
+                last_reason = "invalid_response"
+                raise ProviderFetchError(last_reason, attempt, resp.status_code)
+            if not isinstance(data, dict):
+                last_reason = "invalid_response"
+                raise ProviderFetchError(last_reason, attempt, resp.status_code)
+            return data
+        except requests.Timeout:
+            last_reason = "timeout"
+        except requests.RequestException:
+            last_reason = "network_error"
+
+        if attempt < attempts and _should_retry(last_reason, last_status):
+            _sleep_backoff(attempt, backoff_base, backoff_max)
+            continue
+        raise ProviderFetchError(last_reason, attempt, last_status)
+
+    raise ProviderFetchError(last_reason, attempts, last_status)
+
+
+__all__ = [
+    "ProviderFetchError",
+    "classify_failure_type",
+    "fetch_json_with_retry",
+    "fetch_text_with_retry",
+    "fetch_urlopen_with_retry",
+]

@@ -163,7 +163,8 @@ def _build_upload_plan(
     profiles: Iterable[str],
     allow_missing: bool = False,
 ) -> Tuple[List[UploadItem], Dict[str, Dict[str, str]]]:
-    uploads: List[UploadItem] = []
+    runs_uploads: List[UploadItem] = []
+    latest_uploads: List[UploadItem] = []
     latest_prefixes: Dict[str, Dict[str, str]] = {}
     provider_filter = {p.strip() for p in providers if p.strip()}
     profile_filter = {p.strip() for p in profiles if p.strip()}
@@ -184,17 +185,21 @@ def _build_upload_plan(
             else:
                 _fail_validation(msg)
         rel_path = Path(path_str).as_posix()
-        key = f"{prefix}/runs/{run_id}/{rel_path}".strip("/")
-        uploads.append(
+        parsed = _parse_logical_key(logical_key)
+        if parsed:
+            provider, profile, _ = parsed
+            run_key = f"{prefix}/runs/{run_id}/{provider}/{profile}/{path.name}".strip("/")
+        else:
+            run_key = f"{prefix}/runs/{run_id}/{rel_path}".strip("/")
+        runs_uploads.append(
             UploadItem(
                 source=path,
-                key=key,
+                key=run_key,
                 content_type=_content_type_for(path),
                 logical_key=logical_key,
                 scope="runs",
             )
         )
-        parsed = _parse_logical_key(logical_key)
         if not parsed:
             continue
         provider, profile, output_key = parsed
@@ -205,7 +210,7 @@ def _build_upload_plan(
         if output_key not in LATEST_OUTPUT_ALLOWLIST:
             continue
         latest_key = f"{prefix}/latest/{provider}/{profile}/{path.name}".strip("/")
-        uploads.append(
+        latest_uploads.append(
             UploadItem(
                 source=path,
                 key=latest_key,
@@ -216,7 +221,9 @@ def _build_upload_plan(
         )
         latest_prefixes.setdefault(provider, {})[profile] = f"{prefix}/latest/{provider}/{profile}".strip("/")
 
-    uploads.sort(key=lambda item: item.key)
+    runs_uploads.sort(key=lambda item: item.key)
+    latest_uploads.sort(key=lambda item: item.key)
+    uploads = runs_uploads + latest_uploads
     return uploads, latest_prefixes
 
 
@@ -250,7 +257,6 @@ def _build_plan_entries(
                 "kind": item.scope,
             }
         )
-    entries.sort(key=lambda entry: entry["s3_key"])
     return entries
 
 

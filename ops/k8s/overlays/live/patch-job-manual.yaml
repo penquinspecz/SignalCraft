@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jobintel-manual
+  namespace: jobintel
+spec:
+  template:
+    spec:
+      containers:
+        - name: jobintel
+          args:
+            - --profiles
+            - cs
+            - --us_only
+            - --no_post

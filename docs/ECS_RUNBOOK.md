@@ -43,7 +43,7 @@ See `ops/aws/ecs/eventbridge-rule.template.json` for placeholders.
 1) **CloudWatch logs**: confirm the run completed and capture the `run_id`.
 2) **Run report**: in `/app/state/runs/<run_id>/run_report.json` (inside task container or S3 if published).
 3) **S3 keys** (if publish enabled):
-   - `s3://<bucket>/<prefix>/runs/<run_id>/...`
+   - `s3://<bucket>/<prefix>/runs/<run_id>/<provider>/<profile>/...`
    - `s3://<bucket>/<prefix>/latest/<provider>/<profile>/...`
 
 ## Rollback Steps

@@ -1,0 +1,16 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jobintel
+  namespace: jobintel
+  labels:
+    app.kubernetes.io/name: jobintel
+    app.kubernetes.io/component: cronjob
+subjects:
+  - kind: ServiceAccount
+    name: jobintel
+    namespace: jobintel
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: jobintel

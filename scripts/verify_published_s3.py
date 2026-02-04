@@ -95,9 +95,14 @@ def _load_plan_entries(
 ) -> List[Dict[str, Any]]:
     if plan_json:
         payload = json.loads(Path(plan_json).read_text(encoding="utf-8"))
-        if not isinstance(payload, list):
+        if isinstance(payload, dict):
+            plan = payload.get("plan")
+            if isinstance(plan, list):
+                return plan
             raise SystemExit(2)
-        return payload
+        if isinstance(payload, list):
+            return payload
+        raise SystemExit(2)
     entries = _plan_entries_from_report(
         run_id=run_id,
         run_dir=run_dir,
@@ -150,6 +155,32 @@ def _verify_offline(entries: List[Dict[str, Any]]) -> Tuple[bool, List[str], Lis
     return len(missing) == 0 and len(mismatched) == 0, missing, mismatched
 
 
+def _latest_semantics_mismatches(entries: List[Dict[str, Any]]) -> List[str]:
+    runs_by_key: Dict[str, Dict[str, Any]] = {}
+    latest_by_key: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        logical_key = entry.get("logical_key")
+        kind = entry.get("kind")
+        if not logical_key or not kind:
+            continue
+        if kind == "runs":
+            runs_by_key[logical_key] = entry
+        elif kind == "latest":
+            latest_by_key[logical_key] = entry
+    mismatched: List[str] = []
+    for logical_key, latest_entry in latest_by_key.items():
+        run_entry = runs_by_key.get(logical_key)
+        if not run_entry:
+            mismatched.append(f"latest_missing_runs:{logical_key}")
+            continue
+        if latest_entry.get("sha256") != run_entry.get("sha256"):
+            mismatched.append(f"latest_sha_mismatch:{logical_key}")
+            continue
+        if latest_entry.get("bytes") != run_entry.get("bytes"):
+            mismatched.append(f"latest_bytes_mismatch:{logical_key}")
+    return mismatched
+
+
 def _head_object(client, bucket: str, key: str) -> Dict[str, Any] | None:
     try:
         return client.head_object(Bucket=bucket, Key=key)
@@ -183,8 +214,12 @@ def main(argv: List[str] | None = None) -> int:
         )
         missing: List[str] = []
         mismatched: List[str] = []
+        if args.verify_latest:
+            mismatched.extend(_latest_semantics_mismatches(entries))
         if args.offline:
-            ok, missing, mismatched = _verify_offline(entries)
+            ok, missing, offline_mismatched = _verify_offline(entries)
+            mismatched.extend(offline_mismatched)
+            ok = ok and len(mismatched) == 0
         else:
             client = boto3.client("s3", region_name=args.region) if args.region else boto3.client("s3")
             for entry in entries:

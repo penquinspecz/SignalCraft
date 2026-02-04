@@ -85,7 +85,7 @@ discord_webhook_url_ssm_param  = "arn:aws:ssm:us-east-1:123456789012:parameter/j
 3. Verify IAM task role has S3 + CloudWatch logs permissions.
 4. Run `make aws-smoke` and confirm bucket/prefix access.
 5. Trigger a one-off task run and verify:
-   - `runs/<run_id>/` uploaded
+   - `runs/<run_id>/<provider>/<profile>/` uploaded (verifiable outputs)
    - `latest/<provider>/<profile>/` updated
    - CloudWatch logs include a RUN SUMMARY block
 
@@ -170,7 +170,7 @@ CLUSTER_ARN=<cluster> TASK_ARN=<task> REGION=us-east-1 ./scripts/ecs_verify_task
 
 ## Verify S3 uploads
 Expected keys:
-- `s3://<bucket>/<prefix>/runs/<run_id>/...`
+- `s3://<bucket>/<prefix>/runs/<run_id>/<provider>/<profile>/...`
 - `s3://<bucket>/<prefix>/latest/<provider>/<profile>/...`
 
 Check:
