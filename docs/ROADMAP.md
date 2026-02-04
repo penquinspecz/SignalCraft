@@ -19,7 +19,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 - **Tests must be deterministic regardless of optional deps:** unit tests cannot change behavior based on whether optional tooling (e.g., Playwright) is installed
 - **Single source of truth for dependencies:** Docker, CI, and local dev install from the same dependency contract (no “works in Docker only” drift)
 - **Docs are a contract:** README status/architecture must match the runnable system; no “early dev” drift when the system is operational
-
+- **Cloud is not special:** AWS runs must be as replayable and inspectable as local runs (S3 is the artifact source of truth)
 
 ---
 
@@ -74,17 +74,21 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 
 ### New conventions added (scaffold + partial integration)
 - [x] `state/user_state/` convention + loader utility returning `{}` if missing (scaffold)
-- [ ] User state overlay integrated into shortlist/alerts (Milestone 3 work item)
+- [x] User state overlay annotated in outputs (status tags/notes)
+- [ ] User state overlay influences filtering/alert semantics (Milestone 3 work item)
 
 ---
 
 ## Known Sharp Edges / TODO (updated)
+- [ ] **Replayability gap:** archive *selected scoring inputs* per run (not just final outputs) to enable true regeneration
 - [ ] Provider failure surfacing: retries/backoff, explicit unavailable reasons in run report + Discord
 - [ ] Log destination / rotation strategy for AWS runs (stdout + CloudWatch + retention)
-- [ ] “Replay a run” workflow from run report (determinism contract)
+- [x] “Replay a run” workflow exists (`scripts/replay_run.py`) but currently validates hashes only
 - [ ] Dashboard dependency management (FastAPI/uvicorn must be installable in offline/CI contexts or tests should run in CI image)
 - [ ] AI insights scope: currently weekly “pulse”; Phase 2 adds per-job recommendations and profile-aware coaching.
 - [ ] Document CI smoke gate design and failure modes (why it fails, what to inspect)
+- [ ] **AWS IAM footguns:** document task role vs execution role and minimum S3/SSM permissions before first deploy
+- [ ] **Artifact hygiene:** ensure secrets never leak into run reports/artifacts; add a redaction sanity test if needed
 
 ---
 
@@ -121,17 +125,28 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
       not just which file was used.
 - [ ] Run report has a stable schema contract documented:
   - [x] `run_report_schema_version` exists
-  - [ ] `docs/RUN_REPORT.md` documents fields + meanings
+  - [x] `docs/RUN_REPORT.md` documents fields + meanings
+- [ ] **Input archival exists for regeneration:** the *exact selected scoring inputs* for a run are copied into
+      `state/runs/<run_id>/inputs/...` (or equivalent), sufficient to re-run scoring without mutable `data/` files.
 - [ ] “Replay a run” instructions exist:
   - given a run_id (and/or archived history dir), reproduce the exact shortlist output
-- [ ] Optional helper script `scripts/replay_run.py` validates hashes and prints a clear reproducibility report.
+- [x] Optional helper script `scripts/replay_run.py` validates hashes and prints a clear reproducibility report.
+- [ ] Optional but high-leverage: replay tool can **recalculate** scoring from archived inputs and diff against archived outputs.
 
 ### Work Items
 - [ ] Add `selection_reason` fields in run report for:
   - labeled vs enriched resolution
   - enriched vs AI-enriched resolution (when applicable)
-- [ ] Add `docs/RUN_REPORT.md` with schema and troubleshooting
-- [ ] Add `scripts/replay_run.py` (read-only) + tests
+- [x] Add `docs/RUN_REPORT.md` with schema and troubleshooting
+- [x] Add `scripts/replay_run.py` (read-only) + tests
+- [ ] Add input archival step to end-of-run:
+  - archive the *selected* scoring inputs (labeled/enriched/ai-enriched, whichever won)
+  - archive the candidate profile used for scoring
+  - record archived paths + hashes in run report
+- [ ] Extend replay tooling with `--recalc` (or similar):
+  - load archived inputs
+  - run current scoring against them deterministically
+  - diff outputs vs archived ranked artifacts
 
 ---
 
@@ -152,17 +167,18 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
    - `python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --verify-latest` outputs OK
 
 ### Work Items
-- [ ] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)
+- [x] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)
 - [ ] Define S3 key structure + retention strategy:
   - `s3://<bucket>/runs/<run_id>/...`
   - `s3://<bucket>/latest/<provider>/<profile>/...`
 - [ ] Add `ops/aws/README.md` with:
   - required env vars/secrets (Discord webhook, AI keys, dashboard URL)
   - ECS taskdef + EventBridge schedule steps
-  - IAM least-privilege policy
+  - IAM least-privilege policy (**task role vs execution role explicitly**)
   - CloudWatch logs + metrics basics
-- [ ] Add `ops/aws/infra/` scaffolding (Terraform or CDK — pick one; keep minimal)
+- [x] Add `ops/aws/infra/` scaffolding (Terraform or CDK — pick one; keep minimal)
 - [ ] Add a “deployment smoke” script to validate AWS env vars and connectivity
+- [ ] Add a published-artifact verification script (`scripts/verify_published_s3.py`) and CI-friendly checks (optional)
 
 ---
 
@@ -209,7 +225,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 - [ ] Identity-based diffs for new/changed/removed
 - [ ] Implement `state/user_state/<profile>.json` overlay:
   - schema: `{ "<job_id>": { "status": "...", "date": "...", "notes": "..." } }`
-  - integrate into shortlist writer and alerting
+  - integrate into shortlist writer and alerting (filtering semantics defined)
 - [ ] Retention policy (keep last N runs + daily snapshots) documented and enforced
 
 ---
@@ -270,7 +286,6 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 - [ ] interact with data on web (tables etc)
 - [ ] Alternatives to discord? (email etc)
 - [ ] expanded job category tuning and selectability
-
 
 ### Work Items
 - [ ] Candidate profile schema versioning + validation
