@@ -44,6 +44,20 @@ python scripts/aws_discover_subnets.py
 
 It prints a deterministic JSON summary and a suggested terraform command snippet.
 
+## EKS control plane AZ restrictions
+
+If EKS reports an `UnsupportedAvailabilityZoneException`, exclude that AZ when discovering subnets:
+
+```bash
+python scripts/aws_discover_subnets.py --exclude-az us-east-1e
+```
+
+Makefile equivalent:
+
+```bash
+make aws-discover-subnets EXCLUDE_AZ=us-east-1e
+```
+
 ## Outputs
 
 - `update_kubeconfig_command`: use to configure kubectl

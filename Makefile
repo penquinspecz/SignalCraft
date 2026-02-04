@@ -165,7 +165,15 @@ proof-run-vars:
 	@echo "  PREFIX=jobintel"
 
 aws-discover-subnets:
-	$(PY) scripts/aws_discover_subnets.py
+	@exclude="$(EXCLUDE_AZ)"; \
+	args=""; \
+	if [ -n "$$exclude" ]; then \
+		IFS=','; set -- $$exclude; \
+		for az in $$@; do \
+			if [ -n "$$az" ]; then args="$$args --exclude-az $$az"; fi; \
+		done; \
+	fi; \
+	$(PY) scripts/aws_discover_subnets.py $$args
 
 k8s-commands:
 	@echo "kubectl apply -f ops/k8s/namespace.yaml"

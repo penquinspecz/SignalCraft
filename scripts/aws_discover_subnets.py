@@ -6,11 +6,12 @@ try:
 except ModuleNotFoundError:
     from scripts import _bootstrap  # noqa: F401
 
+import argparse
 import json
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 
 def _run_aws(args: List[str]) -> Dict[str, Any]:
@@ -64,8 +65,34 @@ def _preferred_vpcs(vpcs: List[Dict[str, Any]]) -> List[str]:
     return sorted(vpc["VpcId"] for vpc in vpcs)
 
 
-def main() -> int:
+def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Discover AWS subnets for EKS bootstrap.")
+    parser.add_argument(
+        "--exclude-az",
+        action="append",
+        default=[],
+        help="Availability Zone to exclude (repeatable).",
+    )
+    return parser.parse_args(argv)
+
+
+def _normalize_excluded(values: List[str]) -> List[str]:
+    seen: Set[str] = set()
+    ordered: List[str] = []
+    for value in values:
+        if not value:
+            continue
+        if value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
+
+
+def main(argv: Optional[List[str]] = None) -> int:
     try:
+        args = _parse_args(argv)
+        excluded_azs = _normalize_excluded(args.exclude_az)
         region = _region()
         vpcs_raw = _run_aws(["ec2", "describe-vpcs", "--region", region, "--output", "json"])
         subnets_raw = _run_aws(["ec2", "describe-subnets", "--region", region, "--output", "json"])
@@ -106,6 +133,10 @@ def main() -> int:
             )
 
         subnet_rows = sorted(subnet_rows, key=_sort_key)
+        if excluded_azs:
+            subnet_rows = [
+                row for row in subnet_rows if row.get("AvailabilityZone") not in excluded_azs
+            ]
         selected = [row for row in subnet_rows if row.get("VpcId") in preferred_vpc_ids]
         if not selected:
             selected = subnet_rows
@@ -120,6 +151,8 @@ def main() -> int:
         print("AWS subnet discovery")
         print(f"Region: {region}")
         print(f"Preferred VPCs: {', '.join(preferred_vpc_ids) if preferred_vpc_ids else '<none>'}")
+        if excluded_azs:
+            print(f"Excluded AZs: {', '.join(excluded_azs)}")
         print("")
         print("VPCs:")
         for vpc in vpcs:
@@ -143,6 +176,7 @@ def main() -> int:
             "region": region,
             "vpcs": vpcs,
             "preferred_vpc_ids": preferred_vpc_ids,
+            "excluded_azs": excluded_azs,
             "selected_subnet_ids": selected_ids,
             "subnets": selected,
             "terraform_snippet": terraform_snippet,
