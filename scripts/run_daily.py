@@ -60,6 +60,7 @@ from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
 from ji_engine.utils.dotenv import load_dotenv
 from ji_engine.utils.job_identity import job_identity
+from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.verification import (
     build_verifiable_artifacts,
     compute_sha256_bytes,
@@ -121,6 +122,7 @@ def _unavailable_summary() -> str:
 logger = logging.getLogger(__name__)
 USE_SUBPROCESS = True
 LAST_RUN_JSON = STATE_DIR / "last_run.json"
+LAST_SUCCESS_JSON = STATE_DIR / "last_success.json"
 RUN_REPORT_SCHEMA_VERSION = 1
 
 
@@ -427,6 +429,119 @@ def _load_scrape_provenance(providers: List[str]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def _get_env_float(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _get_env_int(name: str, default: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+def _provider_policy_thresholds() -> Dict[str, float]:
+    return {
+        "error_rate_max": _get_env_float("JOBINTEL_PROVIDER_ERROR_RATE_MAX", 0.25),
+        "min_jobs": float(_get_env_int("JOBINTEL_PROVIDER_MIN_JOBS", 1)),
+        "min_snapshot_ratio": _get_env_float("JOBINTEL_PROVIDER_MIN_SNAPSHOT_RATIO", 0.2),
+    }
+
+
+def _load_enrich_stats(enriched_path: Path) -> Dict[str, int]:
+    stats = {"total": 0, "enriched": 0, "unavailable": 0, "failed": 0}
+    if not enriched_path.exists():
+        return stats
+    try:
+        payload = _read_json(enriched_path)
+    except Exception:
+        return stats
+    if not isinstance(payload, list):
+        return stats
+    for job in payload:
+        if not isinstance(job, dict):
+            continue
+        status = job.get("enrich_status")
+        if status == "enriched":
+            stats["enriched"] += 1
+            stats["total"] += 1
+        elif status == "unavailable":
+            stats["unavailable"] += 1
+            stats["total"] += 1
+        elif status == "failed":
+            stats["failed"] += 1
+            stats["total"] += 1
+        else:
+            if job.get("jd_text"):
+                stats["enriched"] += 1
+                stats["total"] += 1
+    return stats
+
+
+def _evaluate_provider_policy(
+    provider: str,
+    meta: Dict[str, Any],
+    *,
+    enriched_path: Optional[Path],
+    thresholds: Dict[str, float],
+    no_enrich: bool,
+) -> Tuple[bool, str, str]:
+    scrape_mode = (meta.get("scrape_mode") or "").lower()
+    parsed_jobs = int(meta.get("parsed_job_count") or 0)
+    baseline = meta.get("snapshot_baseline_count")
+    baseline_count = int(baseline) if isinstance(baseline, (int, float)) else None
+
+    enrich_stats = _load_enrich_stats(enriched_path) if enriched_path and not no_enrich else {"total": 0}
+    error_count = int(enrich_stats.get("unavailable", 0)) + int(enrich_stats.get("failed", 0))
+    total = int(enrich_stats.get("total", 0))
+    error_rate = (error_count / total) if total > 0 else 0.0
+
+    decision = "ok"
+    reason_parts: List[str] = []
+
+    if scrape_mode == "live":
+        if parsed_jobs < int(thresholds["min_jobs"]):
+            decision = "fail"
+            reason_parts.append(f"parsed_jobs<{int(thresholds['min_jobs'])}")
+        if baseline_count is not None and baseline_count > 0:
+            min_ratio = thresholds["min_snapshot_ratio"]
+            if parsed_jobs < int(baseline_count * min_ratio):
+                decision = "fail"
+                reason_parts.append("parsed_jobs_below_snapshot_ratio")
+        if total > 0 and error_rate > thresholds["error_rate_max"]:
+            decision = "fail"
+            reason_parts.append("enrich_error_rate_exceeded")
+
+    reason = ", ".join(reason_parts) if reason_parts else "ok"
+    policy = {
+        "decision": decision,
+        "reason": reason,
+        "scrape_mode": scrape_mode,
+        "parsed_job_count": parsed_jobs,
+        "snapshot_baseline_count": baseline_count,
+        "error_rate": round(error_rate, 4),
+        "error_rate_max": thresholds["error_rate_max"],
+        "min_jobs": int(thresholds["min_jobs"]),
+        "min_snapshot_ratio": thresholds["min_snapshot_ratio"],
+        "enrich_stats": enrich_stats,
+    }
+    meta["failure_policy"] = policy
+    line = (
+        f"Provider policy ({provider}): {decision} "
+        f"(parsed={parsed_jobs}, error_rate={round(error_rate, 3)})"
+    )
+    return decision == "fail", reason, line
+
+
 def _ecs_task_arn_from_metadata() -> Optional[str]:
     metadata_env = ("ECS_CONTAINER_METADATA_URI_V4", "ECS_CONTAINER_METADATA_URI")
     for key in metadata_env:
@@ -641,6 +756,71 @@ def _copy_artifact(src: Path, dest: Path) -> None:
     shutil.copy2(src, dest)
 
 
+def _atomic_copy(src: Path, dest: Path) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dest.with_name(dest.name + ".tmp")
+    try:
+        shutil.copy2(src, tmp)
+        os.replace(tmp, dest)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+
+def _archive_input(
+    run_dir: Path,
+    src: Path,
+    dest_rel: Path,
+    *,
+    state_dir: Path = STATE_DIR,
+) -> Dict[str, Any]:
+    if not src.exists():
+        logger.error("Archive source missing: %s", src)
+        raise SystemExit(2)
+    dest = run_dir / dest_rel
+    try:
+        _atomic_copy(src, dest)
+        sha256 = compute_sha256_file(dest)
+        size = dest.stat().st_size
+    except SystemExit:
+        raise
+    except Exception as exc:
+        logger.error("Archive copy failed for %s -> %s: %s", src, dest, exc)
+        raise SystemExit(3) from exc
+    return {
+        "source_path": str(src),
+        "archived_path": dest.relative_to(state_dir).as_posix(),
+        "sha256": sha256,
+        "bytes": size,
+        "hash_algo": "sha256",
+    }
+
+
+def _archive_run_inputs(
+    run_dir: Path,
+    provider: str,
+    profile: str,
+    selected_input_path: Path,
+    profiles_config_path: Path,
+) -> Dict[str, Any]:
+    base = Path("inputs") / provider / profile
+    if not selected_input_path.exists():
+        logger.error("Selected scoring input missing for archival: %s", selected_input_path)
+        raise SystemExit(2)
+    if not profiles_config_path.exists():
+        logger.error("Profiles config missing for archival: %s", profiles_config_path)
+        raise SystemExit(2)
+    return {
+        "selected_scoring_input": _archive_input(
+            run_dir, selected_input_path, base / "selected_scoring_input.json"
+        ),
+        "profile_config": _archive_input(run_dir, profiles_config_path, base / "profiles.json"),
+    }
+
+
 def _run_registry_dir(run_id: str) -> Path:
     return RUN_METADATA_DIR / _sanitize_run_id(run_id)
 
@@ -774,6 +954,7 @@ def _persist_run_metadata(
     provenance_by_provider: Optional[Dict[str, Dict[str, Any]]],
     scoring_inputs_by_profile: Dict[str, Dict[str, Optional[str]]],
     scoring_input_selection_by_profile: Dict[str, Dict[str, Any]],
+    archived_inputs_by_provider_profile: Optional[Dict[str, Dict[str, Dict[str, Any]]]] = None,
     providers: Optional[List[str]] = None,
     inputs_by_provider: Optional[Dict[str, Dict[str, Dict[str, Optional[str]]]]] = None,
     scoring_inputs_by_provider: Optional[Dict[str, Dict[str, Dict[str, Optional[str]]]]] = None,
@@ -870,6 +1051,8 @@ def _persist_run_metadata(
         "git_sha": _best_effort_git_sha(),
         "image_tag": os.environ.get("IMAGE_TAG"),
     }
+    if archived_inputs_by_provider_profile:
+        payload["archived_inputs_by_provider_profile"] = archived_inputs_by_provider_profile
     if delta_summary is not None:
         payload["delta_summary"] = delta_summary
     payload["success"] = telemetry.get("success", False)
@@ -1540,6 +1723,58 @@ def _write_last_run(payload: Dict[str, Any]) -> None:
     _write_json(LAST_RUN_JSON, payload)
 
 
+def _parse_logical_key(logical_key: str) -> Optional[Tuple[str, str, str]]:
+    parts = logical_key.split(":")
+    if len(parts) < 3:
+        return None
+    provider, profile = parts[0], parts[1]
+    output_key = ":".join(parts[2:])
+    return provider, profile, output_key
+
+
+def _build_last_success_pointer(run_report: Dict[str, Any], run_report_path: Path) -> Dict[str, Any]:
+    verifiable = run_report.get("verifiable_artifacts") if isinstance(run_report, dict) else None
+    artifacts: Dict[str, Dict[str, Any]] = {}
+    provider_profile: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    if isinstance(verifiable, dict):
+        for logical_key, meta in verifiable.items():
+            if not isinstance(meta, dict):
+                continue
+            sha = meta.get("sha256")
+            bytes_value = meta.get("bytes")
+            artifacts[logical_key] = {"sha256": sha, "bytes": bytes_value}
+            parsed = _parse_logical_key(logical_key)
+            if parsed:
+                provider, profile, _ = parsed
+                provider_profile.setdefault(provider, {}).setdefault(profile, {})[logical_key] = sha
+
+    timestamps = run_report.get("timestamps") if isinstance(run_report, dict) else None
+    completed_at = None
+    if isinstance(timestamps, dict):
+        completed_at = timestamps.get("ended_at")
+    if not completed_at:
+        completed_at = run_report.get("timestamp") if isinstance(run_report, dict) else None
+
+    return {
+        "run_id": run_report.get("run_id") if isinstance(run_report, dict) else None,
+        "completed_at_utc": completed_at,
+        "providers": run_report.get("providers") if isinstance(run_report, dict) else None,
+        "profiles": run_report.get("profiles") if isinstance(run_report, dict) else None,
+        "provider_profile": provider_profile,
+        "artifacts": artifacts,
+        "run_report_path": str(run_report_path),
+    }
+
+
+def _write_last_success_pointer(run_report: Dict[str, Any], run_report_path: Path) -> None:
+    payload = _build_last_success_pointer(run_report, run_report_path)
+    LAST_SUCCESS_JSON.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(
+        LAST_SUCCESS_JSON,
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+    )
+
+
 def validate_config(args: argparse.Namespace, webhook: str) -> None:
     """
     Ensure required env/config combos for CLI args before running.
@@ -1804,6 +2039,62 @@ def _append_shortlist_changes_section(
     shortlist_path.write_text(content, encoding="utf-8")
 
 
+def _diff_summary_entry(
+    *,
+    run_id: str,
+    provider: str,
+    profile: str,
+    diff_report: Dict[str, Any],
+) -> Dict[str, Any]:
+    added_ids = sorted(
+        {item.get("id") for item in diff_report.get("added") or [] if item.get("id")}
+    )
+    changed_ids = sorted(
+        {item.get("id") for item in diff_report.get("changed") or [] if item.get("id")}
+    )
+    removed_ids = sorted(
+        {item.get("id") for item in diff_report.get("removed") or [] if item.get("id")}
+    )
+    counts = diff_report.get("counts") or {}
+    return {
+        "run_id": run_id,
+        "provider": provider,
+        "profile": profile,
+        "first_run": not bool(diff_report.get("baseline_exists")),
+        "prior_run_id": None,
+        "baseline_resolved": None,
+        "baseline_source": None,
+        "counts": {
+            "new": counts.get("added", 0),
+            "changed": counts.get("changed", 0),
+            "removed": counts.get("removed", 0),
+        },
+        "new_ids": added_ids,
+        "changed_ids": changed_ids,
+        "removed_ids": removed_ids,
+        "summary_hash": diff_report.get("summary_hash"),
+    }
+
+
+def _write_diff_summary(run_dir: Path, payload: Dict[str, Any]) -> None:
+    run_dir.mkdir(parents=True, exist_ok=True)
+    json_path = run_dir / "diff_summary.json"
+    md_path = run_dir / "diff_summary.md"
+    _write_canonical_json(json_path, payload)
+    lines = ["# Diff Summary"]
+    provider_profile = payload.get("provider_profile") or {}
+    for provider in sorted(provider_profile):
+        profiles = provider_profile.get(provider) or {}
+        for profile in sorted(profiles):
+            entry = profiles.get(profile) or {}
+            counts = entry.get("counts") or {}
+            label = f"{provider}:{profile}"
+            lines.append(
+                f"- {label}: new={counts.get('new', 0)} changed={counts.get('changed', 0)} removed={counts.get('removed', 0)}"
+            )
+    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def _dispatch_alerts(
     profile: str,
     webhook: str,
@@ -1850,6 +2141,8 @@ def _dispatch_alerts(
 
 
 def _resolve_notify_mode(raw_mode: Optional[str]) -> str:
+    if os.environ.get("JOBINTEL_DISCORD_ALWAYS_POST", "").strip() == "1":
+        return "always"
     mode = (raw_mode or "diff").strip().lower()
     if mode not in {"diff", "always"}:
         return "diff"
@@ -1860,6 +2153,8 @@ def _should_notify(diff_counts: Dict[str, Any], mode: str) -> bool:
     if diff_counts.get("suppressed") is True:
         return False
     if mode == "always":
+        return True
+    if diff_counts.get("first_run") is True:
         return True
     return any(diff_counts.get(k, 0) > 0 for k in ("new", "changed", "removed"))
 
@@ -2096,6 +2391,7 @@ def main() -> int:
     providers = _resolve_providers(args)
     openai_only = providers == ["openai"]
     run_id = _utcnow_iso()
+    print(f"JOBINTEL_RUN_ID={run_id}", flush=True)
     global USE_SUBPROCESS
     USE_SUBPROCESS = not args.no_subprocess
     _setup_logging(args.log_json)
@@ -2146,10 +2442,13 @@ def main() -> int:
     scoring_inputs_by_profile: Dict[str, Dict[str, Optional[str]]] = {}
     scoring_input_selection_by_profile: Dict[str, Dict[str, Any]] = {}
     diff_counts_by_provider: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    diff_summary_by_provider_profile: Dict[str, Dict[str, Dict[str, Any]]] = {}
     scoring_inputs_by_provider: Dict[str, Dict[str, Dict[str, Optional[str]]]] = {}
     scoring_input_selection_by_provider: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    archived_inputs_by_provider_profile: Dict[str, Dict[str, Dict[str, Any]]] = {}
     provenance_by_provider: Dict[str, Dict[str, Any]] = {}
     discord_status_by_provider: Dict[str, Dict[str, str]] = {}
+    provider_policy_lines: Dict[str, str] = {}
     flag_payload = {
         "profile": args.profile,
         "profiles": args.profiles,
@@ -2220,6 +2519,26 @@ def main() -> int:
         config_fingerprint = _config_fingerprint(flag_payload, args.providers_config)
         environment_fingerprint = _environment_fingerprint()
         delta_summary = _build_delta_summary(run_id, providers, profiles_list)
+        for provider, profiles in diff_summary_by_provider_profile.items():
+            for profile, entry in profiles.items():
+                delta = (
+                    delta_summary.get("provider_profile", {})
+                    .get(provider, {})
+                    .get(profile, {})
+                )
+                entry["prior_run_id"] = delta.get("baseline_run_id")
+                entry["baseline_resolved"] = delta.get("baseline_resolved")
+                entry["baseline_source"] = delta.get("baseline_source")
+        run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
+        if diff_summary_by_provider_profile:
+            _write_diff_summary(
+                run_dir,
+                {
+                    "run_id": run_id,
+                    "generated_at": _utcnow_iso(),
+                    "provider_profile": diff_summary_by_provider_profile,
+                },
+            )
         run_metadata_path = _persist_run_metadata(
             run_id,
             telemetry,
@@ -2229,6 +2548,7 @@ def main() -> int:
             provenance_by_provider,
             scoring_inputs_by_profile,
             scoring_input_selection_by_profile,
+            archived_inputs_by_provider_profile=archived_inputs_by_provider_profile,
             providers=providers,
             inputs_by_provider=provider_inputs,
             scoring_inputs_by_provider=scoring_inputs_by_provider,
@@ -2238,6 +2558,13 @@ def main() -> int:
             config_fingerprint=config_fingerprint,
             environment_fingerprint=environment_fingerprint,
         )
+        if telemetry.get("success", False):
+            try:
+                run_report_payload = json.loads(run_metadata_path.read_text(encoding="utf-8"))
+                if isinstance(run_report_payload, dict):
+                    _write_last_success_pointer(run_report_payload, run_metadata_path)
+            except Exception as exc:
+                logger.warning("Failed to write last_success pointer: %r", exc)
         if openai_only:
             for profile in profiles_list:
                 diffs = diff_counts_by_profile.get(profile, {"new": 0, "changed": 0, "removed": 0})
@@ -2606,6 +2933,21 @@ def main() -> int:
                     }
                 )
 
+                failed_stage = f"score:{profile}"
+                if score_err or score_in is None:
+                    logger.error(score_err or "Unknown scoring input error")
+                    _finalize("error", {"error": score_err or "score input missing", "failed_stage": failed_stage})
+                    return 2
+
+                run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
+                archived_inputs_by_provider_profile.setdefault("openai", {})[profile] = _archive_run_inputs(
+                    run_dir,
+                    "openai",
+                    profile,
+                    score_in,
+                    REPO_ROOT / "config" / "profiles.json",
+                )
+
                 need_score = not ranked_json.exists()
                 if ai_mtime is not None:
                     need_score = need_score or ((_file_mtime(ranked_json) or 0) < ai_mtime)
@@ -2614,10 +2956,6 @@ def main() -> int:
 
                 if need_score:
                     current_stage = f"score:{profile}"
-                    if score_err or score_in is None:
-                        logger.error(score_err or "Unknown scoring input error")
-                        _finalize("error", {"error": score_err or "score input missing", "failed_stage": current_stage})
-                        return 2
 
                 cmd = [
                     sys.executable,
@@ -2690,7 +3028,25 @@ def main() -> int:
         if all_unavailable:
             logger.warning("All providers unavailable; suppressing Discord alerts.")
 
+        thresholds = _provider_policy_thresholds()
+
         if args.scrape_only:
+            for provider in providers:
+                meta = provenance_by_provider.get(provider, {})
+                failed, reason, line = _evaluate_provider_policy(
+                    provider,
+                    meta,
+                    enriched_path=None,
+                    thresholds=thresholds,
+                    no_enrich=True,
+                )
+                provider_policy_lines[provider] = line
+                if failed:
+                    err_msg = f"Provider policy failed ({provider}): {reason}"
+                    logger.error(err_msg)
+                    _post_failure(webhook, stage="provider_policy", error=err_msg, no_post=args.no_post)
+                    _finalize("error", {"error": err_msg, "failed_stage": "provider_policy"})
+                    return 3
             logger.info("Stopping after scrape (--scrape_only set)")
             _finalize("success")
             return 0
@@ -2736,6 +3092,22 @@ def main() -> int:
                         stage=current_stage,
                     ),
                 )
+
+            meta = provenance_by_provider.get(provider, {})
+            failed, reason, line = _evaluate_provider_policy(
+                provider,
+                meta,
+                enriched_path=enriched_path,
+                thresholds=thresholds,
+                no_enrich=args.no_enrich,
+            )
+            provider_policy_lines[provider] = line
+            if failed:
+                err_msg = f"Provider policy failed ({provider}): {reason}"
+                logger.error(err_msg)
+                _post_failure(webhook, stage=_stage_label("provider_policy", provider), error=err_msg, no_post=args.no_post)
+                _finalize("error", {"error": err_msg, "failed_stage": _stage_label("provider_policy", provider)})
+                return 3
 
             # Optional AI augment stage
             if args.ai:
@@ -2790,6 +3162,15 @@ def main() -> int:
                     failed_stage = _stage_label("score", provider, profile)
                     _finalize("error", {"error": score_err or "score input missing", "failed_stage": failed_stage})
                     return 2
+
+                run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
+                archived_inputs_by_provider_profile.setdefault(provider, {})[profile] = _archive_run_inputs(
+                    run_dir,
+                    provider,
+                    profile,
+                    in_path,
+                    REPO_ROOT / "config" / "profiles.json",
+                )
 
                 current_stage = _stage_label("score", provider, profile)
                 cmd = [
@@ -2860,6 +3241,9 @@ def main() -> int:
                     logger.info("Changelog (%s) suppressed due to US-only fallback.", label)
                     _write_json(state_path, curr)
                     extra_lines: List[str] = []
+                    policy_line = provider_policy_lines.get(provider)
+                    if policy_line:
+                        extra_lines.append(policy_line)
                     unavailable_line = _provider_unavailable_line(
                         provider, provenance_by_provider.get(provider, {})
                     )
@@ -2937,6 +3321,12 @@ def main() -> int:
                 )
                 _write_canonical_json(diff_json_path, diff_report)
                 diff_md_path.write_text(build_diff_markdown(diff_report), encoding="utf-8")
+                diff_summary_by_provider_profile.setdefault(provider, {})[profile] = _diff_summary_entry(
+                    run_id=run_id,
+                    provider=provider,
+                    profile=profile,
+                    diff_report=diff_report,
+                )
 
                 label = _profile_label(provider, profile)
                 logger.info(
@@ -2951,6 +3341,8 @@ def main() -> int:
                     "changed": len(changed_jobs),
                     "removed": len(removed_jobs),
                 }
+                if not baseline_exists:
+                    diff_counts["first_run"] = True
                 diff_counts_by_provider.setdefault(provider, {})[profile] = diff_counts
                 if provider == "openai":
                     diff_counts_by_profile[profile] = diff_counts
@@ -3002,6 +3394,9 @@ def main() -> int:
 
                 _write_json(state_path, curr)
                 extra_lines: List[str] = []
+                policy_line = provider_policy_lines.get(provider)
+                if policy_line:
+                    extra_lines.append(policy_line)
                 briefs_line = _briefs_status_line(run_id, profile)
                 if briefs_line:
                     extra_lines.append(briefs_line)

@@ -1,76 +1,64 @@
-# ECS Proof Run Checklist (Milestone 2)
+# Proof Run Checklist (Milestone 2)
 
-This checklist is for a **one-time, real ECS run** that proves the pipeline runs
-end-to-end and publishes deterministic artifacts. It is **copy/pasteable** and
-designed to produce proof artifacts for the PR.
+This checklist is for a **one-time, real in-cluster run** (Kubernetes/EKS) that proves
+the pipeline runs end-to-end and publishes deterministic artifacts. It is
+**copy/pasteable** and designed to produce proof artifacts for the PR.
 
 ## Prereqs
-- AWS CLI configured (or assumed role) with access to ECR, ECS, EventBridge, S3.
-- ECR image pushed for this repo.
+- `kubectl` context points at the target cluster (`kubectl config current-context`).
+- AWS CLI configured (or assumed role) with access to ECR/EKS/S3.
+- `aws sts get-caller-identity` succeeds.
+- S3 bucket exists for publish targets and is reachable with your role.
+- Image pushed and accessible by the cluster (no ImagePullBackOff).
 - S3 bucket exists for publish targets.
 - Discord webhook (optional).
 
-Set these placeholders first:
+Set these placeholders first (adjust as needed):
 
 ```bash
 export AWS_REGION="<region>"
-export AWS_ACCOUNT_ID="<account_id>"
-export ECR_REPO="<ecr_repo_name>"
-export IMAGE_TAG="<image_tag>"
-export CLUSTER_NAME="<ecs_cluster>"
-export SUBNETS="<subnet-1>,<subnet-2>"
-export SECURITY_GROUPS="<sg-1>"
-export LOG_GROUP="/aws/ecs/jobintel"
+export CLUSTER_NAME="<eks_cluster>"
+export KUBE_CONTEXT="<kube_context>"
+export NAMESPACE="jobintel"
 export BUCKET="<s3_bucket>"
 export PREFIX="jobintel"
 ```
 
-## 1) Push image to ECR
+## 1) Apply manifests
 
 ```bash
-aws ecr get-login-password --region "$AWS_REGION" \
-  | docker login --username AWS --password-stdin \
-  "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
-
-docker tag jobintel:latest "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG"
-docker push "$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO:$IMAGE_TAG"
+python scripts/k8s_render.py --overlay aws-eks > /tmp/jobintel.yaml
+kubectl --context "$KUBE_CONTEXT" apply -f /tmp/jobintel.yaml
 ```
 
-## 2) Register task definition
-
-Copy `ops/aws/ecs/taskdef.template.json`, replace placeholders, then:
+## 2) Run a one-off Job
 
 ```bash
-aws ecs register-task-definition \
-  --region "$AWS_REGION" \
-  --cli-input-json file://taskdef.json
+kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" \
+  create job --from=cronjob/jobintel-daily jobintel-manual-$(date +%Y%m%d)
 ```
 
-## 3) Run task once
+## 3) Fetch logs
 
 ```bash
-aws ecs run-task \
-  --region "$AWS_REGION" \
-  --cluster "$CLUSTER_NAME" \
-  --launch-type FARGATE \
-  --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}" \
-  --task-definition jobintel
-```
-
-## 4) Fetch logs
-
-```bash
-aws logs tail "$LOG_GROUP" --since 10m --follow
+kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" \
+  logs -f job/jobintel-manual-$(date +%Y%m%d)
 ```
 
 ## Expected outputs (proof artifacts)
-- A CloudWatch log line containing `run_id=...`.
-- A run report JSON path logged (includes `verifiable_artifacts`).
-- Publish plan JSON (from `publish_s3 --plan --json` or stored plan file).
-- Offline verify JSON from `verify_published_s3 --offline --plan-json ...` showing `"ok": true`.
+- A log line containing `JOBINTEL_RUN_ID=<run_id>`.
+- A proof JSON file at `state/proofs/<run_id>.json`.
+- `verify_published_s3` output with `"ok": true`.
 - S3 keys under:
-  - `runs/<run_id>/...`
+  - `runs/<run_id>/<provider>/<profile>/...`
   - `latest/<provider>/<profile>/...`
+
+## Common failure modes
+
+- `AccessDenied` from S3: IRSA role missing or bucket policy denies prefix.
+- `ImagePullBackOff`: image not pushed or registry auth missing.
+- `CrashLoopBackOff`: missing required env/secret keys.
+- `verify_published_s3 failed`: run_id incorrect or publish disabled.
 
 ## Proof snippet (local extraction)
 
@@ -81,4 +69,3 @@ python scripts/proof_run_extract.py \
   --run-report /path/to/run_report.json \
   --plan-json /path/to/publish_plan.json
 ```
-

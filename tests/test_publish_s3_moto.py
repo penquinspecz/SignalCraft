@@ -147,8 +147,8 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
                 keys.append(item["Key"])
 
         run_keys = [
-            f"{prefix}/runs/{run_id}/openai_ranked_jobs.cs.json",
-            f"{prefix}/runs/{run_id}/openai_ranked_families.cs.json",
+            f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json",
+            f"{prefix}/runs/{run_id}/openai/cs/openai_ranked_families.cs.json",
         ]
         latest_keys = [
             f"{prefix}/latest/openai/cs/openai_ranked_jobs.cs.json",

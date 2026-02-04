@@ -96,8 +96,8 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     keys = [call[1] for call in client.calls if call[0] == "upload"]
     assert sorted(keys) == sorted(
         [
-            f"jobintel/runs/{run_id}/openai_ranked_jobs.cs.json",
-            f"jobintel/runs/{run_id}/openai_shortlist.cs.md",
+            f"jobintel/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json",
+            f"jobintel/runs/{run_id}/openai/cs/openai_shortlist.cs.md",
             "jobintel/latest/openai/cs/openai_ranked_jobs.cs.json",
             "jobintel/latest/openai/cs/openai_shortlist.cs.md",
         ]
@@ -311,7 +311,9 @@ def test_publish_s3_dry_run_plan_is_deterministic(tmp_path: Path, monkeypatch, c
         if "dry-run:" not in line or "s3://" not in line:
             continue
         keys.append(line.split("s3://", 1)[1])
-    assert keys == sorted(keys)
+    run_keys = [key for key in keys if "/runs/" in key]
+    latest_keys = [key for key in keys if "/latest/" in key]
+    assert keys == run_keys + latest_keys
 
 
 def test_publish_s3_requires_verifiable_artifacts(tmp_path: Path, monkeypatch) -> None:
@@ -395,7 +397,9 @@ def test_publish_s3_plan_is_deterministic(tmp_path: Path, monkeypatch, capsys) -
     assert payload["ok"] is True
     plan = payload["plan"]
     keys = [entry["s3_key"] for entry in plan]
-    assert keys == sorted(keys)
+    run_keys = [key for key in keys if "/runs/" in key]
+    latest_keys = [key for key in keys if "/latest/" in key]
+    assert keys == run_keys + latest_keys
     assert any(key.endswith("openai_ranked_jobs.cs.json") for key in keys)
     assert any("/latest/openai/cs/" in key for key in keys)
     assert all(entry["kind"] in {"runs", "latest"} for entry in plan)

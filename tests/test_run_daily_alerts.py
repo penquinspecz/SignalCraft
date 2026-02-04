@@ -73,3 +73,29 @@ def test_maybe_post_run_summary_posts_when_diffs_exist(monkeypatch):
 
     assert status == "ok"
     assert len(called) == 1
+
+
+def test_notify_mode_always_post_env(monkeypatch):
+    monkeypatch.setenv("JOBINTEL_DISCORD_ALWAYS_POST", "1")
+    notify_mode = run_daily._resolve_notify_mode(None)
+    assert notify_mode == "always"
+
+    called = []
+
+    def fake_post(*args, **kwargs):
+        called.append((args, kwargs))
+        return "ok"
+
+    monkeypatch.setattr(run_daily, "_post_run_summary", fake_post)
+    status = run_daily._maybe_post_run_summary(
+        provider="openai",
+        profile="cs",
+        ranked_json=Path("dummy.json"),
+        diff_counts={"new": 0, "changed": 0, "removed": 0},
+        min_score=40,
+        notify_mode=notify_mode,
+        no_post=False,
+    )
+
+    assert status == "ok"
+    assert len(called) == 1

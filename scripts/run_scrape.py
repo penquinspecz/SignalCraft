@@ -21,7 +21,7 @@ from ji_engine.config import DATA_DIR, RAW_JOBS_JSON
 from ji_engine.providers.ashby_provider import AshbyProvider
 from ji_engine.providers.openai_provider import OpenAICareersProvider
 from ji_engine.providers.registry import load_providers_config
-from ji_engine.providers.retry import ProviderFetchError
+from ji_engine.providers.retry import ProviderFetchError, classify_failure_type
 from ji_engine.providers.snapshot_json_provider import SnapshotJsonProvider
 from jobintel.snapshots.validate import validate_snapshot_file
 
@@ -174,6 +174,7 @@ def main(argv: List[str] | None = None) -> int:
             "live_attempted": False,
             "live_result": None,
             "live_http_status": None,
+            "live_error_type": None,
             "snapshot_used": False,
             "snapshot_path": None,
             "snapshot_mtime_iso": None,
@@ -187,6 +188,7 @@ def main(argv: List[str] | None = None) -> int:
             "unavailable_reason": None,
             "attempts_made": 0,
             "parsed_job_count": 0,
+            "snapshot_baseline_count": None,
         }
 
         if provider_type == "openai":
@@ -206,6 +208,7 @@ def main(argv: List[str] | None = None) -> int:
                     provenance["attempts_made"] = 1
                     provenance["live_attempted"] = True
                     provenance["live_result"] = "success"
+                    provenance["live_error_type"] = "success"
                 except ProviderFetchError as e:
                     err = str(e)
                     provenance["live_status_code"] = e.status_code
@@ -214,6 +217,7 @@ def main(argv: List[str] | None = None) -> int:
                     provenance["attempts_made"] = e.attempts
                     provenance["live_error_reason"] = e.reason
                     provenance["live_unavailable_reason"] = e.reason
+                    provenance["live_error_type"] = classify_failure_type(e.reason)
                     if e.reason == "auth_error":
                         provenance["availability"] = "unavailable"
                         provenance["unavailable_reason"] = e.reason
@@ -234,6 +238,7 @@ def main(argv: List[str] | None = None) -> int:
                     provenance["attempts_made"] = 1
                     provenance["live_error_reason"] = "network_error"
                     provenance["live_unavailable_reason"] = "network_error"
+                    provenance["live_error_type"] = "transient_error"
                     provenance["live_attempted"] = True
                     provenance["live_result"] = "failed"
                     logger.warning(f"[run_scrape] LIVE failed ({e!r}) → falling back to SNAPSHOT")
@@ -258,6 +263,12 @@ def main(argv: List[str] | None = None) -> int:
             jobs = _normalize_jobs(raw_jobs)
             _write_raw_jobs(provider_id, jobs, output_dir)
             provenance["parsed_job_count"] = len(jobs)
+            if mode == "LIVE" and snapshot_path.exists():
+                try:
+                    baseline_jobs = provider.load_from_snapshot()
+                    provenance["snapshot_baseline_count"] = len(_normalize_jobs(baseline_jobs))
+                except Exception:
+                    provenance["snapshot_baseline_count"] = None
             if provenance.get("scrape_mode") == "snapshot" and provenance.get("attempts_made", 0) == 0:
                 provenance["attempts_made"] = 1
                 provenance["snapshot_used"] = True
@@ -298,6 +309,7 @@ def main(argv: List[str] | None = None) -> int:
                         provenance["attempts_made"] = 1
                         provenance["live_attempted"] = True
                         provenance["live_result"] = "success"
+                        provenance["live_error_type"] = "success"
                     except ProviderFetchError as e:
                         err = str(e)
                         provenance["live_status_code"] = e.status_code
@@ -306,6 +318,7 @@ def main(argv: List[str] | None = None) -> int:
                         provenance["attempts_made"] = e.attempts
                         provenance["live_error_reason"] = e.reason
                         provenance["live_unavailable_reason"] = e.reason
+                        provenance["live_error_type"] = classify_failure_type(e.reason)
                         if e.reason == "auth_error":
                             provenance["availability"] = "unavailable"
                             provenance["unavailable_reason"] = e.reason
@@ -332,6 +345,7 @@ def main(argv: List[str] | None = None) -> int:
                         provenance["attempts_made"] = 1
                         provenance["live_error_reason"] = "network_error"
                         provenance["live_unavailable_reason"] = "network_error"
+                        provenance["live_error_type"] = "transient_error"
                         provenance["live_attempted"] = True
                         provenance["live_result"] = "failed"
                         logger.warning(f"[run_scrape] LIVE failed ({e!r}) → falling back to SNAPSHOT")
@@ -360,6 +374,12 @@ def main(argv: List[str] | None = None) -> int:
                         "parsed_job_count": len(jobs),
                     }
                 )
+                if mode == "LIVE" and snapshot_path.exists():
+                    try:
+                        baseline_jobs = provider.load_from_snapshot()
+                        provenance["snapshot_baseline_count"] = len(_normalize_jobs(baseline_jobs))
+                    except Exception:
+                        provenance["snapshot_baseline_count"] = None
                 if snapshot_path.exists():
                     ok, reason = validate_snapshot_file(provider_id, snapshot_path)
                     provenance["snapshot_validated"] = ok

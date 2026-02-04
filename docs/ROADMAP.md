@@ -87,7 +87,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 - [ ] Dashboard dependency management (FastAPI/uvicorn must be installable in offline/CI contexts or tests should run in CI image)
 - [ ] AI insights scope: currently weekly “pulse”; Phase 2 adds per-job recommendations and profile-aware coaching.
 - [ ] Document CI smoke gate design and failure modes (why it fails, what to inspect)
-- [ ] **AWS IAM footguns:** document execution role vs task role and any SSM permissions (if used) before first deploy
+- [ ] **IAM footguns:** document runtime vs operator verify roles for object-store access in K8s (IRSA) + AWS
 - [ ] **Artifact hygiene:** ensure secrets never leak into run reports/artifacts; add a redaction sanity test if needed
 
 ---
@@ -159,21 +159,35 @@ S3-compatible object store, optional alerts.
 - [ ] Kubernetes CronJob runs end-to-end with mounted/ephemeral state
 - [x] Publish plan + offline verification contract exists for object-store keys (verifiable allowlist)
 - [ ] End-to-end publish to a real object-store bucket verified (runs + latest keys)
-- [ ] Discord alerts sent only when diffs exist (or optionally always send summary; configurable)
+- [x] Discord alerts sent only when diffs exist (or optionally always send summary; configurable)
 - [x] Minimal object-store IAM policy documented (least privilege; AWS example)
 - [ ] Domain-backed dashboard endpoint (API first; UI can come later)
 - [ ] Runbook: deploy, inspect last run, roll back, rotate secrets
  - [ ] Proof artifacts captured (for verification):
    - CloudWatch log line with `run_id`
-   - `s3://<bucket>/<prefix>/runs/<run_id>/...` populated
+   - `s3://<bucket>/<prefix>/runs/<run_id>/<provider>/<profile>/...` populated
    - `python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --verify-latest` outputs OK
 
 ### Work Items
 - [x] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)
 - [x] Publish plan + offline verification (`publish_s3 --plan --json`, `verify_published_s3 --offline`)
 - [x] Orchestrator-shape local smoke (`make ecs-shape-smoke`)
-- [x] Define object-store key structure + retention strategy:
-  - `s3://<bucket>/runs/<run_id>/...`
+- [x] K8s CronJob manifests exist (base + AWS overlay)
+- [x] K8s overlays for live/publish modes exist (composable)
+- [x] Proof tooling exists (`scripts/prove_cloud_run.py`)
+- [x] Machine-parseable run_id log line + success pointer exists
+- [x] IRSA wiring is parameterized and documented (no manual YAML editing)
+- [ ] Proof run executed (EKS one-off job + real S3 publish + proof JSON captured)
+- [ ] EKS bootstrap path exists (Terraform) + IRSA wiring documented
+- Receipts rule: infra execution boxes are checked only with receipts in hand (proof JSON + verify output).
+- Note: check “Proof run executed” only after `state/proofs/<run_id>.json` exists locally and `verify_published_s3` is OK.
+  - Evidence required:
+    - JOBINTEL_RUN_ID log line captured
+    - `state/proofs/<run_id>.json` exists locally
+    - `verify_published_s3` outputs OK (runs + latest)
+- Note: check “EKS bootstrap path exists” only after a human-run `terraform init/plan/apply` completes and outputs are used to render the overlay.
+- [x] Define object-store key structure + latest semantics + retention strategy:
+  - `s3://<bucket>/runs/<run_id>/<provider>/<profile>/...`
   - `s3://<bucket>/latest/<provider>/<profile>/...`
 - [x] Add `ops/aws/README.md` with:
   - required env vars/secrets (Discord webhook, AI keys, dashboard URL)
@@ -181,7 +195,7 @@ S3-compatible object store, optional alerts.
   - IAM least-privilege policy (task role + operator verify role)
   - CloudWatch logs + metrics basics
 - [x] Add `ops/aws/infra/` scaffolding (Terraform or CDK — pick one; keep minimal)
-- [ ] Add a “deployment smoke” script to validate AWS env vars and connectivity
+- [x] Add a “deployment smoke” script to validate AWS env vars and connectivity
 - [x] Add a published-artifact verification script (`scripts/verify_published_s3.py`) and CI-friendly checks (optional)
 
 ---

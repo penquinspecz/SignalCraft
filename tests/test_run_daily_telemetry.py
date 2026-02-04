@@ -44,7 +44,9 @@ def test_short_circuit_writes_last_run(tmp_path, monkeypatch):
 
     last_run = tmp_path / "state" / "last_run.json"
     lock_path = tmp_path / "state" / "lock"
+    monkeypatch.setattr(run_daily, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(run_daily, "LAST_RUN_JSON", last_run)
+    monkeypatch.setattr(run_daily, "LAST_SUCCESS_JSON", tmp_path / "state" / "last_success.json")
     monkeypatch.setattr(run_daily, "LOCK_PATH", lock_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -62,6 +64,7 @@ def test_short_circuit_writes_last_run(tmp_path, monkeypatch):
     data = json.loads(last_run.read_text())
     assert data["status"] == "short_circuit"
     assert data["hashes"]["raw"] == h_raw
+    assert not (tmp_path / "state" / "last_success.json").exists()
 
 
 def test_last_run_written_on_success(tmp_path, monkeypatch):
@@ -78,7 +81,9 @@ def test_last_run_written_on_success(tmp_path, monkeypatch):
 
     last_run = tmp_path / "state" / "last_run.json"
     lock_path = tmp_path / "state" / "lock"
+    monkeypatch.setattr(run_daily, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(run_daily, "LAST_RUN_JSON", last_run)
+    monkeypatch.setattr(run_daily, "LAST_SUCCESS_JSON", tmp_path / "state" / "last_success.json")
     monkeypatch.setattr(run_daily, "LOCK_PATH", lock_path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -95,6 +100,40 @@ def test_last_run_written_on_success(tmp_path, monkeypatch):
     data = json.loads(last_run.read_text())
     assert data["status"] == "success"
     assert data["hashes"]["raw"] == run_daily._hash_file(raw)
+    pointer_path = tmp_path / "state" / "last_success.json"
+    assert pointer_path.exists()
+    pointer = json.loads(pointer_path.read_text())
+    assert pointer["run_id"] is not None
+    assert "artifacts" in pointer
+
+
+def test_run_daily_emits_run_id_line(tmp_path: Path, monkeypatch, capsys) -> None:
+    raw = tmp_path / "raw.json"
+    labeled = tmp_path / "labeled.json"
+    enriched = tmp_path / "enriched.json"
+    _write_json(raw, [{"x": 1}])
+    _write_json(labeled, [{"y": 2}])
+    _write_json(enriched, [{"apply_url": "u1", "title": "t", "enrich_status": "enriched", "score": 0}])
+
+    monkeypatch.setattr(run_daily, "RAW_JOBS_JSON", raw)
+    monkeypatch.setattr(run_daily, "LABELED_JOBS_JSON", labeled)
+    monkeypatch.setattr(run_daily, "ENRICHED_JOBS_JSON", enriched)
+    monkeypatch.setattr(run_daily, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(run_daily, "LAST_RUN_JSON", tmp_path / "state" / "last_run.json")
+    monkeypatch.setattr(run_daily, "LAST_SUCCESS_JSON", tmp_path / "state" / "last_success.json")
+    monkeypatch.setattr(run_daily, "LOCK_PATH", tmp_path / "state" / "lock")
+    (tmp_path / "state").mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(run_daily, "_run", lambda *a, **k: None)
+    monkeypatch.setattr(run_daily, "USE_SUBPROCESS", False)
+    monkeypatch.setattr(run_daily, "_resolve_profiles", lambda args: [])
+    monkeypatch.setattr(run_daily, "_utcnow_iso", lambda: "2026-01-02T00:00:00Z")
+
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profile", "cs"])
+    rc = run_daily.main()
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "JOBINTEL_RUN_ID=2026-01-02T00:00:00Z" in out
 
 
 def test_ai_runs_and_scoring_when_needed(tmp_path: Path, monkeypatch) -> None:

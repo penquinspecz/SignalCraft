@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-import time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-import requests
-
+from ji_engine.providers.retry import ProviderFetchError, fetch_json_with_retry
 from ji_engine.utils.atomic_write import atomic_write_text
 
 API_URL = "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting"
@@ -55,24 +53,19 @@ def fetch_job_posting(org: str, job_id: str, cache_dir: Path, *, force: bool = F
         "query": QUERY,
     }
 
-    # light retry for transient CDN hiccups / 429s
-    for attempt in range(4):
-        r = requests.post(API_URL, headers=headers, json=payload, timeout=30)
-        if r.status_code == 200:
-            data = r.json()
-            jp = (data.get("data") or {}).get("jobPosting") if isinstance(data, dict) else None
-            if jp is None:
-                # Treat null jobPosting as unavailable; do not cache
-                return None
-            atomic_write_text(cache_path, json.dumps(data, ensure_ascii=False))
-            return data
-        if r.status_code in (429, 500, 502, 503, 504):
-            time.sleep(1.5 * (attempt + 1))
-            continue
-        r.raise_for_status()
+    try:
+        data = fetch_json_with_retry(API_URL, headers=headers, payload=payload, timeout_s=30)
+    except ProviderFetchError as exc:
+        if exc.reason == "unavailable":
+            return None
+        raise
 
-    r.raise_for_status()
-    raise RuntimeError("Unreachable")
+    jp = (data.get("data") or {}).get("jobPosting") if isinstance(data, dict) else None
+    if jp is None:
+        # Treat null jobPosting as unavailable; do not cache
+        return None
+    atomic_write_text(cache_path, json.dumps(data, ensure_ascii=False))
+    return data
 
 
 __all__ = ["fetch_job_posting"]

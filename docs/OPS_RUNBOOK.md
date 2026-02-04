@@ -22,7 +22,7 @@ Note: ECS task ARN is resolved via ECS task metadata when available.
 PUBLISH_S3=1 JOBINTEL_S3_BUCKET=jobintel-prod1 JOBINTEL_S3_PREFIX=jobintel \
   python scripts/run_daily.py --profiles cs --providers openai --no_post
 
-aws s3 ls s3://jobintel-prod1/jobintel/runs/<run_id>/
+aws s3 ls s3://jobintel-prod1/jobintel/runs/<run_id>/<provider>/<profile>/
 aws s3 ls s3://jobintel-prod1/jobintel/latest/openai/cs/
 ```
 

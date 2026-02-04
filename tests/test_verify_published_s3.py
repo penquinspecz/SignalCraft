@@ -82,7 +82,6 @@ def test_verify_published_s3_offline_expected_keys(tmp_path: Path, capsys) -> No
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     keys = [entry["s3_key"] for entry in payload["checked"]]
-    assert keys == sorted(keys)
     assert any(key.endswith("openai_ranked_jobs.cs.json") for key in keys)
     assert any("/latest/openai/cs/" in key for key in keys)
 
@@ -151,7 +150,7 @@ def test_verify_published_s3_missing_objects(tmp_path: Path, capsys) -> None:
         bucket = "bucket"
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket=bucket)
-        key = f"jobintel/runs/{run_id}/openai_ranked_jobs.cs.json"
+        key = f"jobintel/runs/{run_id}/openai/cs/openai_ranked_jobs.cs.json"
         client.put_object(Bucket=bucket, Key=key, Body=b"[]")
 
         code = verify_published_s3.main(
@@ -234,7 +233,7 @@ def test_verify_published_s3_offline_plan_json_missing(tmp_path: Path, capsys) -
                     "sha256": "x",
                     "bytes": 2,
                     "content_type": "application/json",
-                    "s3_key": "jobintel/runs/2026-01-02T00:00:00Z/openai_ranked_jobs.cs.json",
+                    "s3_key": "jobintel/runs/2026-01-02T00:00:00Z/openai/cs/openai_ranked_jobs.cs.json",
                     "kind": "runs",
                 }
             ]
@@ -261,6 +260,59 @@ def test_verify_published_s3_offline_plan_json_missing(tmp_path: Path, capsys) -
     assert code == 2
     payload = json.loads(capsys.readouterr().out)
     assert payload["missing"]
+
+
+def test_verify_published_s3_latest_semantics_mismatch(tmp_path: Path, capsys) -> None:
+    run_id = "2026-01-02T00:00:00Z"
+    plan_path = tmp_path / "plan.json"
+    data_dir = tmp_path / "data"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    (data_dir / "openai_ranked_jobs.cs.json").write_text("[]", encoding="utf-8")
+    plan_path.write_text(
+        json.dumps(
+            [
+                {
+                    "logical_key": "openai:cs:ranked_json",
+                    "local_path": "openai_ranked_jobs.cs.json",
+                    "sha256": "runs-hash",
+                    "bytes": 2,
+                    "content_type": "application/json",
+                    "s3_key": "jobintel/runs/2026-01-02T00:00:00Z/openai/cs/openai_ranked_jobs.cs.json",
+                    "kind": "runs",
+                },
+                {
+                    "logical_key": "openai:cs:ranked_json",
+                    "local_path": "openai_ranked_jobs.cs.json",
+                    "sha256": "latest-hash",
+                    "bytes": 2,
+                    "content_type": "application/json",
+                    "s3_key": "jobintel/latest/openai/cs/openai_ranked_jobs.cs.json",
+                    "kind": "latest",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
+    verify_published_s3.DATA_DIR = data_dir
+
+    code = verify_published_s3.main(
+        [
+            "--bucket",
+            "bucket",
+            "--run-id",
+            run_id,
+            "--prefix",
+            "jobintel",
+            "--offline",
+            "--verify-latest",
+            "--plan-json",
+            str(plan_path),
+            "--json",
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 2
+    assert any("latest_sha_mismatch:openai:cs:ranked_json" in item for item in payload["mismatched"])
 
 
 def test_verify_published_s3_offline_skips_boto3(tmp_path: Path, monkeypatch, capsys) -> None:

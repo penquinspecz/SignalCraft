@@ -33,6 +33,7 @@ from bs4 import BeautifulSoup
 
 from ji_engine.config import ASHBY_CACHE_DIR, ENRICHED_JOBS_JSON, LABELED_JOBS_JSON, SNAPSHOT_DIR
 from ji_engine.integrations.ashby_graphql import fetch_job_posting
+from ji_engine.providers.retry import ProviderFetchError, classify_failure_type
 from ji_engine.integrations.html_to_text import html_to_text
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.job_id import extract_job_id_from_url
@@ -266,9 +267,15 @@ def _enrich_single(
 
     fallback_url = _derive_fallback_url(apply_url)
 
+    failure_type: Optional[str] = None
     try:
         api_data = fetch_func(org=ORG, job_id=job_id, cache_dir=CACHE_DIR)
+    except ProviderFetchError as e:
+        failure_type = classify_failure_type(e.reason)
+        logger.info(f" ❌ API fetch failed: {e}")
+        api_data = None
     except Exception as e:
+        failure_type = "transient_error"
         logger.info(f" ❌ API fetch failed: {e}")
         api_data = None
 
@@ -276,6 +283,19 @@ def _enrich_single(
     updated_job["job_id"] = job_id
     jd_text = updated_job.get("jd_text")
     unavailable_reason: Optional[str] = None
+
+    if failure_type == "unavailable":
+        updated_job["enrich_status"] = "unavailable"
+        updated_job["enrich_reason"] = "api_unavailable"
+        updated_job["jd_text"] = None
+        updated_job["fetched_at"] = datetime.utcnow().isoformat()
+        return updated_job, "api_unavailable", "unavailable"
+    if failure_type == "invalid_response":
+        updated_job["enrich_status"] = "failed"
+        updated_job["enrich_reason"] = "api_invalid_response"
+    elif failure_type == "transient_error":
+        updated_job["enrich_status"] = "failed"
+        updated_job["enrich_reason"] = "api_transient_error"
 
     if fallback_needed:
         logger.info(" ⚠️ Falling back to HTML parsing")

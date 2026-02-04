@@ -9,10 +9,11 @@ except ModuleNotFoundError:
 import argparse
 import json
 import sys
+import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ji_engine.config import DATA_DIR, RUN_METADATA_DIR
+from ji_engine.config import DATA_DIR, RUN_METADATA_DIR, STATE_DIR
 from ji_engine.utils.verification import compute_sha256_file, verify_verifiable_artifacts
 
 
@@ -24,8 +25,101 @@ def _load_run_report(path: Path) -> Dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _collect_entries(report: Dict[str, Any], profile: str) -> List[Tuple[str, Optional[str], Optional[str]]]:
+def _resolve_archived_path(path_str: Optional[str], state_dir: Path) -> Optional[str]:
+    if not path_str:
+        return None
+    path = Path(path_str)
+    if path.is_absolute():
+        return str(path)
+    return str(state_dir / path)
+
+
+def _resolve_provider(report: Dict[str, Any]) -> str:
+    providers = report.get("providers") or []
+    if isinstance(providers, list) and providers:
+        if "openai" in providers:
+            return "openai"
+        if isinstance(providers[0], str):
+            return providers[0]
+    return "openai"
+
+
+def _resolve_archived_inputs(
+    report: Dict[str, Any], provider: str, profile: str, state_dir: Path
+) -> Tuple[Optional[Path], Optional[Path]]:
+    archived = report.get("archived_inputs_by_provider_profile") or {}
+    if not isinstance(archived, dict):
+        return None, None
+    by_provider = archived.get(provider)
+    if not isinstance(by_provider, dict):
+        return None, None
+    by_profile = by_provider.get(profile)
+    if not isinstance(by_profile, dict):
+        return None, None
+    selected = by_profile.get("selected_scoring_input")
+    profile_cfg = by_profile.get("profile_config")
+    if not isinstance(selected, dict) or not isinstance(profile_cfg, dict):
+        return None, None
+    selected_path = _resolve_archived_path(selected.get("archived_path"), state_dir)
+    profile_path = _resolve_archived_path(profile_cfg.get("archived_path"), state_dir)
+    return (Path(selected_path) if selected_path else None, Path(profile_path) if profile_path else None)
+
+
+def _resolve_expected_outputs(
+    report: Dict[str, Any], provider: str, profile: str
+) -> Dict[str, Dict[str, Optional[str]]]:
+    outputs_by_provider = report.get("outputs_by_provider") or {}
+    if isinstance(outputs_by_provider, dict):
+        provider_payload = outputs_by_provider.get(provider)
+        if isinstance(provider_payload, dict):
+            profile_payload = provider_payload.get(profile)
+            if isinstance(profile_payload, dict):
+                return profile_payload
+    outputs_by_profile = report.get("outputs_by_profile") or {}
+    if isinstance(outputs_by_profile, dict):
+        profile_payload = outputs_by_profile.get(profile)
+        if isinstance(profile_payload, dict):
+            return profile_payload
+    return {}
+
+
+def _collect_archived_entries(
+    report: Dict[str, Any], profile: str, state_dir: Path
+) -> List[Tuple[str, Optional[str], Optional[str]]]:
+    archived = report.get("archived_inputs_by_provider_profile") or {}
+    if not isinstance(archived, dict):
+        return []
+    providers = report.get("providers") or []
+    provider = "openai"
+    if isinstance(providers, list) and providers:
+        provider = "openai" if "openai" in providers else providers[0]
+    by_provider = archived.get(provider)
+    if not isinstance(by_provider, dict):
+        return []
+    by_profile = by_provider.get(profile)
+    if not isinstance(by_profile, dict):
+        return []
     entries: List[Tuple[str, Optional[str], Optional[str]]] = []
+    for key in ("selected_scoring_input", "profile_config"):
+        meta = by_profile.get(key)
+        if isinstance(meta, dict):
+            entries.append(
+                (
+                    f"archived_input:{key}",
+                    _resolve_archived_path(meta.get("archived_path"), state_dir),
+                    meta.get("sha256"),
+                )
+            )
+    return entries
+
+
+def _collect_entries(report: Dict[str, Any], profile: str, state_dir: Path) -> List[Tuple[str, Optional[str], Optional[str]]]:
+    entries: List[Tuple[str, Optional[str], Optional[str]]] = []
+
+    archived_entries = _collect_archived_entries(report, profile, state_dir)
+    if archived_entries:
+        entries.extend(archived_entries)
+        return entries
 
     inputs = report.get("inputs") or {}
     if isinstance(inputs, dict):
@@ -103,7 +197,7 @@ def _print_report(lines: List[str]) -> None:
 
 
 def _replay_report(
-    report: Dict[str, Any], profile: str, strict: bool
+    report: Dict[str, Any], profile: str, strict: bool, state_dir: Path
 ) -> Tuple[
     int,
     List[str],
@@ -117,7 +211,7 @@ def _replay_report(
     missing = 0
     artifacts: Dict[str, Dict[str, Optional[object]]] = {}
 
-    entries = _collect_entries(report, profile)
+    entries = _collect_entries(report, profile, state_dir)
     verifiable = report.get("verifiable_artifacts")
     verifiable_entries = _collect_verifiable_entries(report, DATA_DIR)
     verifiable_mismatch_by_label: Dict[str, Dict[str, Optional[str]]] = {}
@@ -228,6 +322,179 @@ def _replay_report(
     }
 
 
+def _recalc_report(
+    report: Dict[str, Any], profile: str, strict: bool, run_dir: Path, quiet: bool, state_dir: Path
+) -> Tuple[int, List[str], Dict[str, Dict[str, Optional[object]]], Dict[str, int], List[str], List[str]]:
+    lines: List[str] = []
+    artifacts: Dict[str, Dict[str, Optional[object]]] = {}
+    mismatched_keys: List[str] = []
+    missing_keys: List[str] = []
+
+    provider = _resolve_provider(report)
+    selected_input, profile_cfg = _resolve_archived_inputs(report, provider, profile, state_dir)
+    if not selected_input or not profile_cfg:
+        return 2, ["FAIL: archived inputs missing for recalc"], artifacts, {
+            "checked": 0,
+            "matched": 0,
+            "mismatched": 0,
+            "missing": 0,
+        }, mismatched_keys, missing_keys
+
+    expected_outputs = _resolve_expected_outputs(report, provider, profile)
+    if not expected_outputs:
+        return 2, ["FAIL: expected outputs missing for recalc"], artifacts, {
+            "checked": 0,
+            "matched": 0,
+            "mismatched": 0,
+            "missing": 0,
+        }, mismatched_keys, missing_keys
+
+    recalc_dir = run_dir / "_recalc" / provider / profile
+    if recalc_dir.exists():
+        shutil.rmtree(recalc_dir)
+    recalc_dir.mkdir(parents=True, exist_ok=True)
+
+    out_json = recalc_dir / f"{provider}_ranked_jobs.{profile}.json"
+    out_csv = recalc_dir / f"{provider}_ranked_jobs.{profile}.csv"
+    out_families = recalc_dir / f"{provider}_ranked_families.{profile}.json"
+    out_md = recalc_dir / f"{provider}_shortlist.{profile}.md"
+    out_top = recalc_dir / f"{provider}_top.{profile}.md"
+
+    flags = report.get("flags") or {}
+    min_score = flags.get("min_score", 40)
+    us_only = bool(flags.get("us_only", False))
+
+    try:
+        import scripts.score_jobs as score_jobs  # local import to avoid side-effects when not recalc
+
+        argv = [
+            "score_jobs.py",
+            "--profile",
+            profile,
+            "--profiles",
+            str(profile_cfg),
+            "--in_path",
+            str(selected_input),
+            "--out_json",
+            str(out_json),
+            "--out_csv",
+            str(out_csv),
+            "--out_families",
+            str(out_families),
+            "--out_md",
+            str(out_md),
+            "--out_md_top_n",
+            str(out_top),
+            "--min_score",
+            str(min_score),
+        ]
+        if us_only:
+            argv.append("--us_only")
+        import contextlib
+        import io
+
+        old_argv = sys.argv
+        sys.argv = argv
+        try:
+            if quiet:
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    score_jobs.main()
+            else:
+                score_jobs.main()
+        finally:
+            sys.argv = old_argv
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 3
+        return max(3, code), [f"FAIL: recalc failed ({exc})"], artifacts, {
+            "checked": 0,
+            "matched": 0,
+            "mismatched": 0,
+            "missing": 0,
+        }, mismatched_keys, missing_keys
+    except Exception as exc:
+        return 3, [f"FAIL: recalc failed ({exc!r})"], artifacts, {
+            "checked": 0,
+            "matched": 0,
+            "mismatched": 0,
+            "missing": 0,
+        }, mismatched_keys, missing_keys
+
+    output_paths = {
+        "ranked_json": out_json,
+        "ranked_csv": out_csv,
+        "ranked_families_json": out_families,
+        "shortlist_md": out_md,
+        "top_md": out_top,
+    }
+
+    checked = 0
+    matched = 0
+    mismatched = 0
+    missing = 0
+
+    lines.append("RECALC REPORT")
+    for key, meta in sorted(expected_outputs.items()):
+        if not isinstance(meta, dict):
+            continue
+        expected_hash = meta.get("sha256")
+        output_path = output_paths.get(key)
+        checked += 1
+        if not output_path or not output_path.exists() or not expected_hash:
+            missing += 1
+            missing_keys.append(key)
+            artifacts[key] = {
+                "path": str(output_path) if output_path else None,
+                "expected": expected_hash,
+                "actual": None,
+                "bytes": None,
+                "match": False,
+                "missing": True,
+            }
+            lines.append(f"recalc:{key}: expected={expected_hash} actual=None match=False")
+            continue
+        actual_hash = compute_sha256_file(output_path)
+        ok = actual_hash == expected_hash
+        if ok:
+            matched += 1
+        else:
+            mismatched += 1
+            mismatched_keys.append(key)
+        artifacts[key] = {
+            "path": str(output_path),
+            "expected": expected_hash,
+            "actual": actual_hash,
+            "bytes": output_path.stat().st_size,
+            "match": ok,
+            "missing": False,
+        }
+        lines.append(f"recalc:{key}: expected={expected_hash} actual={actual_hash} match={str(ok)}")
+
+    lines.append(f"SUMMARY: checked={checked} matched={matched} mismatched={mismatched} missing={missing}")
+    if missing > 0:
+        lines.insert(0, "FAIL: missing recalc artifacts")
+        return (2 if strict else 0), lines, artifacts, {
+            "checked": checked,
+            "matched": matched,
+            "mismatched": mismatched,
+            "missing": missing,
+        }, mismatched_keys, missing_keys
+    if mismatched > 0:
+        lines.insert(0, "FAIL: recalc mismatched artifacts")
+        return (2 if strict else 0), lines, artifacts, {
+            "checked": checked,
+            "matched": matched,
+            "mismatched": mismatched,
+            "missing": missing,
+        }, mismatched_keys, missing_keys
+    lines.insert(0, "PASS: recalc outputs match run report hashes")
+    return 0, lines, artifacts, {
+        "checked": checked,
+        "matched": matched,
+        "mismatched": mismatched,
+        "missing": missing,
+    }, mismatched_keys, missing_keys
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Replay deterministic scoring from a run report.")
     parser.add_argument("--run-report", type=str, help="Path to run report JSON.")
@@ -236,6 +503,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--runs-dir", type=str, help="Base runs dir (default: state/runs).")
     parser.add_argument("--profile", type=str, default="cs", help="Profile to replay (default: cs).")
     parser.add_argument("--strict", action="store_true", help="Treat mismatches as non-zero exit.")
+    parser.add_argument("--recalc", action="store_true", help="Recompute scoring outputs from archived inputs.")
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON to stdout.")
     parser.add_argument("--quiet", action="store_true", help="Suppress non-JSON output.")
     args = parser.parse_args(argv)
@@ -260,7 +528,30 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"ERROR: failed to load run report: {exc!r}", file=sys.stderr)
         return 3
 
-    exit_code, lines, artifacts, counts = _replay_report(report, args.profile, args.strict)
+    if args.run_dir:
+        run_dir = Path(args.run_dir)
+    elif report_path.name == "run_report.json":
+        run_dir = report_path.parent
+    else:
+        run_id = report.get("run_id")
+        run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id or report_path.stem)
+    state_dir = STATE_DIR
+    if run_dir.parent.name == "runs":
+        state_dir = run_dir.parent.parent
+
+    if args.recalc:
+        (
+            exit_code,
+            lines,
+            artifacts,
+            counts,
+            recalc_mismatched,
+            recalc_missing,
+        ) = _recalc_report(report, args.profile, args.strict, run_dir, args.json or args.quiet, state_dir)
+    else:
+        exit_code, lines, artifacts, counts = _replay_report(report, args.profile, args.strict, state_dir)
+        recalc_mismatched = []
+        recalc_missing = []
     if args.json:
         payload = {
             "run_id": report.get("run_id"),
@@ -269,6 +560,10 @@ def main(argv: Optional[List[str]] = None) -> int:
             "mismatched": counts["mismatched"],
             "missing": counts["missing"],
             "artifacts": artifacts,
+            "recalc": bool(args.recalc),
+            "regenerated_artifacts": artifacts if args.recalc else {},
+            "recalc_mismatched_keys": recalc_mismatched,
+            "recalc_missing_keys": recalc_missing,
         }
         print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     elif not args.quiet:

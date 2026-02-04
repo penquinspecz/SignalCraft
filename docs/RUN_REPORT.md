@@ -1,6 +1,7 @@
 # Run Report Reference
 
-Run reports are written to `state/runs/<run_id>.json` and include metadata for reproducibility,
+Run reports are written to `state/runs/<run_id>.json` and copied to
+`state/runs/<run_id>/run_report.json`. They include metadata for reproducibility,
 debugging, and audit trails. They are versioned with `run_report_schema_version`.
 
 ## Schema version
@@ -45,10 +46,25 @@ debugging, and audit trails. They are versioned with `run_report_schema_version`
       - `decision_timestamp` (ISO 8601)
   - `comparison_details` (e.g., newer_by_seconds, prefer_ai)
   - `decision` (human-readable rule and reason)
+- `archived_inputs_by_provider_profile`: archived copies of the selected scoring inputs and profiles config:
+  - `<provider>` → `<profile>` → `{selected_scoring_input, profile_config}`
+  - Each archived entry includes `source_path`, `archived_path` (relative to `JOBINTEL_STATE_DIR`), `sha256`, `bytes`.
 - `delta_summary`: delta intelligence summary if available.
 - `git_sha`: best-effort git sha when available.
 - `image_tag`: container image tag if set.
 - `s3_bucket`, `s3_prefixes`, `uploaded_files_count`, `dashboard_url`: S3 publishing metadata (when enabled).
+- Diff summary artifacts are written under the run directory (`state/runs/<run_id>/diff_summary.json` and `.md`).
+
+### Provider provenance additions
+Each provider entry in `provenance_by_provider` may include:
+- `live_error_type`: one of `success`, `transient_error`, `unavailable`, `invalid_response` (when live was attempted).
+- `snapshot_baseline_count`: job count from the snapshot baseline (when available).
+- `failure_policy`: deterministic policy evaluation result and thresholds:
+  - `decision`: `ok` or `fail`
+  - `reason`: short enum-like reason string
+  - `parsed_job_count`, `snapshot_baseline_count`
+  - `error_rate`, `error_rate_max`, `min_jobs`, `min_snapshot_ratio`
+  - `enrich_stats`: `{total, enriched, unavailable, failed}`
 
 ## Selection reason enums
 Selection reasons are deterministic strings such as:
@@ -72,6 +88,7 @@ Use these paths to inspect artifacts:
 
 - Run report:
   - `state/runs/<run_id>.json`
+  - `state/runs/<run_id>/run_report.json`
 - Run registry:
   - `state/runs/<run_id>/index.json`
 - Ranked outputs:
@@ -83,6 +100,9 @@ Use these paths to inspect artifacts:
 - Alerts:
   - `data/<provider>_alerts.<profile>.json`
   - `data/<provider>_alerts.<profile>.md`
+- Diff summary:
+  - `state/runs/<run_id>/diff_summary.json`
+  - `state/runs/<run_id>/diff_summary.md`
 - AI insights (when enabled):
   - `state/runs/<run_id>/ai_insights.<profile>.json`
   - `state/runs/<run_id>/ai_insights.<profile>.md`
@@ -98,6 +118,13 @@ python scripts/replay_run.py --run-id <run_id> --profile cs
 - Exit code `0`: reproducible
 - Exit code `2`: missing inputs or mismatched hashes
 - Exit code `>=3`: runtime error
+
+To recompute scoring outputs from archived inputs and compare hashes:
+```bash
+python scripts/replay_run.py --run-id <run_id> --profile cs --strict --recalc
+```
+- Uses archived scoring inputs + profile config from the run directory (no `data/` dependency).
+- Writes regenerated outputs under `state/runs/<run_id>/_recalc/` and compares hashes to the run report.
 
 Machine-readable replay output:
 ```bash
