@@ -116,6 +116,7 @@ def test_chaos_mode_sets_deterministic_provenance_fields(tmp_path: Path, monkeyp
     data_dir = tmp_path / "data"
     monkeypatch.setenv("JOBINTEL_DATA_DIR", str(data_dir))
     monkeypatch.setenv("JOBINTEL_CHAOS_MODE", "1")
+    monkeypatch.setenv("JOBINTEL_ALLOW_CHAOS_IN_CI", "1")
     monkeypatch.setenv("JOBINTEL_CHAOS_PROVIDER", "openai")
     monkeypatch.setenv("JOBINTEL_PROVIDER_MIN_DELAY_S_OPENAI", "0")
 
