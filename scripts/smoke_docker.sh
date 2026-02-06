@@ -10,12 +10,14 @@ SMOKE_PROFILES=${SMOKE_PROFILES:-cs}
 SMOKE_NO_ENRICH=-e
 SMOKE_UPDATE_SNAPSHOTS=${SMOKE_UPDATE_SNAPSHOTS:-0}
 SMOKE_MIN_SCORE=${SMOKE_MIN_SCORE:-40}
+SMOKE_OUTPUT_DIR=${SMOKE_OUTPUT_DIR:-/app/data/ashby_cache}
 PROVIDERS=${PROVIDERS:-$SMOKE_PROVIDERS}
 PROFILES=${PROFILES:-$SMOKE_PROFILES}
 SMOKE_TAIL_LINES=${SMOKE_TAIL_LINES:-0}
 container_created=0
 status=1
 missing=0
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if [ "${DOCKER_BUILDKIT:-1}" = "0" ]; then
   echo "BuildKit is required (Dockerfile uses RUN --mount=type=cache). Set DOCKER_BUILDKIT=1."
@@ -223,6 +225,7 @@ docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
 set +e
 docker create --name "$CONTAINER_NAME" \
+  --env JOBINTEL_OUTPUT_DIR="$SMOKE_OUTPUT_DIR" \
   "$IMAGE_TAG" --providers "$PROVIDERS" --profiles "$PROFILES" --offline --no_post --min_score "$SMOKE_MIN_SCORE" \
   $(if [ "$SMOKE_NO_ENRICH" = "1" ]; then echo "--no_enrich"; fi) >/dev/null
 create_status=$?
@@ -291,21 +294,21 @@ for provider in "${provider_list[@]}"; do
   if [ -z "$provider_trimmed" ]; then
     continue
   fi
-  copy_from_container_any 0 "/app/data/${provider_trimmed}_raw_jobs.json"
-  copy_from_container_any 1 "/app/data/${provider_trimmed}_labeled_jobs.json"
-  copy_from_container_any 0 "/app/data/${provider_trimmed}_enriched_jobs.json"
+  copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_raw_jobs.json" "/app/data/${provider_trimmed}_raw_jobs.json"
+  copy_from_container_any 1 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_labeled_jobs.json" "/app/data/${provider_trimmed}_labeled_jobs.json"
+  copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_enriched_jobs.json" "/app/data/${provider_trimmed}_enriched_jobs.json"
   for profile in "${profile_list[@]}"; do
     profile_trimmed="$(echo "$profile" | xargs)"
     if [ -z "$profile_trimmed" ]; then
       continue
     fi
-    copy_from_container_any 1 "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json"
-    copy_from_container_any 1 "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv"
-    copy_from_container_any 0 "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_shortlist.${profile_trimmed}.md"
-    copy_from_container_any 0 "/app/data/${provider_trimmed}_top.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_top.${profile_trimmed}.md"
-    copy_from_container_any 0 "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_families.${profile_trimmed}.json"
-    copy_from_container_any 0 "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_alerts.${profile_trimmed}.json"
-    copy_from_container_any 0 "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_alerts.${profile_trimmed}.md"
+    copy_from_container_any 1 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_jobs.${profile_trimmed}.json"
+    copy_from_container_any 1 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" "/app/data/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_jobs.${profile_trimmed}.csv"
+    copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_shortlist.${profile_trimmed}.md" "/app/data/${provider_trimmed}_shortlist.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_shortlist.${profile_trimmed}.md"
+    copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_top.${profile_trimmed}.md" "/app/data/${provider_trimmed}_top.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_top.${profile_trimmed}.md"
+    copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_ranked_families.${profile_trimmed}.json" "/app/data/${provider_trimmed}_ranked_families.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_ranked_families.${profile_trimmed}.json"
+    copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_alerts.${profile_trimmed}.json" "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.json" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_alerts.${profile_trimmed}.json"
+    copy_from_container_any 0 "$SMOKE_OUTPUT_DIR/${provider_trimmed}_alerts.${profile_trimmed}.md" "/app/data/${provider_trimmed}_alerts.${profile_trimmed}.md" "/app/data/${provider_trimmed}/${profile_trimmed}/${provider_trimmed}_alerts.${profile_trimmed}.md"
   done
 done
 
@@ -327,10 +330,13 @@ fi
 
 PYTHON=${PYTHON:-python3}
 echo "==> Write metadata"
-$PYTHON -m scripts.smoke_metadata --out "$ARTIFACT_DIR/metadata.json" --providers "$PROVIDERS" --profiles "$PROFILES"
+PYTHONPATH="$repo_root/src" $PYTHON -m scripts.smoke_metadata --out "$ARTIFACT_DIR/metadata.json" --providers "$PROVIDERS" --profiles "$PROFILES"
+
+echo "==> Verify artifact presence"
+ls -la "$ARTIFACT_DIR" || true
 
 echo "==> Smoke contract check"
-$PYTHON scripts/smoke_contract_check.py "$ARTIFACT_DIR" --providers "$PROVIDERS" --profiles "$PROFILES"
+PYTHONPATH="$repo_root/src" $PYTHON scripts/smoke_contract_check.py "$ARTIFACT_DIR" --providers "$PROVIDERS" --profiles "$PROFILES"
 
 if [ "$status" -ne 0 ] || [ "$missing" -ne 0 ]; then
   echo "Smoke failed (exit_code=$status, missing_outputs=$missing)"
