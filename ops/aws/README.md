@@ -8,6 +8,8 @@ Use `ops/aws/EKS_ECR_GOLDEN_PATH.md` for the copy/paste flow:
 - render/apply `aws-eks` overlay with explicit image
 - run `scripts/aws_preflight_eks.py` to validate identity/cluster/ECR/S3 before proof runs
 
+For minimal-cost disaster recovery (cold standby runner + restore + teardown), see `ops/dr/README.md`.
+
 ## Minimal IAM policy (least privilege)
 ```json
 {
