@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -210,6 +210,22 @@ aws-discover-subnets:
 		done; \
 	fi; \
 	$(PY) scripts/aws_discover_subnets.py $$args
+
+dr-plan:
+	APPLY=0 scripts/ops/dr_bringup.sh
+
+dr-apply:
+	APPLY=1 scripts/ops/dr_bringup.sh
+
+dr-restore-check:
+	@if [ -z "$(BACKUP_URI)" ]; then echo "Usage: make dr-restore-check BACKUP_URI=s3://<bucket>/<prefix>/backups/<backup_id>"; exit 2; fi
+	scripts/ops/dr_restore.sh --backup-uri "$(BACKUP_URI)"
+
+dr-validate:
+	RUN_JOB=1 scripts/ops/dr_validate.sh
+
+dr-destroy:
+	CONFIRM_DESTROY=1 scripts/ops/dr_teardown.sh
 
 k8s-commands:
 	@echo "kubectl apply -f ops/k8s/namespace.yaml"
