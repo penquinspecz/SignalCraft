@@ -41,7 +41,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 
 ## Current State (as of this commit)
 
-Last verified: `2026-02-06T23:34:55Z` @ `d957489`
+Last verified: `2026-02-06T23:56:49Z` @ `ffa7c7a`
 
 ### Completed foundation (verified in repo/tests)
 - [x] Deterministic ranking + tie-breakers
@@ -90,7 +90,7 @@ Last verified: `2026-02-06T23:34:55Z` @ `d957489`
 - [ ] AI insights scope: currently weekly “pulse”; Phase 2 adds per-job recommendations and profile-aware coaching.
 - [ ] Document CI smoke gate design and failure modes (why it fails, what to inspect)
 - [x] **IAM footguns:** document runtime vs operator verify roles for object-store access in K8s (IRSA) + AWS
-- [ ] **Artifact hygiene:** ensure secrets never leak into run reports/artifacts; add a redaction sanity test if needed
+- [x] **Artifact hygiene:** redaction scanner + deterministic sanity tests added (`src/ji_engine/utils/redaction.py`, `tests/test_redaction_scan.py`), with opt-in fail-closed enforcement (`REDACTION_ENFORCE=1`)
 
 ---
 
@@ -375,8 +375,8 @@ Minimum required runbooks:
 - [x] `RUNBOOK_ONPREM_INSTALL.md` (k3s bootstrap, storage, networking)
 - [x] `RUNBOOK_DEPLOY.md` (deploy app, rotate secrets, inspect last run)
 - [x] `RUNBOOK_UPGRADES.md` (k3s + add-ons + app image)
-- [ ] `RUNBOOK_BACKUPS.md` (what is backed up, schedule, retention, restore steps)
-- [ ] `RUNBOOK_DISASTER_RECOVERY.md` (AWS cold start restore + validation + teardown)
+- [x] `RUNBOOK_BACKUPS.md` (what is backed up, schedule, retention, restore steps)
+- [x] `RUNBOOK_DISASTER_RECOVERY.md` (AWS cold start restore + validation + teardown)
 - [ ] Each runbook includes:
   - [ ] preflight checks
   - [ ] success criteria
@@ -425,17 +425,18 @@ Minimum required runbooks:
 
 ### Acceptance Test (Single Command “Prove It”)
 A “prove it” sequence exists that can be run by Future You:
+- [x] Deterministic prove-it orchestration exists in plan mode with receipts bundle (`scripts/ops/prove_it_m4.py`, `tests/test_prove_it_m4.py`)
 - [ ] On-prem:
   - [ ] deploy
   - [ ] run a scrape/job
   - [ ] confirm outputs + proof receipts
-  - [ ] run backups
+  - [ ] run backups. Receipt missing: committed backup execution receipts under `ops/proof/bundles/m4-<run_id>/`.
 - [ ] DR rehearsal:
   - [ ] bring up cloud infra
   - [ ] restore
   - [ ] run job
   - [ ] verify outputs
-  - [ ] teardown cloud infra
+  - [ ] teardown cloud infra. Receipt missing: committed execution bundle under `ops/proof/bundles/m4-<run_id>/` from a real rehearsal run.
 
 Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repeat it without discovering surprise tribal knowledge.
 
