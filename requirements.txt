@@ -1,8 +1,8 @@
 annotated-types==0.7.0
 anyio==4.12.1
 beautifulsoup4==4.14.3
-boto3==1.42.41
-botocore==1.42.41
+boto3==1.42.43
+botocore==1.42.43
 certifi==2026.1.4
 charset-normalizer==3.4.4
 distro==1.9.0
@@ -15,7 +15,7 @@ idna==3.11
 jiter==0.13.0
 jmespath==1.1.0
 numpy==2.2.6
-openai==2.16.0
+openai==2.17.0
 packaging==26.0
 pandas==2.3.3
 pydantic==2.12.5
