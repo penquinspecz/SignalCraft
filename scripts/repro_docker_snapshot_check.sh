@@ -22,7 +22,7 @@ PY
 
 printf "host:   sha256=%s bytes=%s\n" "$host_sha" "$host_bytes"
 
-container_out=$(docker run --rm -v "$repo_root":/app -w /app python:3.10-slim python - <<'PY'
+container_out=$(docker run --rm -v "$repo_root":/app -w /app python:3.12-slim python - <<'PY'
 import hashlib
 from pathlib import Path
 p = Path("data/openai_snapshots/index.html")
