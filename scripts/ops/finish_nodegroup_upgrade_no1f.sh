@@ -200,7 +200,11 @@ echo "$NODES_JSON" | jq -r '
   "\(.name)\t\(.kubelet)\tReady=\(.ready)"
 '
 
-mapfile -t OLD_NODES < <(echo "$NODES_JSON" | jq -r '.items[] | select(.status.nodeInfo.kubeletVersion | startswith("v1.31.")) | .metadata.name')
+OLD_NODES=()
+while IFS= read -r node_name; do
+  [[ -n "$node_name" ]] || continue
+  OLD_NODES+=("$node_name")
+done < <(echo "$NODES_JSON" | jq -r '.items[] | select(.status.nodeInfo.kubeletVersion | startswith("v1.31.")) | .metadata.name')
 
 if [[ ${#OLD_NODES[@]} -eq 0 ]]; then
   log "No v1.31 nodes detected in this nodegroup"
