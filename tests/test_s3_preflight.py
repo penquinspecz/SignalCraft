@@ -126,9 +126,7 @@ def test_error_messages(monkeypatch, capsys, response, expected) -> None:
     monkeypatch.setenv("JOBINTEL_S3_BUCKET", "bucket")
     monkeypatch.setenv("AWS_REGION", "us-east-1")
     calls: list[str] = []
-    monkeypatch.setattr(
-        s3_preflight.boto3.session, "Session", lambda region_name=None: _StubSession(calls, response)
-    )
+    monkeypatch.setattr(s3_preflight.boto3.session, "Session", lambda region_name=None: _StubSession(calls, response))
     rc = s3_preflight.main()
     assert rc == 3
     err = capsys.readouterr().err

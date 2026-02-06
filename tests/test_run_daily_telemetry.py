@@ -28,6 +28,7 @@ def _fake_run_factory(ai_path: Path):
             _write_json(ai_path, [{"ai": True, "title": "t"}])
             counters["ai"] += 1
         elif "score_jobs.py" in cmd_str:
+
             def _arg_value(flag: str) -> Path | None:
                 if flag in cmd:
                     return Path(cmd[cmd.index(flag) + 1])

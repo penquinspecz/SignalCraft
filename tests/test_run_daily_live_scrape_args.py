@@ -31,15 +31,19 @@ def test_live_scrape_adds_snapshot_write_dir(tmp_path, monkeypatch) -> None:
         return None
 
     monkeypatch.setattr(run_daily, "_run", fake_run)
-    monkeypatch.setattr(sys, "argv", [
-        "run_daily.py",
-        "--no_subprocess",
-        "--scrape_only",
-        "--providers",
-        "openai",
-        "--profiles",
-        "cs",
-    ])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--scrape_only",
+            "--providers",
+            "openai",
+            "--profiles",
+            "cs",
+        ],
+    )
 
     rc = run_daily.main()
     assert rc == 0

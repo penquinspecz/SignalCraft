@@ -23,18 +23,18 @@ def _client_error(code: str, status: int, headers: dict | None = None, message: 
 def test_format_s3_client_error_messages(monkeypatch):
     monkeypatch.setenv("AWS_ROLE_ARN", "arn:aws:iam::123:role/jobintel")
     monkeypatch.setenv("JOBINTEL_AWS_REGION", "us-east-1")
-    assert (
-        "S3 bucket not found: bucket."
-        in publish_s3._format_s3_client_error(_client_error("NoSuchBucket", 404), "bucket")
+    assert "S3 bucket not found: bucket." in publish_s3._format_s3_client_error(
+        _client_error("NoSuchBucket", 404), "bucket"
     )
-    assert (
-        "Access denied to bucket: bucket."
-        in publish_s3._format_s3_client_error(_client_error("AccessDenied", 403), "bucket")
+    assert "Access denied to bucket: bucket." in publish_s3._format_s3_client_error(
+        _client_error("AccessDenied", 403), "bucket"
     )
     msg = publish_s3._format_s3_client_error(
         _client_error("PermanentRedirect", 301, headers={"x-amz-bucket-region": "us-west-2"}), "bucket"
     )
     assert "Bucket exists in region us-west-2" in msg
+
+
 from ji_engine.utils.verification import compute_sha256_file
 
 

@@ -29,10 +29,7 @@ def _resolve_env() -> tuple[str | None, str | None, str | None]:
     bucket = (os.getenv("JOBINTEL_S3_BUCKET") or "").strip() or None
     prefix = (os.getenv("JOBINTEL_S3_PREFIX") or DEFAULT_PREFIX).strip().strip("/") or None
     region = (
-        os.getenv("JOBINTEL_AWS_REGION")
-        or os.getenv("AWS_REGION")
-        or os.getenv("AWS_DEFAULT_REGION")
-        or ""
+        os.getenv("JOBINTEL_AWS_REGION") or os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or ""
     ).strip() or None
     return bucket, prefix, region
 
