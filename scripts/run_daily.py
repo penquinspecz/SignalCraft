@@ -63,6 +63,7 @@ from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
 from ji_engine.utils.dotenv import load_dotenv
 from ji_engine.utils.job_identity import job_identity
+from ji_engine.utils.redaction import scan_json_for_secrets, scan_text_for_secrets
 from ji_engine.utils.user_state import load_user_state_checked, normalize_user_status
 from ji_engine.utils.verification import (
     build_verifiable_artifacts,
@@ -322,13 +323,41 @@ def _read_json(path: Path) -> Any:
 
 def _write_json(path: Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _redaction_guard_json(path, obj)
     path.write_text(json.dumps(obj, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _write_canonical_json(path: Path, obj: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    _redaction_guard_json(path, obj)
     payload = json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
     path.write_text(payload, encoding="utf-8")
+
+
+def _redaction_enforce_enabled() -> bool:
+    return os.environ.get("REDACTION_ENFORCE", "").strip() == "1"
+
+
+def _redaction_guard_text(path: Path, text: str) -> None:
+    findings = scan_text_for_secrets(text)
+    if not findings:
+        return
+    summary = ", ".join(sorted({f"{item.pattern}@{item.location}" for item in findings}))
+    msg = f"Potential secret-like content detected for {path}: {summary}"
+    if _redaction_enforce_enabled():
+        raise RuntimeError(msg)
+    logger.warning("%s (set REDACTION_ENFORCE=1 to fail closed)", msg)
+
+
+def _redaction_guard_json(path: Path, payload: Any) -> None:
+    findings = scan_json_for_secrets(payload)
+    if not findings:
+        return
+    summary = ", ".join(sorted({f"{item.pattern}@{item.location}" for item in findings}))
+    msg = f"Potential secret-like JSON content detected for {path}: {summary}"
+    if _redaction_enforce_enabled():
+        raise RuntimeError(msg)
+    logger.warning("%s (set REDACTION_ENFORCE=1 to fail closed)", msg)
 
 
 _PROOF_PROVENANCE_FIELDS = [
@@ -1177,9 +1206,9 @@ def _persist_run_metadata(
         payload["failed_stage"] = telemetry["failed_stage"]
     path = _run_metadata_path(run_id)
     path.parent.mkdir(parents=True, exist_ok=True)
+    _redaction_guard_json(path, payload)
     path.write_text(
-        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
-        encoding="utf-8",
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n", encoding="utf-8"
     )
     return path
 
@@ -3611,7 +3640,9 @@ def main() -> int:
                     ignored_ids=ignored_ids,
                 )
                 _write_canonical_json(diff_json_path, diff_report)
-                diff_md_path.write_text(build_diff_markdown(diff_report), encoding="utf-8")
+                diff_markdown = build_diff_markdown(diff_report)
+                _redaction_guard_text(diff_md_path, diff_markdown)
+                diff_md_path.write_text(diff_markdown, encoding="utf-8")
                 diff_summary_by_provider_profile.setdefault(provider, {})[profile] = _diff_summary_entry(
                     run_id=run_id,
                     provider=provider,

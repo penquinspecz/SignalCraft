@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from ji_engine.utils.redaction import scan_text_for_secrets
+
 
 @dataclass(frozen=True)
 class SecretMatch:
@@ -22,6 +24,9 @@ _SECRET_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"https://(?:canary\.|ptb\.)?discord(?:app)?\.com/api/webhooks/\d+/[A-Za-z0-9._-]+"),
     ),
     ("bearer_token", re.compile(r"\b[Bb]earer\s+[A-Za-z0-9._-]{20,}\b")),
+    ("github_token", re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b")),
+    ("github_pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b")),
+    ("openai_api_key", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
     (
         "aws_secret_access_key",
         re.compile(r"(?i)aws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+=]{20,}"),
@@ -35,12 +40,8 @@ def utc_now_iso() -> str:
 
 def find_secret_matches(text: str) -> list[SecretMatch]:
     matches: list[SecretMatch] = []
-    for name, pattern in _SECRET_RULES:
-        for m in pattern.finditer(text):
-            snippet = m.group(0)
-            if len(snippet) > 120:
-                snippet = snippet[:117] + "..."
-            matches.append(SecretMatch(pattern=name, match=snippet))
+    for finding in scan_text_for_secrets(text):
+        matches.append(SecretMatch(pattern=finding.pattern, match=finding.snippet))
     return matches
 
 
