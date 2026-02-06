@@ -41,6 +41,8 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 
 ## Current State (as of this commit)
 
+Last verified: `2026-02-06T22:10:17Z` @ `e270332`
+
 ### Completed foundation (verified in repo/tests)
 - [x] Deterministic ranking + tie-breakers
 - [x] `--prefer_ai` is opt-in; no implicit AI switching
@@ -161,11 +163,11 @@ S3-compatible object store, optional alerts.
 - [x] End-to-end publish to a real object-store bucket verified (runs + latest keys)
 - [x] Discord alerts sent only when diffs exist (or optionally always send summary; configurable)
 - [x] Minimal object-store IAM policy documented (least privilege; AWS example)
-- [ ] Live scraping verified in-cluster (EKS) with provenance showing live_attempted=true and live_result=success (not skipped/failed) — run + commit proof log
-- [ ] Scrape politeness, rate limiting, and anti-bot hardening implemented (required before adding more providers)
+- [ ] Live scraping verified in-cluster (EKS) with provenance showing live_attempted=true and live_result=success (not skipped/failed) — run + commit proof log. Receipt missing: committed `ops/proof/liveproof-<run_id>.log` with non-empty run_id.
+- [x] Scrape politeness, rate limiting, and anti-bot hardening implemented (required before adding more providers)
 - [x] Domain-backed dashboard endpoint (API first; UI can come later)
 - [x] Runbook: deploy, inspect last run, roll back, rotate secrets
- - [ ] Proof artifacts captured (for verification):
+ - [ ] Proof artifacts captured (for verification). Receipt missing: committed local proof bundle (`ops/proof/liveproof-<run_id>.log` + `state/proofs/<run_id>.json` + verify output transcript).
    - CloudWatch log line with `run_id`
    - Provenance JSON line captured showing `live_attempted=true` and `live_result != skipped`
    - `ops/proof/liveproof-<run_id>.log` captured (contains JOBINTEL_RUN_ID + [run_scrape][provenance])
@@ -176,8 +178,15 @@ S3-compatible object store, optional alerts.
    - `python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --verify-latest` outputs OK
 
 Current Status:
-- Remaining Milestone 2 blockers are receipt-driven: in-cluster live proof, proof artifacts capture (`state/proofs/<run_id>.json` + verify output), and evidence that politeness signals (rate-limit/backoff/circuit-breaker + robots/allowlist) are present in real run logs/provenance.
+- Remaining Milestone 3 blockers are receipt-driven: in-cluster live proof, proof artifacts capture (`state/proofs/<run_id>.json` + verify output), and evidence that politeness signals (rate-limit/backoff/circuit-breaker + robots/allowlist) are present in real run logs/provenance.
 - Deployment surfaces are in place (`ops/k8s/jobintel/dashboard.yaml`, `ops/k8s/RUNBOOK.md`, `src/ji_engine/dashboard/app.py`); remaining work is operational proof completion.
+
+Receipts (repo evidence):
+- Scrape policy implementation + deterministic tests: `scripts/run_scrape.py`, `tests/test_provider_politeness.py`, `tests/test_run_scrape_policy_evidence.py`
+- Dashboard API + deploy surface: `src/ji_engine/dashboard/app.py`, `ops/k8s/jobintel/dashboard.yaml`
+- Runbook and proof procedures: `ops/k8s/RUNBOOK.md`, `docs/PROOF_RUN_CHECKLIST.md`
+- Terraform + EKS scaffolding present (but not counted as human-run receipt): `ops/aws/infra/eks/README.md`, `ops/aws/infra/eks/main.tf`
+- Missing operational receipts: `ops/proof/liveproof-<run_id>.log` with populated run_id, local `state/proofs/<run_id>.json` committed, and successful `verify_published_s3 --verify-latest` output tied to the same run_id.
 
 ### Work Items
 - [x] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)
@@ -196,12 +205,12 @@ Current Status:
 - [x] Robots/policy handling: log decision + allowlist (do not silently ignore)
 - [x] Bot/deny-page detection: detect CAPTCHA/Cloudflare/access denied/empty-success; feed availability + circuit breaker
 - [x] User-Agent discipline: explicit UA string + contact-ish metadata (if appropriate) and consistent across requests
-- [ ] Proof requirements: provenance shows rate_limit policy applied; logs show backoff/circuit-breaker events; robots/allowlist decision recorded; test plan captured
+- [ ] Proof requirements: provenance shows rate_limit policy applied; logs show backoff/circuit-breaker events; robots/allowlist decision recorded; test plan captured. Receipt missing: one committed run log/proof showing these fields for a real in-cluster run.
 - [x] Unit test: backoff + circuit-breaker decisions are deterministic given failure sequence
-- [ ] In-cluster proof: live run logs include rate-limit/backoff/circuit-breaker events for at least one provider
-- [ ] Proof run executed (EKS one-off job + real S3 publish + proof JSON captured) — proof JSON not yet captured locally
-- [ ] EKS bootstrap path exists (Terraform) + IRSA wiring documented
-- [ ] EKS can pull image (ECR golden path documented + working)
+- [ ] In-cluster proof: live run logs include rate-limit/backoff/circuit-breaker events for at least one provider. Receipt missing: committed log excerpt for the same run_id as proof JSON.
+- [ ] Proof run executed (EKS one-off job + real S3 publish + proof JSON captured) — proof JSON not yet captured locally. Receipt missing: `state/proofs/<run_id>.json` for a recent live run.
+- [ ] EKS bootstrap path exists (Terraform) + IRSA wiring documented. Receipt missing: human-run `terraform apply` outputs captured and referenced by the proof run.
+- [ ] EKS can pull image (ECR golden path documented + working). Receipt missing: pod/event evidence showing successful image pull from ECR for the proof job.
 - Receipts rule: infra execution boxes are checked only with receipts in hand (proof JSON + verify output).
 - Note: check “Proof run executed” only after `state/proofs/<run_id>.json` exists locally and `verify_published_s3` is OK.
   - Evidence required:
@@ -230,6 +239,8 @@ Current Status:
 ## Milestone 4 — On-Prem Primary (k3s) + Cloud DR (AWS) Without Babysitting
 
 **Intent:** Move JobIntel to an **on-prem primary runtime** (Raspberry Pi k3s) with a **cloud disaster-recovery path** (AWS) that is **validated, rehearsed, and reproducible** — without turning AWS into a permanently running cost sink, and without creating a fragile “active/active” science project.
+
+Status note: all unchecked Milestone 4 boxes are currently receipt-missing (no committed on-prem rehearsal artifacts under `ops/proof/` for this milestone yet).
 
 **Principles / Non-Goals (keep us honest):**
 - ✅ **Primary execution on-prem** (k3s). Cloud is **cold standby** / DR only.
