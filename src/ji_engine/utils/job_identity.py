@@ -99,11 +99,7 @@ def _extract_requisition_id(job: Dict[str, object]) -> str:
 
 def _description_hash(job: Dict[str, object]) -> str:
     description = (
-        job.get("description_text")
-        or job.get("jd_text")
-        or job.get("description")
-        or job.get("descriptionHtml")
-        or ""
+        job.get("description_text") or job.get("jd_text") or job.get("description") or job.get("descriptionHtml") or ""
     )
     normalized = _norm(description)
     if not normalized:
