@@ -14,6 +14,7 @@ from pathlib import Path
 REQUIRED_PYTHON = "3.12"
 REQUIRED_PIP = os.environ.get("JIE_PIP_VERSION", "")
 REQUIRED_PIPTOOLS = os.environ.get("JIE_PIPTOOLS_VERSION", "7.4.1")
+PIP_COMPILE_EXTRAS_POLICY_FLAG = "--strip-extras"
 
 
 def _load_pyproject(path: Path) -> dict:
@@ -84,6 +85,10 @@ def _is_ci() -> bool:
     return os.environ.get("GITHUB_ACTIONS") == "true"
 
 
+def _is_strict_compile_mode() -> bool:
+    return _is_ci() or os.environ.get("JIE_DEPS_TARGET") == "ci"
+
+
 def _ensure_ci_cache_dir() -> None:
     if _is_ci() and not os.environ.get("PIP_TOOLS_CACHE_DIR"):
         os.environ["PIP_TOOLS_CACHE_DIR"] = "/tmp/pip-tools-cache"
@@ -143,11 +148,15 @@ def _tooling_self_check(*, repo_root: Path, check_mode: bool) -> None:
 
 
 def _pip_args_for_ci() -> list[str]:
-    if not _is_ci() and os.environ.get("JIE_DEPS_TARGET") != "ci":
+    if not _is_strict_compile_mode():
         return []
     return [
         "--pip-args=--platform manylinux_2_17_x86_64 --implementation cp --python-version 3.12 --abi cp312",
     ]
+
+
+def _pip_compile_policy_args() -> list[str]:
+    return [PIP_COMPILE_EXTRAS_POLICY_FLAG]
 
 
 def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) -> None:
@@ -162,6 +171,7 @@ def _run_pip_compile(requirements_in: Path, output_path: Path, cache_dir: Path) 
         "--resolver=backtracking",
         "--cache-dir",
         str(cache_dir),
+        *_pip_compile_policy_args(),
         *_pip_args_for_ci(),
         "--output-file",
         str(output_path),
@@ -216,6 +226,8 @@ def _render_requirements(deps: list[str], repo_root: Path) -> str:
                 _run_pip_compile(req_in, req_out, cache_dir)
                 return req_out.read_text(encoding="utf-8")
             except subprocess.CalledProcessError as exc:
+                if _is_strict_compile_mode():
+                    raise
                 print(
                     "Warning: pip-tools compile failed; falling back to deterministic installed-env resolution "
                     f"({exc})",

@@ -25,6 +25,9 @@ CI:
 make gate-ci
 ```
 
+CI smoke gate contract and failure-mode diagnostics:
+- `docs/CI_SMOKE_GATE.md`
+
 Dependency lock workflow (source of truth):
 
 - `requirements.txt` is generated, not hand-edited.
@@ -32,6 +35,10 @@ Dependency lock workflow (source of truth):
 - Update lockfiles with `make deps-sync`.
 - Enforce parity with `make deps-check` (used in CI).
 - If runtime dependencies change, update `pyproject.toml` first, then re-run `make deps-sync`.
+- Export policy is explicit: `pip-compile` is invoked with `--strip-extras` so lock output does not depend on
+  pip-tools default changes.
+- CI strict mode (`GITHUB_ACTIONS=true` / `JIE_DEPS_TARGET=ci`) is fail-closed: if `pip-compile` fails, `deps-check`
+  fails (no fallback).
 - If local `pip`/`pip-tools` are incompatible, export falls back to deterministic installed-env resolution; run
   `make tooling-sync` to return to the pinned toolchain.
 - Determinism check (optional): run `make deps-sync` twice and confirm no diff in `requirements.txt`.
@@ -209,12 +216,55 @@ Machine-parseable history logs:
 - `HISTORY_RETENTION enabled=<0|1> ... run_id=<run_id>`
 - Per profile on success:
   - `HISTORY_RETENTION profile=<profile> run_id=<run_id> enabled=1 keep_runs=<N> keep_days=<D> runs_kept=<n> runs_pruned=<n> daily_kept=<n> daily_pruned=<n> identity_count=<n> identity_map=<path> provenance=<path> run_pointer=<path> daily_pointer=<path>`
+- Log retention summary:
+  - `LOG_RETENTION enabled=<0|1> keep_runs=<N> runs_seen=<n> runs_kept=<n> log_dirs_pruned=<n> run_id=<run_id>`
+  - retention is logs-only under `state/runs/<run_id>/logs/`; run artifacts are not deleted.
 
 Inspect history identity/provenance artifacts:
 
 ```bash
 cat state/history/<profile>/runs/<run_id>/identity_map.json
 cat state/history/<profile>/runs/<run_id>/provenance.json
+```
+
+## Observability contract (lean)
+
+Stdout remains canonical. Optional structured log sink can also write per-run JSONL logs:
+
+```bash
+python scripts/run_daily.py --profiles cs --log_file
+# or
+JOBINTEL_LOG_FILE=1 python scripts/run_daily.py --profiles cs
+```
+
+Per-run log pointers are written into `run_report.json` under `logs`.
+
+Find logs by run_id locally:
+
+```bash
+run_id=<run_id>
+safe_id=$(echo "$run_id" | tr -d ':-.')
+cat "state/runs/$safe_id/run_report.json" | jq '.logs'
+cat "state/runs/$safe_id/logs/run.log.jsonl"   # if log sink enabled
+```
+
+Find logs in k3s:
+
+```bash
+kubectl -n jobintel get pods --sort-by=.metadata.creationTimestamp
+kubectl -n jobintel logs <pod-name>
+kubectl -n jobintel logs job/<job-name>
+```
+
+Find logs in AWS (if `logs.cloud` pointers are populated in run report):
+
+```bash
+run_id=<run_id>
+safe_id=$(echo "$run_id" | tr -d ':-.')
+group=$(jq -r '.logs.cloud.cloudwatch_log_group // empty' "state/runs/$safe_id/run_report.json")
+stream=$(jq -r '.logs.cloud.cloudwatch_log_stream // empty' "state/runs/$safe_id/run_report.json")
+region=$(jq -r '.logs.cloud.region // empty' "state/runs/$safe_id/run_report.json")
+aws logs get-log-events --region "$region" --log-group-name "$group" --log-stream-name "$stream"
 ```
 
 ## Replayability and verification
