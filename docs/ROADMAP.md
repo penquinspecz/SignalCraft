@@ -41,7 +41,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 
 ## Current State (as of this commit)
 
-Last verified: `2026-02-07T02:37:31Z` @ `aac036a`
+Last verified: `2026-02-07T03:35:22Z` @ `9c7f50f`
 
 ### Completed foundation (verified in repo/tests)
 - [x] Deterministic ranking + tie-breakers
@@ -178,7 +178,7 @@ S3-compatible object store, optional alerts.
    - `python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --verify-latest` outputs OK
 
 Current Status:
-- Remaining Milestone 3 blockers are receipt-driven: evidence that politeness signals include backoff/circuit-breaker events in real run logs, plus infra receipts (`terraform apply` outputs and ECR image pull event evidence).
+- Remaining Milestone 3 blockers are receipt-driven: evidence that politeness signals include backoff/circuit-breaker events in real run logs.
 - Deployment surfaces are in place (`ops/k8s/jobintel/dashboard.yaml`, `ops/k8s/RUNBOOK.md`, `src/ji_engine/dashboard/app.py`); remaining work is operational proof completion.
 
 Receipts (repo evidence):
@@ -187,6 +187,8 @@ Receipts (repo evidence):
 - Runbook and proof procedures: `ops/k8s/RUNBOOK.md`, `docs/PROOF_RUN_CHECKLIST.md`
 - Terraform + EKS scaffolding present (but not counted as human-run receipt): `ops/aws/infra/eks/README.md`, `ops/aws/infra/eks/main.tf`
 - Operational receipts captured for run_id `2026-02-07T01:55:39.183131+00:00`: `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/liveproof-2026-02-07T01:55:39.183131+00:00.log`, `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/proofs/2026-02-07T01:55:39.183131+00:00.json`, `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/verify_published_s3-2026-02-07T01:55:39.183131+00:00.log`.
+- Infra receipts captured for run_id `2026-02-07T03:27:56.111686+00:00`: `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/provision_terraform_apply_reconcile.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/terraform_evidence.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_describe_pod.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_get_events.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/receipt.json`.
+- Infra receipts capture script exists (plan-first, execute-explicit): `scripts/ops/capture_m3_infra_receipts.py`, `tests/test_capture_m3_infra_receipts_plan.py`. Do not check terraform-apply / ECR-pull boxes until real infra receipts are committed under `ops/proof/bundles/m3-<run_id>/infra/`.
 
 ### Work Items
 - [x] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)
@@ -209,8 +211,8 @@ Receipts (repo evidence):
 - [x] Unit test: backoff + circuit-breaker decisions are deterministic given failure sequence
 - [ ] In-cluster proof: live run logs include rate-limit/backoff/circuit-breaker events for at least one provider. Receipt missing: committed log excerpt for the same run_id as proof JSON.
 - [x] Proof run executed (EKS one-off job + real S3 publish + proof JSON captured). Receipt: `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/proofs/2026-02-07T01:55:39.183131+00:00.json`.
-- [ ] EKS bootstrap path exists (Terraform) + IRSA wiring documented. Receipt missing: human-run `terraform apply` outputs captured and referenced by the proof run.
-- [ ] EKS can pull image (ECR golden path documented + working). Receipt missing: pod/event evidence showing successful image pull from ECR for the proof job.
+- [x] EKS bootstrap path exists (Terraform) + IRSA wiring documented. Receipt: `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/provision_terraform_apply_reconcile.log` (with supporting `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/terraform_evidence.log` and `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/receipt.json`).
+- [x] EKS can pull image (ECR golden path documented + working). Receipt: `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_describe_pod.log` and `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_get_events.log` (`Reason=Pulled`, image + image digest captured for `jobintel-liveproof-20260207032751-pdk5f`).
 - Receipts rule: infra execution boxes are checked only with receipts in hand (proof JSON + verify output).
 - Note: check “Proof run executed” only after `state/proofs/<run_id>.json` exists locally and `verify_published_s3` is OK.
   - Evidence required:
