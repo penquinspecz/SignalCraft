@@ -41,7 +41,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 
 ## Current State (as of this commit)
 
-Last verified: `2026-02-07T02:11:39Z` @ `ca5814d`
+Last verified: `2026-02-07T02:37:31Z` @ `aac036a`
 
 ### Completed foundation (verified in repo/tests)
 - [x] Deterministic ranking + tie-breakers
@@ -240,7 +240,7 @@ Receipts (repo evidence):
 
 **Intent:** Move JobIntel to an **on-prem primary runtime** (Raspberry Pi k3s) with a **cloud disaster-recovery path** (AWS) that is **validated, rehearsed, and reproducible** — without turning AWS into a permanently running cost sink, and without creating a fragile “active/active” science project.
 
-Status note: backup + restore rehearsal receipts now exist under `ops/proof/bundles/m4-20260207T020313Z-rehearsal/`; DR compute rehearsal and long-running on-prem stability receipts are still missing.
+Status note: backup + restore rehearsal receipts exist under `ops/proof/bundles/m4-20260207T020313Z-rehearsal/`; DR cloud rehearsal is now proven once under `ops/proof/bundles/m4-20260207T022326Z-dr/`; long-running on-prem stability receipts are still missing.
 
 **Principles / Non-Goals (keep us honest):**
 - ✅ **Primary execution on-prem** (k3s). Cloud is **cold standby** / DR only.
@@ -366,9 +366,9 @@ The goal is **rebuild on demand**, not “always-on cloud.”
   - [x] restore DB + artifacts
   - [x] validate a job run
   - [x] tear down cloud infra
-- [ ] DR rehearsal performed end-to-end at least once:
-  - [ ] evidence captured (logs, output artifacts). Receipt missing: committed DR rehearsal logs under `ops/proof/` tied to timestamps/run_id.
-  - [ ] teardown succeeded and verified (no lingering spend). Receipt missing: committed destroy output transcript for same rehearsal.
+- [x] DR rehearsal performed end-to-end at least once:
+  - [x] evidence captured (logs, output artifacts). Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/dr_rehearsal_receipt.json`, `ops/proof/bundles/m4-20260207T022326Z-dr/provision_terraform_apply_x86_ami.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/restore.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/run.log`.
+  - [x] teardown succeeded and verified (no lingering spend). Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/teardown.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/teardown_verify_no_lingering.log`.
 
 #### 8) Runbooks: Normal Ops, Upgrades, Disaster Recovery
 Minimum required runbooks:
@@ -387,7 +387,7 @@ Minimum required runbooks:
 - [ ] Proof artifacts stored in repo or documented location:
   - [x] backup success logs + checksum verification output. Receipts: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup.log`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/checksum_verify.log`.
   - [x] restore proof (DB restored + artifacts present). Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/restore_receipt.json`.
-  - [ ] DR rehearsal proof (cloud came up, run executed, outputs produced)
+  - [x] DR rehearsal proof (cloud came up, run executed, outputs produced). Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/dr_rehearsal_receipt.json`, `ops/proof/bundles/m4-20260207T022326Z-dr/run.log`.
 - [x] All evidence references run_id and timestamps. Receipts: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup.log`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/restore.log`.
 
 ---
@@ -432,11 +432,11 @@ A “prove it” sequence exists that can be run by Future You:
   - [ ] confirm outputs + proof receipts
   - [x] run backups. Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup_receipt.json`.
 - [ ] DR rehearsal:
-  - [ ] bring up cloud infra
-  - [ ] restore
-  - [ ] run job
-  - [ ] verify outputs
-  - [ ] teardown cloud infra. Receipt missing: committed execution bundle under `ops/proof/bundles/m4-<run_id>/` from a real rehearsal run.
+  - [x] bring up cloud infra. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/provision_terraform_apply_x86_ami.log`.
+  - [x] restore. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/restore_receipt.json`.
+  - [x] run job. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/run.log`.
+  - [x] verify outputs. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/dr_rehearsal_receipt.json`.
+  - [x] teardown cloud infra. Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/teardown.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/teardown_verify_no_lingering.log`.
 
 Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repeat it without discovering surprise tribal knowledge.
 
