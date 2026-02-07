@@ -104,6 +104,49 @@ Verify S3 publish for the captured run_id (from the script output):
 python scripts/verify_published_s3.py --bucket "$BUCKET" --run-id "<run_id>" --prefix "$PREFIX" --verify-latest
 ```
 
+## 5) Capture infra receipts (Terraform + ECR pull evidence)
+
+Plan mode (default, safe; no live terraform/kubectl execution):
+
+```bash
+python scripts/ops/capture_m3_infra_receipts.py \
+  --run-id "<run_id>" \
+  --output-dir ops/proof/bundles \
+  --cluster-context "$KUBE_CONTEXT" \
+  --namespace "$NAMESPACE"
+```
+
+Execute mode (explicit; captures live cluster/terraform evidence):
+
+```bash
+python scripts/ops/capture_m3_infra_receipts.py \
+  --run-id "<run_id>" \
+  --output-dir ops/proof/bundles \
+  --cluster-context "$KUBE_CONTEXT" \
+  --namespace "$NAMESPACE" \
+  --job-name "jobintel-manual-$(date +%Y%m%d)" \
+  --execute
+```
+
+If you already have a terraform apply transcript, include it in the bundle:
+
+```bash
+python scripts/ops/capture_m3_infra_receipts.py \
+  --run-id "<run_id>" \
+  --output-dir ops/proof/bundles \
+  --cluster-context "$KUBE_CONTEXT" \
+  --namespace "$NAMESPACE" \
+  --terraform-apply-log ops/proof/bundles/m3-<run_id>/infra/provision_terraform_apply.log \
+  --execute
+```
+
+Expected infra receipts path:
+- `ops/proof/bundles/m3-<run_id>/infra/terraform_evidence.log`
+- `ops/proof/bundles/m3-<run_id>/infra/kubectl_describe_pod.log`
+- `ops/proof/bundles/m3-<run_id>/infra/kubectl_get_events.log`
+- `ops/proof/bundles/m3-<run_id>/infra/receipt.json`
+- `ops/proof/bundles/m3-<run_id>/infra/manifest.json`
+
 ## Expected outputs (proof artifacts)
 - A log line containing `JOBINTEL_RUN_ID=<run_id>`.
 - A proof bundle at `ops/proof/bundles/m3-<run_id>/`.
