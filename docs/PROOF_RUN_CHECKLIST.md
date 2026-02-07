@@ -147,6 +147,35 @@ Expected infra receipts path:
 - `ops/proof/bundles/m3-<run_id>/infra/receipt.json`
 - `ops/proof/bundles/m3-<run_id>/infra/manifest.json`
 
+## 6) M3 politeness proof (backoff + circuit-breaker, in-cluster)
+
+Plan mode (default, safe):
+
+```bash
+python scripts/ops/prove_m3_backoff_cb.py \
+  --run-id "<run_id>" \
+  --output-dir ops/proof/bundles \
+  --cluster-context "$KUBE_CONTEXT" \
+  --namespace "$NAMESPACE"
+```
+
+Execute mode (explicit):
+
+```bash
+python scripts/ops/prove_m3_backoff_cb.py \
+  --run-id "<run_id>" \
+  --output-dir ops/proof/bundles \
+  --cluster-context "$KUBE_CONTEXT" \
+  --namespace "$NAMESPACE" \
+  --execute
+```
+
+Expected politeness receipts path:
+- `ops/proof/bundles/m3-<run_id>/politeness/run.log`
+- `ops/proof/bundles/m3-<run_id>/politeness/provenance.json`
+- `ops/proof/bundles/m3-<run_id>/politeness/receipt.json`
+- `ops/proof/bundles/m3-<run_id>/politeness/manifest.json`
+
 ## Expected outputs (proof artifacts)
 - A log line containing `JOBINTEL_RUN_ID=<run_id>`.
 - A proof bundle at `ops/proof/bundles/m3-<run_id>/`.
