@@ -7,8 +7,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import boto3
 from botocore.exceptions import ClientError
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import Response
+
+try:
+    from fastapi import FastAPI, HTTPException
+    from fastapi.responses import Response
+except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
+    raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
 from ji_engine.config import RUN_METADATA_DIR, STATE_DIR
 from jobintel import aws_runs

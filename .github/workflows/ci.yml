@@ -60,3 +60,6 @@ jobs:
           .venv/bin/python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --profile cs --strict --json
       - name: CronJob smoke (offline)
         run: make cronjob-smoke
+      - name: Roadmap discipline guard (warn-only)
+        continue-on-error: true
+        run: .venv/bin/python scripts/check_roadmap_discipline.py
