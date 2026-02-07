@@ -85,12 +85,7 @@ def _create_job_from_template(
     payload.setdefault("metadata", {})
     payload["metadata"]["name"] = job_name
     payload["metadata"]["namespace"] = namespace
-    containers = (
-        payload.get("spec", {})
-        .get("template", {})
-        .get("spec", {})
-        .get("containers", [])
-    )
+    containers = payload.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
     if not (isinstance(containers, list) and containers and isinstance(containers[0], dict)):
         raise RuntimeError("invalid liveproof template containers payload")
     container = containers[0]
@@ -159,7 +154,7 @@ def _copy_run_report(context: Optional[str], namespace: str, pod_name: str, run_
         (
             "for f in /app/state/runs/*/run_report.json; do "
             '[ -f "$f" ] || continue; '
-            f"grep -q '{run_id}' \"$f\" && echo \"$f\" && exit 0; "
+            f'grep -q \'{run_id}\' "$f" && echo "$f" && exit 0; '
             "done; exit 1"
         ),
     )
@@ -279,7 +274,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--timeout", default="20m")
     parser.add_argument("--image", default=None, help="Optional image override for the one-off job container.")
     parser.add_argument("--providers", default="openai", help="Comma-separated providers for run_daily.")
-    parser.add_argument("--hold-seconds", type=int, default=45, help="Seconds to sleep after run_daily for receipt copy.")
+    parser.add_argument(
+        "--hold-seconds", type=int, default=45, help="Seconds to sleep after run_daily for receipt copy."
+    )
     args = parser.parse_args(argv)
 
     namespace = _parse_namespace(args)

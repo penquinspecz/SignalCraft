@@ -110,8 +110,20 @@ def test_shortlist_user_state_deprioritizes_applied_and_interviewing(tmp_path: P
     user_state_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(score_jobs, "USER_STATE_DIR", user_state_dir)
 
-    applied_job = {"job_id": "a", "title": "Applied", "apply_url": "https://example.com/a", "score": 99, "role_band": "L5"}
-    neutral_job = {"job_id": "b", "title": "Neutral", "apply_url": "https://example.com/b", "score": 90, "role_band": "L4"}
+    applied_job = {
+        "job_id": "a",
+        "title": "Applied",
+        "apply_url": "https://example.com/a",
+        "score": 99,
+        "role_band": "L5",
+    }
+    neutral_job = {
+        "job_id": "b",
+        "title": "Neutral",
+        "apply_url": "https://example.com/b",
+        "score": 90,
+        "role_band": "L4",
+    }
     interviewing_job = {
         "job_id": "c",
         "title": "Interviewing",

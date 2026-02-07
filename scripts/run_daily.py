@@ -3772,7 +3772,11 @@ def main() -> int:
                     extra_lines=extra_lines or None,
                     diff_items={
                         "new": _annotate_and_deprioritize_items(
-                            [item for item in (diff_report.get("added") or []) if item.get("id") not in suppress_new_ids],
+                            [
+                                item
+                                for item in (diff_report.get("added") or [])
+                                if item.get("id") not in suppress_new_ids
+                            ],
                             state_map,
                         ),
                         "changed": _annotate_and_deprioritize_items(diff_report.get("changed") or [], state_map),
