@@ -187,6 +187,18 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
+class StructuredLogFormatter(logging.Formatter):
+    """Deterministic structured formatter for per-run log files."""
+
+    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
+        payload = {
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        return json.dumps(payload, ensure_ascii=False, sort_keys=True)
+
+
 load_dotenv()  # loads .env if present; won't override exported env vars
 
 
@@ -1108,6 +1120,8 @@ def _persist_run_metadata(
     user_state_counts_by_provider_profile: Optional[Dict[str, Dict[str, Dict[str, int]]]] = None,
     config_fingerprint: Optional[str] = None,
     environment_fingerprint: Optional[Dict[str, Optional[str]]] = None,
+    logs: Optional[Dict[str, Any]] = None,
+    log_retention: Optional[Dict[str, Any]] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -1202,6 +1216,10 @@ def _persist_run_metadata(
         payload["delta_summary"] = delta_summary
     if user_state_counts_by_provider_profile is not None:
         payload["user_state_counts_by_provider_profile"] = user_state_counts_by_provider_profile
+    if logs is not None:
+        payload["logs"] = logs
+    if log_retention is not None:
+        payload["log_retention"] = log_retention
     payload["success"] = telemetry.get("success", False)
     if telemetry.get("failed_stage"):
         payload["failed_stage"] = telemetry["failed_stage"]
@@ -1949,20 +1967,99 @@ def _file_mtime_iso(path: Path) -> Optional[str]:
     return datetime.fromtimestamp(ts, timezone.utc).isoformat()
 
 
-def _setup_logging(json_mode: bool) -> None:
-    if not logging.getLogger().hasHandlers() or json_mode:
-        handlers = []
+def _setup_logging(json_mode: bool, *, file_sink_path: Optional[Path] = None) -> Optional[str]:
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:
+        root_logger.setLevel(logging.INFO)
+        stream_handler = logging.StreamHandler()
         if json_mode:
-            h = logging.StreamHandler()
-            h.setFormatter(JsonFormatter())
-            handlers.append(h)
-            logging.basicConfig(level=logging.INFO, handlers=handlers, force=True)
+            stream_handler.setFormatter(JsonFormatter())
         else:
-            logging.basicConfig(
-                level=logging.INFO,
-                format="%(asctime)s %(levelname)s %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S",
-            )
+            stream_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S"))
+        root_logger.addHandler(stream_handler)
+    logger.setLevel(logging.INFO)
+    file_sink_value: Optional[str] = None
+    if file_sink_path is not None:
+        file_sink_path.parent.mkdir(parents=True, exist_ok=True)
+        file_sink_value = str(file_sink_path)
+        if not any(
+            getattr(handler, "_jobintel_file_sink_path", None) == file_sink_value for handler in root_logger.handlers
+        ):
+            file_handler = logging.FileHandler(file_sink_path, encoding="utf-8")
+            file_handler.setFormatter(StructuredLogFormatter())
+            file_handler._jobintel_file_sink_path = file_sink_value  # type: ignore[attr-defined]
+            root_logger.addHandler(file_handler)
+        file_sink_value = str(file_sink_path)
+    return file_sink_value
+
+
+def _run_logs_dir(run_id: str) -> Path:
+    return _run_registry_dir(run_id) / "logs"
+
+
+def _collect_run_log_pointers(run_id: str, file_sink_path: Optional[str]) -> Dict[str, Any]:
+    run_dir = _run_registry_dir(run_id)
+    logs_dir = _run_logs_dir(run_id)
+    local_payload: Dict[str, Any] = {
+        "run_dir": str(run_dir),
+        "logs_dir": str(logs_dir),
+        "stdout": "process_stdout",
+    }
+    if file_sink_path:
+        local_payload["structured_log_jsonl"] = file_sink_path
+
+    region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+    log_group = (
+        os.environ.get("JOBINTEL_CLOUDWATCH_LOG_GROUP")
+        or os.environ.get("AWS_LOG_GROUP")
+        or os.environ.get("ECS_AWSLOGS_GROUP")
+        or os.environ.get("AWSLOGS_GROUP")
+    )
+    log_stream = (
+        os.environ.get("JOBINTEL_CLOUDWATCH_LOG_STREAM")
+        or os.environ.get("AWS_LOG_STREAM")
+        or os.environ.get("ECS_AWSLOGS_STREAM")
+        or os.environ.get("AWSLOGS_STREAM")
+    )
+
+    cloud_payload: Dict[str, Any] = {}
+    if region or log_group or log_stream:
+        cloud_payload = {
+            "provider": "aws",
+            "region": region,
+            "cloudwatch_log_group": log_group,
+            "cloudwatch_log_stream": log_stream,
+        }
+
+    return {
+        "schema_version": 1,
+        "run_id": run_id,
+        "local": local_payload,
+        "cloud": cloud_payload,
+    }
+
+
+def _enforce_run_log_retention(*, runs_dir: Path, keep_runs: int) -> Dict[str, Any]:
+    if keep_runs < 1:
+        raise ValueError(f"keep_runs must be >= 1 (got {keep_runs})")
+    run_entries = [p for p in sorted(runs_dir.iterdir(), key=lambda p: p.name) if p.is_dir()]
+    keep = set(run_entries[-keep_runs:]) if keep_runs > 0 else set()
+    pruned_paths: List[str] = []
+    for run_path in run_entries:
+        if run_path in keep:
+            continue
+        logs_dir = run_path / "logs"
+        if logs_dir.exists():
+            shutil.rmtree(logs_dir)
+            pruned_paths.append(str(logs_dir))
+    return {
+        "schema_version": 1,
+        "keep_runs": keep_runs,
+        "runs_seen": len(run_entries),
+        "runs_kept": len(keep),
+        "log_dirs_pruned": len(pruned_paths),
+        "pruned_log_dirs": sorted(pruned_paths),
+    }
 
 
 def _should_short_circuit(prev_hashes: Dict[str, Any], curr_hashes: Dict[str, Any]) -> bool:
@@ -2632,6 +2729,13 @@ def _resolve_history_settings(args: argparse.Namespace) -> Tuple[bool, int, int]
     return enabled, keep_runs, keep_days
 
 
+def _resolve_log_file_enabled(args: argparse.Namespace) -> bool:
+    if getattr(args, "log_file", False):
+        return True
+    env_value = os.environ.get("JOBINTEL_LOG_FILE", "").strip().lower()
+    return env_value in {"1", "true", "yes", "on"}
+
+
 def main() -> int:
     ensure_dirs()
     ap = argparse.ArgumentParser()
@@ -2673,6 +2777,11 @@ def main() -> int:
         help="Run stages in-process (library mode). Default uses subprocesses.",
     )
     ap.add_argument("--log_json", action="store_true", help="Emit JSON logs for aggregation systems")
+    ap.add_argument(
+        "--log_file",
+        action="store_true",
+        help="Write structured JSONL logs to state/runs/<run_id>/logs/run.log.jsonl (also enable via JOBINTEL_LOG_FILE=1).",
+    )
     ap.add_argument("--print_paths", action="store_true", help="Print resolved data/state/history paths")
     ap.add_argument("--publish-s3", action="store_true", help="Publish run artifacts to S3 after completion.")
     ap.add_argument(
@@ -2715,7 +2824,10 @@ def main() -> int:
     print(f"JOBINTEL_RUN_ID={run_id}", flush=True)
     global USE_SUBPROCESS
     USE_SUBPROCESS = not args.no_subprocess
-    _setup_logging(args.log_json)
+    log_file_enabled = _resolve_log_file_enabled(args)
+    log_file_path = _run_logs_dir(run_id) / "run.log.jsonl" if log_file_enabled else None
+    log_file_pointer = _setup_logging(args.log_json, file_sink_path=log_file_path)
+    run_log_pointers = _collect_run_log_pointers(run_id, log_file_pointer)
     webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
     notify_mode = _resolve_notify_mode(os.environ.get("DISCORD_NOTIFY_MODE"))
 
@@ -2844,6 +2956,15 @@ def main() -> int:
 
         config_fingerprint = _config_fingerprint(flag_payload, args.providers_config)
         environment_fingerprint = _environment_fingerprint()
+        log_retention_summary: Dict[str, Any] = {
+            "enabled": bool(history_enabled),
+            "keep_runs": history_keep_runs,
+            "runs_seen": 0,
+            "runs_kept": 0,
+            "log_dirs_pruned": 0,
+            "pruned_log_dirs": [],
+            "reason": "pending",
+        }
         delta_summary = _build_delta_summary(run_id, providers, profiles_list)
         for provider, profiles in diff_summary_by_provider_profile.items():
             for profile, entry in profiles.items():
@@ -2888,6 +3009,8 @@ def main() -> int:
             user_state_counts_by_provider_profile=user_state_counts_by_provider_profile,
             config_fingerprint=config_fingerprint,
             environment_fingerprint=environment_fingerprint,
+            logs=run_log_pointers,
+            log_retention=log_retention_summary,
         )
         if telemetry.get("success", False):
             try:
@@ -3131,6 +3254,44 @@ def main() -> int:
                 run_id,
             )
 
+        if history_enabled:
+            try:
+                log_retention_summary = _enforce_run_log_retention(
+                    runs_dir=RUN_METADATA_DIR, keep_runs=history_keep_runs
+                )
+                log_retention_summary["enabled"] = True
+                log_retention_summary["reason"] = "history_keep_runs"
+                logger.info(
+                    "LOG_RETENTION enabled=1 keep_runs=%d runs_seen=%d runs_kept=%d log_dirs_pruned=%d run_id=%s",
+                    history_keep_runs,
+                    log_retention_summary.get("runs_seen", 0),
+                    log_retention_summary.get("runs_kept", 0),
+                    log_retention_summary.get("log_dirs_pruned", 0),
+                    run_id,
+                )
+            except Exception as exc:
+                log_retention_summary = {
+                    "enabled": True,
+                    "keep_runs": history_keep_runs,
+                    "runs_seen": 0,
+                    "runs_kept": 0,
+                    "log_dirs_pruned": 0,
+                    "pruned_log_dirs": [],
+                    "reason": "error",
+                    "error": repr(exc),
+                }
+                logger.warning("LOG_RETENTION failed run_id=%s: %r", run_id, exc)
+        else:
+            log_retention_summary = {
+                "enabled": False,
+                "keep_runs": history_keep_runs,
+                "runs_seen": 0,
+                "runs_kept": 0,
+                "log_dirs_pruned": 0,
+                "pruned_log_dirs": [],
+                "reason": "history_disabled",
+            }
+
         if os.environ.get("JOBINTEL_WRITE_PROOF", "0").strip() == "1":
             try:
                 run_report_payload = json.loads(run_metadata_path.read_text(encoding="utf-8"))
@@ -3152,6 +3313,8 @@ def main() -> int:
             run_report_payload = None
         if isinstance(run_report_payload, dict):
             run_report_payload["history_retention"] = history_summary
+            run_report_payload["logs"] = run_log_pointers
+            run_report_payload["log_retention"] = log_retention_summary
             run_metadata_path.write_text(
                 json.dumps(run_report_payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8"
             )

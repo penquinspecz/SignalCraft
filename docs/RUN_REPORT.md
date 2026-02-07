@@ -35,6 +35,13 @@ debugging, and audit trails. They are versioned with `run_report_schema_version`
   - Values include `path` (relative to `JOBINTEL_DATA_DIR`), `sha256`, `bytes`, and `hash_algo`.
 - `config_fingerprint`: sha256 of the effective, non-secret configuration inputs.
 - `environment_fingerprint`: best-effort environment details (python version, platform, image tag, git sha, TZ, PYTHONHASHSEED).
+- `logs`: observability pointers for this run:
+  - `schema_version`, `run_id`
+  - `local`: `run_dir`, `logs_dir`, `stdout`, and optional `structured_log_jsonl`
+  - `cloud` (best-effort): AWS `region`, `cloudwatch_log_group`, `cloudwatch_log_stream` when available in env.
+- `log_retention`: deterministic logs-only retention summary:
+  - `keep_runs`, `runs_seen`, `runs_kept`, `log_dirs_pruned`, `pruned_log_dirs`, `reason`
+  - pruning only removes `state/runs/<run_id>/logs/` for older runs; it does not delete run artifacts.
 - `scoring_inputs_by_profile`: selected scoring input metadata (path/mtime/sha256).
 - `scoring_input_selection_by_profile`: decision metadata for scoring inputs:
   - `selected_path`
