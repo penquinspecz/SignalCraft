@@ -11,6 +11,7 @@ from ji_engine.models import JobSource, RawJobPosting
 from ji_engine.providers.base import BaseJobProvider
 from ji_engine.providers.retry import fetch_text_with_retry
 from ji_engine.utils.job_identity import job_identity
+from ji_engine.utils.time import utc_now_naive
 from jobintel.snapshots.validate import validate_snapshot_file
 
 
@@ -45,7 +46,7 @@ class JsonLdProvider(BaseJobProvider):
         snapshot_file = self._snapshot_write_file()
         snapshot_file.parent.mkdir(parents=True, exist_ok=True)
         snapshot_file.write_text(html, encoding="utf-8")
-        now = datetime.now(timezone.utc).replace(microsecond=0).replace(tzinfo=None)
+        now = utc_now_naive().replace(microsecond=0)
         return self._parse_html(html, now=now)
 
     def load_from_snapshot(self) -> List[RawJobPosting]:
