@@ -11,6 +11,7 @@ SMOKE_NO_ENRICH=-e
 SMOKE_UPDATE_SNAPSHOTS=${SMOKE_UPDATE_SNAPSHOTS:-0}
 SMOKE_MIN_SCORE=${SMOKE_MIN_SCORE:-40}
 SMOKE_OUTPUT_DIR=${SMOKE_OUTPUT_DIR:-/app/data/ashby_cache}
+SMOKE_PROVIDERS_CONFIG=${SMOKE_PROVIDERS_CONFIG:-/app/config/providers.json}
 PROVIDERS=${PROVIDERS:-$SMOKE_PROVIDERS}
 PROFILES=${PROFILES:-$SMOKE_PROFILES}
 SMOKE_TAIL_LINES=${SMOKE_TAIL_LINES:-0}
@@ -147,6 +148,7 @@ done
 
 mkdir -p "$ARTIFACT_DIR"
 touch "$ARTIFACT_DIR/smoke.log"
+exec > >(tee -a "$ARTIFACT_DIR/smoke.log") 2>&1
 
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
@@ -205,8 +207,16 @@ if [ "$preflight_status" -ne 0 ]; then
 fi
 
 echo "==> Validate baked-in snapshots"
-docker run --rm --entrypoint python "$IMAGE_TAG" \
-  -m src.jobintel.cli snapshots validate --all --data-dir /app/data
+IFS=',' read -r -a validate_provider_list <<< "$PROVIDERS"
+for validate_provider in "${validate_provider_list[@]}"; do
+  validate_provider_trimmed="$(echo "$validate_provider" | xargs)"
+  [ -z "$validate_provider_trimmed" ] && continue
+  docker run --rm --entrypoint python "$IMAGE_TAG" \
+    -m src.jobintel.cli snapshots validate \
+    --provider "$validate_provider_trimmed" \
+    --providers-config "$SMOKE_PROVIDERS_CONFIG" \
+    --data-dir /app/data
+done
 
 echo "==> Check job detail snapshots (OpenAI)"
 set +e
@@ -226,15 +236,16 @@ docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 set +e
 docker create --name "$CONTAINER_NAME" \
   --env JOBINTEL_OUTPUT_DIR="$SMOKE_OUTPUT_DIR" \
-  "$IMAGE_TAG" --providers "$PROVIDERS" --profiles "$PROFILES" --offline --no_post --min_score "$SMOKE_MIN_SCORE" \
+  --env CAREERS_MODE=SNAPSHOT \
+  "$IMAGE_TAG" --providers "$PROVIDERS" --providers-config "$SMOKE_PROVIDERS_CONFIG" --profiles "$PROFILES" --offline --snapshot-only --no_post --min_score "$SMOKE_MIN_SCORE" \
   $(if [ "$SMOKE_NO_ENRICH" = "1" ]; then echo "--no_enrich"; fi) >/dev/null
 create_status=$?
 set -e
 if [ "$create_status" -eq 0 ]; then
   container_created=1
   set +e
-  docker start -a "$CONTAINER_NAME" 2>&1 | tee -a "$ARTIFACT_DIR/smoke.log"
-  status=${PIPESTATUS[0]}
+  docker start -a "$CONTAINER_NAME"
+  status=$?
   set -e
 else
   echo "Failed to create smoke container (exit_code=$create_status)"
