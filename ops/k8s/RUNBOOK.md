@@ -138,6 +138,35 @@ Expected bundle:
 - `ops/proof/bundles/m3-<run_id>/bundle_manifest.json`
 - Optional: `ops/proof/bundles/m3-<run_id>/liveproof-<run_id>.excerpt.log`
 
+## EKS connectivity proof (one-command)
+
+### Preflight checks
+
+- Ensure the cluster context is set: `kubectl config use-context eks-jobintel-eks`
+- Ensure `AWS_PROFILE=jobintel-deployer` and caller is not root:
+  - `AWS_PROFILE=jobintel-deployer aws sts get-caller-identity`
+
+### Execute (single command)
+
+```bash
+AWS_PROFILE=jobintel-deployer python scripts/ops/capture_eks_connectivity_receipts.py --execute \
+  --run-id m4-eks-proof-<UTCSTAMP> \
+  --output-dir ops/proof/bundles \
+  --cluster-context eks-jobintel-eks \
+  --namespace jobintel
+```
+
+### Success criteria
+
+- `ops/proof/bundles/m4-<run_id>/eks/receipt.json` exists.
+- Receipt includes: `run_id`, `cluster_context`, `namespace`, `status`, `evidence_files`.
+
+### If it fails
+
+- **Unauthorized**: confirm `AWS_PROFILE=jobintel-deployer` and caller ARN is not `...:root`.
+- **Wrong context**: `kubectl config current-context` must be `eks-jobintel-eks`.
+- **Namespace missing**: verify `kubectl --context eks-jobintel-eks -n jobintel get pods`.
+
 ## Rollback
 
 Suspend CronJob:
