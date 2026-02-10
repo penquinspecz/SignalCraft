@@ -2,6 +2,26 @@
 
 This runbook is **K8s-first** and copy/pasteable. It covers deploy, inspect last run, rollback, and secret rotation.
 
+## Preflight checks
+
+```bash
+kubectl config current-context
+kubectl get nodes -o wide
+kubectl -n jobintel get cronjob,deploy,serviceaccount,configmap
+```
+
+## Success criteria
+
+- CronJob and dashboard resources apply cleanly.
+- One-off run emits `JOBINTEL_RUN_ID` and writes proof artifacts.
+- Publish verification succeeds for the selected run id.
+
+## If it fails
+
+- Stop before retrying apply loops.
+- Capture `kubectl describe` and recent events first.
+- Follow the Troubleshooting section in this runbook for targeted recovery commands.
+
 ## Golden Path (10 Commands)
 
 ```bash
@@ -10,7 +30,7 @@ export NAMESPACE="jobintel"
 export BUCKET="<s3_bucket>"
 export PREFIX="jobintel"
 
-python scripts/k8s_render.py --overlay aws-eks > /tmp/jobintel.yaml
+python scripts/k8s_render.py --overlay eks > /tmp/jobintel.yaml
 kubectl --context "$KUBE_CONTEXT" apply -f /tmp/jobintel.yaml
 kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" get cronjob jobintel-daily
 kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" create job --from=cronjob/jobintel-daily jobintel-manual-$(date +%Y%m%d)
@@ -41,7 +61,7 @@ Expected cues:
 Render and apply:
 
 ```bash
-python scripts/k8s_render.py --overlay aws-eks > /tmp/jobintel.yaml
+python scripts/k8s_render.py --overlay eks > /tmp/jobintel.yaml
 kubectl --context "$KUBE_CONTEXT" apply -f /tmp/jobintel.yaml
 ```
 
@@ -184,7 +204,7 @@ kubectl --context "$KUBE_CONTEXT" -n "$NAMESPACE" patch cronjob jobintel-daily -
 Revert image (edit manifest + apply):
 
 ```bash
-python scripts/k8s_render.py --overlay aws-eks > /tmp/jobintel.yaml
+python scripts/k8s_render.py --overlay eks > /tmp/jobintel.yaml
 rg -n "image:" /tmp/jobintel.yaml
 kubectl --context "$KUBE_CONTEXT" apply -f /tmp/jobintel.yaml
 ```

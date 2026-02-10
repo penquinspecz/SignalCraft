@@ -13,9 +13,12 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BASE_DIR = REPO_ROOT / "ops" / "k8s" / "jobintel"
 OVERLAY_DIRS = {
+    "eks": REPO_ROOT / "ops" / "k8s" / "overlays" / "aws-eks",
     "aws-eks": REPO_ROOT / "ops" / "k8s" / "overlays" / "aws-eks",
+    "eks-wrapper": REPO_ROOT / "ops" / "k8s" / "overlays" / "eks",
     "live": REPO_ROOT / "ops" / "k8s" / "overlays" / "live",
     "onprem": REPO_ROOT / "ops" / "k8s" / "jobintel" / "overlays" / "onprem",
+    "onprem-wrapper": REPO_ROOT / "ops" / "k8s" / "overlays" / "onprem",
 }
 
 REQUIRED_SECRET_KEYS = ["JOBINTEL_S3_BUCKET"]
