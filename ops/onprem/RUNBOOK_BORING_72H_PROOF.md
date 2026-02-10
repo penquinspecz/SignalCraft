@@ -1,6 +1,7 @@
 # Runbook: 72h Boring Proof (On-Prem k3s)
 
 Use this to produce Milestone 4 on-prem stability receipts without manual drift.
+Proof bundle storage/retention contract: `ops/proof/PROOF_STORAGE.md`.
 
 ## Preflight checks
 
@@ -230,3 +231,9 @@ Note: avoid angle brackets in copy/paste examples; many shells (including zsh) i
 - If CronJob misses runs: inspect CronJob schedule/timezone and controller events.
 - If restarts spike: inspect offending pod `describe` and recent config/image changes.
 - If ingress fails: verify Traefik, DNS on VPN, and TLS secret validity.
+
+## If it fails
+
+- Stop at the current checkpoint and preserve existing bundle files.
+- Capture additional diagnostics into the same bundle directory.
+- Keep receipt/manifest layout aligned with `ops/proof/PROOF_STORAGE.md`.

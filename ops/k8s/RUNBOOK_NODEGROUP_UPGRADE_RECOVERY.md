@@ -7,6 +7,26 @@ Scope:
 - EKS-managed nodegroups and AWS Auto Scaling Groups
 - Read-only triage first, then controlled remediation
 
+## Preflight checks
+
+```bash
+aws sts get-caller-identity
+aws eks describe-cluster --region us-east-1 --name jobintel-eks --output json | jq -r '.cluster.status'
+kubectl get nodes -o wide
+```
+
+## Success criteria
+
+- Replacement nodegroup reaches `ACTIVE`.
+- All schedulable nodes are `Ready` on the target version.
+- Critical workloads remain healthy through drain/migration.
+
+## If it fails
+
+- Stop drain/delete operations.
+- Capture nodegroup status, update details, and recent cluster events.
+- Re-run triage script and continue from the last safe checkpoint.
+
 ## Symptoms
 
 Typical signals:
