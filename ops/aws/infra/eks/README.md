@@ -127,10 +127,14 @@ This repo currently uses local backend by default. If `state list` is empty but 
 AWS_PROFILE=jobintel-deployer AWS_REGION=us-east-1 CLUSTER_NAME=jobintel-eks scripts/ops/tofu_state_check.sh --print-imports
 ```
 
-Execute imports only when explicitly gated:
+This writes a deterministic import script to:
+
+- `ops/proof/bundles/m4-<run_id>/eks_infra/import.sh`
+
+Manually review the script, then execute it explicitly:
 
 ```bash
-DO_IMPORT=1 AWS_PROFILE=jobintel-deployer AWS_REGION=us-east-1 CLUSTER_NAME=jobintel-eks scripts/ops/tofu_state_check.sh --print-imports
+DO_IMPORT=1 bash ops/proof/bundles/m4-<run_id>/eks_infra/import.sh
 ```
 
 After imports:
