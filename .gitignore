@@ -95,6 +95,7 @@ ops/aws/infra/eks/.terraform.lock.hcl
 
 # Local proof artifacts (run receipts/logs)
 ops/proof/
+!ops/proof/PROOF_STORAGE.md
 
 # Local Python venvs
 .venv*/

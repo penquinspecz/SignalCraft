@@ -1,6 +1,7 @@
 # Runbook: Disaster Recovery (Cold Standby)
 
 This runbook executes deterministic bringup -> restore -> validate -> teardown.
+Proof bundle storage/retention contract: `ops/proof/PROOF_STORAGE.md`.
 
 ## Preflight checks
 

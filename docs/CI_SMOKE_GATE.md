@@ -76,7 +76,26 @@ Expected evidence:
 
 Source: `Makefile` target `cronjob-smoke`.
 
-### 4) Roadmap guard (warn-only) contract
+### 4) Required artifact checklist (docker smoke)
+
+Validate artifact layout offline:
+
+```bash
+.venv/bin/python scripts/ci_artifact_contract_check.py smoke_artifacts
+```
+
+Required files:
+
+- `smoke_artifacts/exit_code.txt`
+- `smoke_artifacts/metadata.json`
+- `smoke_artifacts/run_report.json`
+- `smoke_artifacts/smoke.log`
+- `smoke_artifacts/smoke_summary.json`
+- `smoke_artifacts/openai_labeled_jobs.json`
+- `smoke_artifacts/openai_ranked_jobs.cs.json`
+- `smoke_artifacts/openai_ranked_jobs.cs.csv`
+
+### 5) Roadmap guard (warn-only) contract
 
 - Runs `scripts/check_roadmap_discipline.py`.
 - Findings are logged but do not fail CI yet (`continue-on-error: true`).
@@ -197,4 +216,5 @@ DOCKER_BUILDKIT=1 docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:te
   - `scripts/replay_run.py`
   - `scripts/publish_s3.py`
   - `scripts/cronjob_simulate.py`
+  - `scripts/ci_artifact_contract_check.py`
   - `scripts/check_roadmap_discipline.py`
