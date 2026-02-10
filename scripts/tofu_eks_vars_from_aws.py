@@ -98,6 +98,14 @@ def main() -> int:
         return 0
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
+        region = _env_or_default("AWS_REGION", _env_or_default("AWS_DEFAULT_REGION", "us-east-1"))
+        cluster_name = _env_or_default("CLUSTER_NAME", "jobintel-eks")
+        print(
+            "NEXT: "
+            f"AWS_PROFILE=jobintel-deployer AWS_REGION={region} CLUSTER_NAME={cluster_name} "
+            'aws eks describe-cluster --name "$CLUSTER_NAME" --region "$AWS_REGION" --output json',
+            file=sys.stderr,
+        )
         return 2
 
 

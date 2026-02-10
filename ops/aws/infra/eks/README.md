@@ -25,21 +25,23 @@ This directory provides a minimal EKS cluster + IRSA role for JobIntel.
 - `serviceaccount_name`: default `jobintel`
 - `tag_subnets`: default `true` (adds `kubernetes.io/cluster/<name>=shared`)
 
-## Boring non-interactive flow
+## Boring non-interactive flow (canonical)
 
 Run from repo root:
 
 ```bash
-export AWS_PROFILE=jobintel-deployer AWS_REGION=us-east-1 CLUSTER_NAME=jobintel-eks JOBINTEL_ARTIFACTS_BUCKET=<bucket>
+export AWS_PROFILE=jobintel-deployer AWS_REGION=us-east-1 AWS_EC2_METADATA_DISABLED=true CLUSTER_NAME=jobintel-eks JOBINTEL_ARTIFACTS_BUCKET=<bucket> RUN_ID=local
 python scripts/tofu_eks_vars_from_aws.py
-scripts/ops/tofu_eks_guardrails.sh && tofu -chdir=ops/aws/infra/eks plan -input=false -var-file=local.auto.tfvars.json
+scripts/ops/tofu_eks_guardrails.sh && scripts/ops/tofu_state_check.sh
+make ops-eks-plan RUN_ID="$RUN_ID"
 ```
 
 Makefile equivalent:
 
 ```bash
 make tofu-eks-vars
-make tofu-eks-plan
+make tofu-eks-guardrails
+make ops-eks-plan RUN_ID=local
 ```
 
 `scripts/tofu_eks_vars_from_aws.py` writes `ops/aws/infra/eks/local.auto.tfvars.json` using authoritative AWS cluster data (`aws eks describe-cluster`).  
@@ -50,7 +52,7 @@ make tofu-eks-plan
 Use the operator-safe wrapper to run identity checks, var generation, state alignment checks, `tofu fmt`, `tofu validate`, and `tofu plan -out=...` while capturing evidence:
 
 ```bash
-AWS_PROFILE=jobintel-deployer AWS_REGION=us-east-1 RUN_ID=local make ops-eks-plan
+AWS_PROFILE=jobintel-deployer AWS_REGION=us-east-1 AWS_EC2_METADATA_DISABLED=true RUN_ID=local make ops-eks-plan
 ```
 
 Bundle output:

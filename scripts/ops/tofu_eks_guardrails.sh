@@ -12,37 +12,51 @@ if [[ -z "${TF_BIN}" ]]; then
     TF_BIN="terraform"
   else
     echo "ERROR: neither tofu nor terraform is installed." >&2
+    echo "NEXT: brew install opentofu" >&2
     exit 2
   fi
 fi
 
 AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
 CLUSTER_NAME="${CLUSTER_NAME:-jobintel-eks}"
+NEXT_BASE="AWS_PROFILE=jobintel-deployer AWS_REGION=${AWS_REGION} CLUSTER_NAME=${CLUSTER_NAME}"
+
+fail_with_next() {
+  local message="$1"
+  local next_cmd="$2"
+  echo "ERROR: ${message}" >&2
+  echo "NEXT: ${next_cmd}" >&2
+  exit 2
+}
 
 if [[ -z "${AWS_PROFILE:-}" ]]; then
-  echo "ERROR: AWS_PROFILE is required for deterministic auth." >&2
-  exit 2
+  fail_with_next \
+    "AWS_PROFILE is required for deterministic auth." \
+    "AWS_PROFILE=jobintel-deployer AWS_REGION=${AWS_REGION} CLUSTER_NAME=${CLUSTER_NAME} scripts/ops/tofu_eks_guardrails.sh"
 fi
 
 identity_json="$(aws sts get-caller-identity --output json --region "${AWS_REGION}")"
 identity_arn="$(printf '%s' "${identity_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("Arn", ""))')"
 if [[ "${identity_arn}" == *":root" ]]; then
-  echo "ERROR: refusing to run with root identity (${identity_arn})." >&2
-  exit 2
+  fail_with_next \
+    "refusing to run with root identity (${identity_arn})." \
+    "${NEXT_BASE} scripts/ops/tofu_state_check.sh"
 fi
 
 echo "AWS identity OK: ${identity_arn}"
 
 if ! aws eks describe-cluster --name "${CLUSTER_NAME}" --region "${AWS_REGION}" --output json >/dev/null; then
-  echo "ERROR: EKS cluster not found: ${CLUSTER_NAME} in ${AWS_REGION}" >&2
-  exit 2
+  fail_with_next \
+    "EKS cluster not found: ${CLUSTER_NAME} in ${AWS_REGION}" \
+    "${NEXT_BASE} aws eks describe-cluster --name \"${CLUSTER_NAME}\" --region \"${AWS_REGION}\" --output json"
 fi
 
 echo "EKS cluster exists: ${CLUSTER_NAME}"
 
 if ! "${TF_BIN}" -chdir="${EKS_DIR}" init -input=false -backend=false >/dev/null; then
-  echo "ERROR: ${TF_BIN} init failed in ${EKS_DIR}." >&2
-  exit 2
+  fail_with_next \
+    "${TF_BIN} init failed in ${EKS_DIR}." \
+    "${NEXT_BASE} ${TF_BIN} -chdir=${EKS_DIR} init -input=false -backend=false"
 fi
 
 state_list="$("${TF_BIN}" -chdir="${EKS_DIR}" state list 2>/dev/null || true)"
@@ -55,6 +69,7 @@ Suggested starting imports (review before running):
   ${TF_BIN} -chdir=${EKS_DIR} import aws_eks_node_group.default ${CLUSTER_NAME}:${CLUSTER_NAME}-default
 Then run:
   ${TF_BIN} -chdir=${EKS_DIR} state list
+NEXT: ${NEXT_BASE} scripts/ops/tofu_state_check.sh --print-imports
 EOF
   exit 3
 fi
@@ -62,18 +77,21 @@ fi
 if ! printf '%s\n' "${state_list}" | grep -qx 'aws_eks_cluster.this'; then
   echo "STATE MISALIGNED: state is non-empty but missing aws_eks_cluster.this" >&2
   echo "Refusing to continue. Reconcile imports before planning/applying." >&2
+  echo "NEXT: ${NEXT_BASE} scripts/ops/tofu_state_check.sh --print-imports" >&2
   exit 4
 fi
 
 state_cluster_name="$("${TF_BIN}" -chdir="${EKS_DIR}" state show aws_eks_cluster.this | awk -F' = ' '$1 ~ /^[[:space:]]*name$/ {print $2; exit}' | tr -d '"' | xargs || true)"
 if [[ -z "${state_cluster_name}" ]]; then
   echo "STATE MISALIGNED: unable to read cluster name from state for aws_eks_cluster.this" >&2
+  echo "NEXT: ${NEXT_BASE} scripts/ops/tofu_state_check.sh" >&2
   exit 4
 fi
 
 if [[ "${state_cluster_name}" != "${CLUSTER_NAME}" ]]; then
   echo "STATE MISMATCH: state cluster name is '${state_cluster_name}', expected '${CLUSTER_NAME}'" >&2
   echo "Refusing to continue to avoid creating another EKS cluster." >&2
+  echo "NEXT: ${NEXT_BASE} scripts/ops/tofu_state_check.sh --print-imports" >&2
   exit 4
 fi
 

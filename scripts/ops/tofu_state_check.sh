@@ -3,6 +3,16 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 EKS_DIR="${ROOT_DIR}/ops/aws/infra/eks"
+AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
+CLUSTER_NAME="${CLUSTER_NAME:-jobintel-eks}"
+
+fail_with_next() {
+  local message="$1"
+  local next_cmd="$2"
+  echo "ERROR: ${message}" >&2
+  echo "NEXT: ${next_cmd}" >&2
+  exit 2
+}
 
 TF_BIN="${TF_BIN:-}"
 if [[ -z "${TF_BIN}" ]]; then
@@ -11,13 +21,11 @@ if [[ -z "${TF_BIN}" ]]; then
   elif command -v terraform >/dev/null 2>&1; then
     TF_BIN="terraform"
   else
-    echo "ERROR: neither tofu nor terraform is installed" >&2
-    exit 2
+    fail_with_next \
+      "neither tofu nor terraform is installed" \
+      "brew install opentofu"
   fi
 fi
-
-AWS_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-us-east-1}}"
-CLUSTER_NAME="${CLUSTER_NAME:-jobintel-eks}"
 
 print_header() {
   echo "== $1 =="

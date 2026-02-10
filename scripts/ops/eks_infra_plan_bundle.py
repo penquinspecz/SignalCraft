@@ -151,6 +151,13 @@ def _check_root_identity(*, aws_region: str, env: dict[str, str], bundle_dir: Pa
         raise RuntimeError(f"refusing to continue with root identity: {arn}")
 
 
+def _next_failure_command(*, args: argparse.Namespace) -> str:
+    return (
+        f"AWS_PROFILE={args.aws_profile} AWS_REGION={args.aws_region} CLUSTER_NAME={args.cluster_name} "
+        "scripts/ops/tofu_state_check.sh --print-imports"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Plan-only EKS infra bundle capture (deterministic, guardrailed).")
     parser.add_argument("--run-id", default=os.environ.get("RUN_ID", "local"))
@@ -167,6 +174,7 @@ def main(argv: list[str] | None = None) -> int:
     tf_bin = shutil.which("tofu") or "tofu"
     if not shutil.which("tofu"):
         print("eks_infra_plan_bundle_status=failed error='tofu not found'", file=sys.stderr)
+        print("NEXT: brew install opentofu", file=sys.stderr)
         return 2
 
     tf_dir = (REPO_ROOT / args.tf_dir).resolve()
@@ -300,6 +308,7 @@ def main(argv: list[str] | None = None) -> int:
         _write_json(receipt_path, receipt)
         _write_manifest(bundle_dir, run_id=args.run_id)
         print(f"eks_infra_plan_bundle_status=failed error={exc!r}")
+        print(f"NEXT: {_next_failure_command(args=args)}")
         print(f"eks_infra_plan_bundle={bundle_dir}")
         print(f"eks_infra_plan_receipt={receipt_path}")
         print(f"eks_infra_plan_manifest={manifest_path}")
