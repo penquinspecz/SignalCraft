@@ -28,6 +28,8 @@
     {
       "provider_id": "openai",
       "name": "OpenAI",
+      "display_name": "OpenAI",
+      "enabled": true,
       "careers_urls": [
         "https://jobs.ashbyhq.com/openai"
       ],
@@ -46,9 +48,51 @@
       "politeness": {
         "min_delay_s": 1.0,
         "max_attempts": 3
-      },
-      "display_name": "OpenAI",
-      "enabled": true
+      }
+    },
+    {
+      "provider_id": "scaleai",
+      "name": "Scale AI",
+      "display_name": "Scale AI",
+      "enabled": true,
+      "careers_urls": [
+        "https://jobs.ashbyhq.com/scaleai"
+      ],
+      "allowed_domains": [
+        "jobs.ashbyhq.com"
+      ],
+      "extraction_mode": "ashby_api",
+      "mode": "snapshot",
+      "snapshot_dir": "data/scaleai_snapshots",
+      "snapshot_path": "data/scaleai_snapshots/index.html",
+      "live_enabled": false,
+      "update_cadence": "daily",
+      "politeness": {
+        "min_delay_s": 1.0,
+        "max_attempts": 3
+      }
+    },
+    {
+      "provider_id": "replit",
+      "name": "Replit",
+      "display_name": "Replit",
+      "enabled": true,
+      "careers_urls": [
+        "https://jobs.ashbyhq.com/replit"
+      ],
+      "allowed_domains": [
+        "jobs.ashbyhq.com"
+      ],
+      "extraction_mode": "ashby_api",
+      "mode": "snapshot",
+      "snapshot_dir": "data/replit_snapshots",
+      "snapshot_path": "data/replit_snapshots/index.html",
+      "live_enabled": false,
+      "update_cadence": "daily",
+      "politeness": {
+        "min_delay_s": 1.0,
+        "max_attempts": 3
+      }
     },
     {
       "provider_id": "xai",
