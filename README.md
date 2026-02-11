@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/ci.yml)
 [![Docker Smoke](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/docker-smoke.yml/badge.svg)](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/docker-smoke.yml)
-[![Lint](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/lint.yml/badge.svg)](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/lint.yml)
+
 
 An AI-powered job intelligence system that monitors frontier AI company careers pages, classifies roles, matches them to a candidate profile, and generates deterministic artifacts, diffs, and alerts.
 
@@ -34,8 +34,6 @@ The “AI” is intentionally **last-mile** — the deterministic pipeline produ
 - **Generate bounded alerts and summaries** (e.g., weekly hiring trends, high-fit role alerts).
 - **Demonstrate safe, practical AI usage** in a guardrailed, reproducible pipeline.
 - **Serve as a long-lived portfolio artifact:** deployable, test-backed, explainable.
-
-**Added (not replacing prior intent):**
 - Target roles include **Technical Customer Success**, **Solutions Architecture**, **Technical Success**, and other deployment-facing roles.
 - Optimize for **CNCF-style operational discipline**: container-first design, Kubernetes-native execution, predictable logs and artifacts, and boring repeatability.
 
@@ -67,8 +65,6 @@ This project is intentionally built using AI pair programming:
   - deterministic outputs
   - explicit exit code contracts
   - “truth gates” (Docker builds with tests)
-
-**Added (not replacing prior intent):**
 - Multi-model development is treated as a **safety technique**: independent review reduces blind spots and catches subtle contract violations.
 - The goal is not “vibe coding”; it is **repeatable engineering** with verifiable artifacts and minimal churn.
 
