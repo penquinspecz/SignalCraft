@@ -1,4 +1,4 @@
-# IAM Roles for JobIntel (Runtime vs Operator)
+# IAM Roles for SignalCraft (Runtime vs Operator)
 
 This separates **runtime** permissions (pods publishing artifacts) from **operator** permissions (humans/CI verifying).
 Do not widen runtime permissions just to make verification easier.

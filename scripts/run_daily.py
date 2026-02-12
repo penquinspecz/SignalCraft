@@ -2590,7 +2590,7 @@ def _post_discord(webhook_url: str, message: str) -> bool:
         headers={
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) job-intelligence-engine/1.0",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X) signalcraft/1.0",
         },
     )
 
@@ -2774,7 +2774,7 @@ def _resolve_semantic_settings() -> Dict[str, Any]:
 
 def main() -> int:
     ensure_dirs()
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Run the SignalCraft daily pipeline (JIE engine).")
 
     ap.add_argument("--profile", default="cs", help="Scoring profile name (cs|tam|se)")
     ap.add_argument(

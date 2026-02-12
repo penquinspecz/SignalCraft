@@ -52,7 +52,7 @@ Notes:
 
 Runtime role (CronJob / Job pods):
 - Attach the least-privilege S3 policy above to the IAM role referenced by the ServiceAccount annotation.
-- This role is used by the running JobIntel pod to publish artifacts and resolve baselines.
+- This role is used by the running SignalCraft pod to publish artifacts and resolve baselines.
 
 Operator verify role (human/automation):
 - For `verify_published_s3.py` without `--offline`, grant `s3:HeadObject` (and optionally `s3:GetObject`) to the
@@ -68,7 +68,7 @@ Minimum for publish:
 - `AWS_REGION` (or `AWS_DEFAULT_REGION`)
 - `JOBINTEL_S3_PREFIX` (optional; default `jobintel`)
 
-If you prefer a JobIntel-prefixed region, set `JOBINTEL_AWS_REGION` and map it to
+If you prefer a product-scoped region variable, set `JOBINTEL_AWS_REGION` and map it to
 `AWS_REGION` in the task env.
 
 Optional integrations:

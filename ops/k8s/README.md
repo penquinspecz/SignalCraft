@@ -1,6 +1,6 @@
-# Kubernetes CronJob (JobIntel)
+# Kubernetes CronJob (SignalCraft)
 
-This directory contains a minimal, Kubernetes-native CronJob shape for running JobIntel daily.
+This directory contains a minimal, Kubernetes-native CronJob shape for running SignalCraft daily.
 It is intentionally plain YAML + kustomize (no Helm).
 The CronJob YAML uses a placeholder image name; replace it with your registry/repo tag.
 

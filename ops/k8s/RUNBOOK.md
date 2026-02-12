@@ -1,4 +1,4 @@
-# JobIntel K8s Runbook (Milestone 2)
+# SignalCraft K8s Runbook (Milestone 2)
 
 This runbook is **K8s-first** and copy/pasteable. It covers deploy, inspect last run, rollback, and secret rotation.
 

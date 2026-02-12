@@ -1,6 +1,6 @@
 # On-Prem Baseline (k3s on ARM)
 
-This directory is the on-prem operations scaffold for JobIntel primary runtime.
+This directory is the on-prem operations scaffold for SignalCraft primary runtime.
 
 ## Golden Path
 

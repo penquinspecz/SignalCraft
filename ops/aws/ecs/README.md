@@ -1,4 +1,4 @@
-# ECS Templates (JobIntel)
+# ECS Templates (SignalCraft)
 
 This folder contains **templates only** for ECS scheduled runs. Replace placeholders before use.
 

@@ -1,4 +1,4 @@
-# JobIntel Engine — Agent Notes
+# SignalCraft Engine — Agent Notes
 
 ## Principles
 - Deterministic outputs > cleverness.

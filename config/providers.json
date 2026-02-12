@@ -101,6 +101,31 @@
       "enabled": true
     },
     {
+      "provider_id": "huggingface",
+      "name": "Hugging Face",
+      "careers_urls": [
+        "https://huggingface.co/jobs"
+      ],
+      "allowed_domains": [
+        "huggingface.co"
+      ],
+      "extraction_mode": "jsonld",
+      "mode": "snapshot",
+      "snapshot_dir": "data/huggingface_snapshots",
+      "snapshot_path": "data/huggingface_snapshots/index.html",
+      "live_enabled": false,
+      "update_cadence": {
+        "min_interval_hours": 24,
+        "priority": "normal"
+      },
+      "politeness": {
+        "min_delay_s": 1.0,
+        "max_attempts": 2
+      },
+      "display_name": "Hugging Face",
+      "enabled": true
+    },
+    {
       "provider_id": "mistral",
       "name": "Mistral",
       "careers_urls": [

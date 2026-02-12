@@ -48,7 +48,7 @@ def refresh_snapshot(
         logger = logging.getLogger(__name__)
 
     req_headers = dict(headers or {})
-    req_headers.setdefault("User-Agent", "job-intelligence-engine/0.1 (+snapshot-refresh)")
+    req_headers.setdefault("User-Agent", "signalcraft/0.1 (+snapshot-refresh)")
     req_headers.setdefault("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
     logger.info("Refreshing snapshot for %s from %s", provider_id, url)
