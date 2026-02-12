@@ -11,8 +11,8 @@ from ji_engine.utils.time import utc_now_z
 
 logger = logging.getLogger(__name__)
 
-PROMPT_VERSION = "weekly_insights_v2"
-PROMPT_PATH = REPO_ROOT / "docs" / "prompts" / "weekly_insights_v2.md"
+PROMPT_VERSION = "weekly_insights_v3"
+PROMPT_PATH = REPO_ROOT / "docs" / "prompts" / "weekly_insights_v3.md"
 
 
 def _utcnow_iso() -> str:
@@ -155,7 +155,7 @@ def _should_use_cache(existing: Dict[str, Any], metadata: Dict[str, Any]) -> boo
     existing_meta = existing.get("metadata")
     if not isinstance(existing_meta, dict):
         return False
-    for key in ("input_hashes", "prompt_sha256", "prompt_version", "model", "provider"):
+    for key in ("cache_key", "structured_input_hash", "prompt_sha256", "prompt_version", "model", "provider"):
         if existing_meta.get(key) != metadata.get(key):
             return False
     return True
@@ -186,12 +186,29 @@ def generate_insights(
         run_metadata_dir=RUN_METADATA_DIR,
     )
 
+    structured_input_hash = _sha256_bytes(insights_input_path.read_bytes())
     input_hashes = {
         "insights_input": _sha256_bytes(insights_input_path.read_bytes()),
         "ranked": (insights_input_payload.get("input_hashes") or {}).get("ranked"),
         "previous": (insights_input_payload.get("input_hashes") or {}).get("previous"),
         "ranked_families": (insights_input_payload.get("input_hashes") or {}).get("ranked_families"),
     }
+    cache_key = _sha256_bytes(
+        json.dumps(
+            {
+                "prompt_version": PROMPT_VERSION,
+                "prompt_sha256": prompt_sha,
+                "model": model_name,
+                "provider": provider,
+                "profile": profile,
+                "input_hashes": input_hashes,
+                "structured_input_hash": structured_input_hash,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+    )
     metadata = {
         "prompt_version": PROMPT_VERSION,
         "prompt_sha256": prompt_sha,
@@ -200,6 +217,8 @@ def generate_insights(
         "profile": profile,
         "timestamp": _utcnow_iso(),
         "input_hashes": input_hashes,
+        "structured_input_hash": structured_input_hash,
+        "cache_key": cache_key,
     }
 
     run_dir = _run_dir(run_id)

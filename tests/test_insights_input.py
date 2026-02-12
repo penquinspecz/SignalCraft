@@ -65,6 +65,8 @@ def test_insights_input_builder_is_deterministic(tmp_path: Path) -> None:
     assert p1 == p2
     assert path_one.read_text(encoding="utf-8").splitlines()[0] == "{"
     assert path_one == path_two
+    assert payload_one["rolling_diff_counts_7"]["window_size"] == 7
+    assert payload_one["median_score_trend_delta"]["delta"] == 6.0
 
 
 def test_insights_input_excludes_raw_jd_text(tmp_path: Path) -> None:
@@ -97,3 +99,41 @@ def test_insights_input_excludes_raw_jd_text(tmp_path: Path) -> None:
     assert "raw body that should stay out of insights input payload" not in serialized
     assert "jd_text" not in serialized
     assert payload["top_roles"][0]["title"] == "Customer Success Manager"
+
+
+def test_insights_input_skill_tokens_deterministic(tmp_path: Path) -> None:
+    run_dir = tmp_path / "state" / "runs"
+    ranked = tmp_path / "ranked.json"
+    _write_json(
+        ranked,
+        [
+            {
+                "job_id": "a",
+                "title": "Customer Success Manager",
+                "score": 90,
+                "fit_signals": ["Python", "sql", "python"],
+                "ai": {"skills_required": ["Golang"], "skills_preferred": ["sql"]},
+            },
+            {
+                "job_id": "b",
+                "title": "Solutions Architect",
+                "score": 85,
+                "fit_signals": ["python", "terraform"],
+                "ai": {"skills_required": ["python"]},
+            },
+        ],
+    )
+    _, payload = build_weekly_insights_input(
+        provider="openai",
+        profile="cs",
+        ranked_path=ranked,
+        prev_path=None,
+        ranked_families_path=None,
+        run_id="2026-02-12T00:00:00Z",
+        run_metadata_dir=run_dir,
+    )
+    assert payload["top_recurring_skill_tokens"] == [
+        {"keyword": "python", "count": 4},
+        {"keyword": "sql", "count": 2},
+        {"keyword": "terraform", "count": 1},
+    ]

@@ -51,10 +51,12 @@ def test_ai_insights_metadata_hashes(tmp_path: Path, monkeypatch) -> None:
     )
 
     meta = payload.get("metadata") or {}
-    assert meta.get("prompt_version") == "weekly_insights_v2"
+    assert meta.get("prompt_version") == "weekly_insights_v3"
     assert meta.get("prompt_sha256")
     assert meta.get("input_hashes", {}).get("ranked")
     assert meta.get("input_hashes", {}).get("insights_input")
+    assert meta.get("structured_input_hash")
+    assert meta.get("cache_key")
 
 
 def test_ai_insights_cache_key_changes_when_structured_input_changes(tmp_path: Path, monkeypatch) -> None:
@@ -76,6 +78,7 @@ def test_ai_insights_cache_key_changes_when_structured_input_changes(tmp_path: P
         model_name="stub",
     )
     first_hash = ((first.get("metadata") or {}).get("input_hashes") or {}).get("insights_input")
+    first_cache_key = (first.get("metadata") or {}).get("cache_key")
     ranked.write_text(json.dumps([{"job_id": "a", "title": "Role A", "score": 90}]), encoding="utf-8")
     _, _, second = ai_insights.generate_insights(
         provider="openai",
@@ -89,6 +92,10 @@ def test_ai_insights_cache_key_changes_when_structured_input_changes(tmp_path: P
         model_name="stub",
     )
     second_hash = ((second.get("metadata") or {}).get("input_hashes") or {}).get("insights_input")
+    second_cache_key = (second.get("metadata") or {}).get("cache_key")
     assert first_hash
     assert second_hash
     assert first_hash != second_hash
+    assert first_cache_key
+    assert second_cache_key
+    assert first_cache_key != second_cache_key
