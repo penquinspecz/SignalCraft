@@ -41,6 +41,28 @@ def _load_index(run_id: str) -> Dict[str, Any]:
     return data
 
 
+def _load_json_object(path: Path) -> Optional[Dict[str, Any]]:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
+    for path in sorted(run_dir.glob("ai_insights.*.json"), key=lambda p: p.name):
+        payload = _load_json_object(path)
+        if not payload:
+            continue
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        prompt_version = (metadata or {}).get("prompt_version")
+        if isinstance(prompt_version, str) and prompt_version.strip():
+            return prompt_version
+    return None
+
+
 def _list_runs() -> List[Dict[str, Any]]:
     if not RUN_METADATA_DIR.exists():
         return []
@@ -183,7 +205,17 @@ def runs() -> List[Dict[str, Any]]:
 
 @app.get("/runs/{run_id}")
 def run_detail(run_id: str) -> Dict[str, Any]:
-    return _load_index(run_id)
+    index = _load_index(run_id)
+    run_dir = _run_dir(run_id)
+    run_report = _load_json_object(run_dir / "run_report.json") or {}
+    costs = _load_json_object(run_dir / "costs.json")
+    prompt_version = _load_first_ai_prompt_version(run_dir)
+    enriched = dict(index)
+    enriched["semantic_enabled"] = bool(run_report.get("semantic_enabled", False))
+    enriched["semantic_mode"] = run_report.get("semantic_mode")
+    enriched["ai_prompt_version"] = prompt_version
+    enriched["cost_summary"] = costs
+    return enriched
 
 
 @app.get("/runs/{run_id}/artifact/{name}")
@@ -192,6 +224,30 @@ def run_artifact(run_id: str, name: str) -> Response:
     run_dir = _run_dir(run_id)
     path = _resolve_artifact_path(run_dir, index, name)
     return Response(path.read_bytes(), media_type=_content_type(path))
+
+
+@app.get("/runs/{run_id}/semantic_summary/{profile}")
+def run_semantic_summary(run_id: str, profile: str) -> Dict[str, Any]:
+    run_dir = _run_dir(run_id)
+    semantic_dir = run_dir / "semantic"
+    summary = _load_json_object(semantic_dir / "semantic_summary.json")
+    if not summary:
+        raise HTTPException(status_code=404, detail="Semantic summary not found")
+
+    entries: List[Dict[str, Any]] = []
+    for path in sorted(semantic_dir.glob(f"scores_*_{profile}.json"), key=lambda p: p.name):
+        payload = _load_json_object(path)
+        if not payload:
+            continue
+        payload_entries = payload.get("entries")
+        if not isinstance(payload_entries, list):
+            continue
+        for item in payload_entries:
+            if isinstance(item, dict):
+                entries.append(item)
+
+    entries.sort(key=lambda item: (str(item.get("provider") or ""), str(item.get("job_id") or "")))
+    return {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
 
 
 @app.get("/v1/latest")
