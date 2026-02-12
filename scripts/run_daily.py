@@ -3522,6 +3522,7 @@ def main() -> int:
             }
 
         if base_short:
+            semantic_enabled = bool(semantic_settings["enabled"])
             # No-AI short-circuit: safe to skip everything downstream IF ranked artifacts exist.
             if not ai_required:
                 missing_artifacts: List[Path] = []
@@ -3539,7 +3540,7 @@ def main() -> int:
                     if not shortlist_md.exists():
                         missing_artifacts.append(shortlist_md)
 
-                if not missing_artifacts:
+                if not missing_artifacts and not semantic_enabled:
                     telemetry["hashes"] = curr_hashes
                     telemetry["counts"] = {
                         "raw": _safe_len(_provider_raw_jobs_json("openai")),
@@ -3554,6 +3555,11 @@ def main() -> int:
                         "Short-circuiting downstream stages (scoring not required)."
                     )
                     return 0
+                if not missing_artifacts and semantic_enabled:
+                    logger.info(
+                        "Semantic enabled; bypassing full short-circuit and re-running deterministic scoring "
+                        "to produce semantic artifacts."
+                    )
                 else:
                     logger.info(
                         "Short-circuit skipped because ranked artifacts are missing; will re-run scoring. Missing: %s",
@@ -3571,7 +3577,7 @@ def main() -> int:
                 or (curr_ai_mtime_iso is not None and curr_ai_mtime_iso == prev_ai_mtime)
             )
 
-            if ai_fresh and prev_ai_ran and _ranked_up_to_date():
+            if ai_fresh and prev_ai_ran and _ranked_up_to_date() and not semantic_enabled:
                 telemetry["hashes"] = curr_hashes
                 telemetry["counts"] = {
                     "raw": _safe_len(_provider_raw_jobs_json("openai")),
@@ -3632,11 +3638,12 @@ def main() -> int:
                     REPO_ROOT / "config" / "profiles.json",
                 )
 
-                need_score = not ranked_json.exists()
-                if ai_mtime is not None:
-                    need_score = need_score or ((_file_mtime(ranked_json) or 0) < ai_mtime)
-                else:
-                    need_score = True
+                need_score = semantic_enabled or not ranked_json.exists()
+                if not semantic_enabled:
+                    if ai_mtime is not None:
+                        need_score = need_score or ((_file_mtime(ranked_json) or 0) < ai_mtime)
+                    else:
+                        need_score = True
 
                 if need_score:
                     current_stage = f"score:{profile}"
@@ -3674,13 +3681,13 @@ def main() -> int:
                 ] + us_only_flag
                 if args.ai or args.ai_only:
                     cmd.append("--prefer_ai")
-                    record_stage(current_stage, lambda cmd=cmd: _run(cmd, stage=current_stage))
+                record_stage(current_stage, lambda cmd=cmd: _run(cmd, stage=current_stage))
 
-                    state_path = state_last_ranked(profile)
-                    curr = _read_json(ranked_json)
-                    prev = _read_json(state_path) if state_path.exists() else []
-                    _write_json(state_path, curr)
-                    # (diff/alerts handled in full path only; for freshness runs, we just persist state)
+                state_path = state_last_ranked(profile)
+                curr = _read_json(ranked_json)
+                prev = _read_json(state_path) if state_path.exists() else []
+                _write_json(state_path, curr)
+                # (diff/alerts handled in full path only; for freshness runs, we just persist state)
 
             _finalize("success")
             return 0
