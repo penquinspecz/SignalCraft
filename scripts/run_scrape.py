@@ -271,8 +271,13 @@ def _chaos_enabled(provider_id: str) -> bool:
 
 def _runtime_unavailable_reason(error: str) -> str:
     lowered = error.lower()
-    if "captcha" in lowered or "cloudflare" in lowered or "blocked marker" in lowered:
+    if "blocked marker: captcha" in lowered:
         return "captcha"
+    if "captcha" in lowered or "cloudflare" in lowered or "verify you are human" in lowered:
+        return "captcha"
+    deny_markers = ("access denied", "forbidden", "request blocked", "blocked marker")
+    if any(marker in lowered for marker in deny_markers):
+        return "deny"
     if "empty content" in lowered or "too small" in lowered or "missing html tags" in lowered:
         return "empty_success"
     return "extraction_error"
@@ -985,7 +990,11 @@ def main(argv: List[str] | None = None) -> int:
                     if classification and not provenance.get("unavailable_reason"):
                         provenance["availability"] = "unavailable"
                         provenance["unavailable_reason"] = classification
-                    if provenance.get("scrape_mode") == "live" and provenance.get("live_result") == "success" and not jobs:
+                    if (
+                        provenance.get("scrape_mode") == "live"
+                        and provenance.get("live_result") == "success"
+                        and not jobs
+                    ):
                         provenance["availability"] = "unavailable"
                         provenance["unavailable_reason"] = "empty_success"
                     if snapshot_meta.get("fetched_at"):
