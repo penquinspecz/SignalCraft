@@ -468,6 +468,12 @@ Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repe
   - `extract_jobs(html) -> List[JobStub]` deterministic
 - [ ] Add at least 2 additional AI companies using the config mechanism
 
+### Milestone 5 Receipt (2026-02-11)
+- Run id: `m5-proof-2026-02-11T23:59:15Z`
+- Proof artifacts: `state/runs/m5proof20260211T235915Z/`
+- Run report: `state/runs/m5proof20260211T235915Z/run_report.json`
+- Proof bundle note: `docs/proof/m5-offline-multi-provider-2026-02-11.md`
+
 ---
 
 ## Milestone 6 — History & intelligence (identity, dedupe, trends + user state)
