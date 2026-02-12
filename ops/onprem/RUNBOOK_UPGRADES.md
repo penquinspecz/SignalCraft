@@ -1,4 +1,4 @@
-# Runbook: Upgrades (k3s + JobIntel)
+# Runbook: Upgrades (k3s + SignalCraft)
 
 ## Preflight checks
 
@@ -41,7 +41,7 @@ If it fails:
 - `journalctl -u k3s-agent -n 200 --no-pager` (agents)
 - rollback by reinstalling previous known-good k3s version.
 
-## 2) JobIntel image upgrade
+## 2) SignalCraft image upgrade
 
 ```bash
 export JOBINTEL_IMAGE=<registry>/jobintel:<tag>

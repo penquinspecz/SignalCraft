@@ -28,7 +28,7 @@ def test_build_run_summary_message(tmp_path: Path) -> None:
         extra_lines=["AI briefs: generated for top 3"],
     )
 
-    assert "JobIntel — openai / cs" in msg
+    assert "SignalCraft — openai / cs" in msg
     assert "Deltas: new=1 changed=2 removed=3" in msg
     assert "Shortlist (>= 70): 2" in msg
     assert "- **95** Role A — https://example.com/a" in msg

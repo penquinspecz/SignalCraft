@@ -117,6 +117,29 @@ def _parse_status_code(error: str) -> Optional[int]:
         return None
 
 
+def _classify_snapshot_unavailable_reason(snapshot_reason: Optional[str], parsed_job_count: int) -> Optional[str]:
+    if parsed_job_count > 0:
+        return None
+    if not snapshot_reason:
+        return "empty_success"
+    lowered = snapshot_reason.lower()
+    if "captcha" in lowered:
+        return "captcha"
+    deny_markers = (
+        "access denied",
+        "forbidden",
+        "blocked marker",
+        "temporarily blocked",
+        "attention required",
+        "request blocked",
+        "verify you are human",
+        "cloudflare challenge page",
+    )
+    if any(marker in lowered for marker in deny_markers):
+        return "deny"
+    return "parse_error"
+
+
 def _mtime_iso(path: Path) -> Optional[str]:
     try:
         ts = path.stat().st_mtime
@@ -157,7 +180,7 @@ def _build_policy_snapshot(provider_id: str, policy: Dict[str, Any]) -> Dict[str
     allowlist = _parse_allowlist(_provider_env("JOBINTEL_LIVE_ALLOWLIST_DOMAINS", provider_id, ""))
     user_agent = os.environ.get(
         "JOBINTEL_USER_AGENT",
-        "jobintel-bot/1.0 (+https://github.com/penquinspecz/job-intelligence-engine)",
+        "jobintel-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)",
     )
     try:
         per_host_concurrency = int(_provider_env("JOBINTEL_PROVIDER_MAX_INFLIGHT_PER_HOST", provider_id, "2"))
@@ -306,6 +329,7 @@ def main(argv: List[str] | None = None) -> int:
                 raise SystemExit(2)
             provenance: Dict[str, Any] = {
                 "provider_id": provider_id,
+                "extraction_mode": provider_type,
                 "mode": mode,
                 "live_attempted": False,
                 "live_result": None,
@@ -774,7 +798,16 @@ def main(argv: List[str] | None = None) -> int:
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                     else:
-                        raw_jobs = provider.load_from_snapshot()
+                        try:
+                            raw_jobs = provider.load_from_snapshot()
+                        except RuntimeError as exc:
+                            logger.warning(
+                                "[run_scrape] SNAPSHOT load failed for %s (%r); marking provider unavailable",
+                                provider_id,
+                                exc,
+                            )
+                            provenance["error"] = str(exc)
+                            raw_jobs = []
                         provenance["scrape_mode"] = "snapshot"
                         provenance["live_result"] = "skipped"
                     jobs = _normalize_jobs(raw_jobs)
@@ -788,6 +821,22 @@ def main(argv: List[str] | None = None) -> int:
                             "parsed_job_count": len(jobs),
                         }
                     )
+                    if snapshot_path.exists():
+                        ok, reason = validate_snapshot_file(
+                            provider_id,
+                            snapshot_path,
+                            extraction_mode=provider_cfg.get("extraction_mode"),
+                        )
+                        provenance["snapshot_validated"] = ok
+                        if not ok:
+                            provenance["snapshot_reason"] = reason
+                    classification = _classify_snapshot_unavailable_reason(
+                        provenance.get("snapshot_reason"),
+                        len(jobs),
+                    )
+                    if classification and not provenance.get("unavailable_reason"):
+                        provenance["availability"] = "unavailable"
+                        provenance["unavailable_reason"] = classification
                     if snapshot_meta.get("fetched_at"):
                         provenance["fetched_at"] = snapshot_meta.get("fetched_at")
                     if provenance.get("scrape_mode") == "snapshot" and provenance.get("attempts_made", 0) == 0:

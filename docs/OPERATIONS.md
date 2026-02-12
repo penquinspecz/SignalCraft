@@ -182,7 +182,7 @@ Live scraping enforces a robots/policy decision before any network fetch:
   `JOBINTEL_LIVE_ALLOWLIST_DOMAINS_<PROVIDER>` controls which hosts are permitted for live fetches.
   If the allowlist is set and a host is not listed, live scraping is skipped and the run falls back to snapshots.
 - Robots: the runner fetches `https://<host>/robots.txt` and evaluates `User-agent` rules using a consistent
-  `JOBINTEL_USER_AGENT` (default: `jobintel-bot/1.0 (+https://github.com/penquinspecz/job-intelligence-engine)`).
+  `JOBINTEL_USER_AGENT` (default: `jobintel-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)`).
   Disallow or fetch failures are treated conservatively (live skipped → snapshot fallback).
 
 Every decision is logged as `[provider_retry][robots] ...` and recorded in provenance:

@@ -250,7 +250,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         help="Output directory for snapshot writes (required).",
     )
     ap.add_argument("--timeout", type=float, default=20.0)
-    ap.add_argument("--user_agent", default="job-intelligence-engine/0.1")
+    ap.add_argument("--user_agent", default="signalcraft/0.1")
     ap.add_argument("--jobs_json", help="OpenAI jobs JSON to source apply_url values from.")
     ap.add_argument("--max_jobs", type=int, default=None, help="Limit job detail snapshots.")
     ap.add_argument("--dry_run", dest="dry_run", action="store_true")

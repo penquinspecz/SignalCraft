@@ -1,6 +1,6 @@
-# ECS Scheduled Run Runbook (JobIntel)
+# ECS Scheduled Run Runbook (SignalCraft)
 
-This runbook documents how to run JobIntel as a scheduled ECS task with deterministic outputs and verifiable publish artifacts. It does **not** perform any AWS actions; it only defines the steps and the proof you should capture.
+This runbook documents how to run SignalCraft as a scheduled ECS task with deterministic outputs and verifiable publish artifacts. It does **not** perform any AWS actions; it only defines the steps and the proof you should capture.
 
 ## Prerequisites
 

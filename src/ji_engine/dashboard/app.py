@@ -17,7 +17,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environmen
 from ji_engine.config import RUN_METADATA_DIR, STATE_DIR
 from jobintel import aws_runs
 
-app = FastAPI()
+app = FastAPI(title="SignalCraft Dashboard API")
 
 
 def _sanitize_run_id(run_id: str) -> str:

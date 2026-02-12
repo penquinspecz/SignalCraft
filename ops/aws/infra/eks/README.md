@@ -1,6 +1,6 @@
 # EKS bootstrap (minimal)
 
-This directory provides a minimal EKS cluster + IRSA role for JobIntel.
+This directory provides a minimal EKS cluster + IRSA role for SignalCraft.
 
 ## Prerequisites
 
@@ -101,7 +101,7 @@ make aws-discover-subnets EXCLUDE_AZ=us-east-1e
 
 If `tofu plan` shows `aws_eks_cluster.this` and related resources as `to add` while `jobintel-eks` already exists, the usual root cause is state alignment, not missing variables.
 
-`var.s3_bucket` is for runtime artifacts written by JobIntel workloads.  
+`var.s3_bucket` is for runtime artifacts written by SignalCraft workloads.  
 Backend state bucket (if configured) is where OpenTofu stores `.tfstate`.  
 These are different concerns and can have different bucket names.
 
