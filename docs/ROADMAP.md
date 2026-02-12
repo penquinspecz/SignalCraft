@@ -524,6 +524,7 @@ Receipts:
 - [x] Embedding cache + cost controls (max jobs embedded per run)
 - [x] Tests for deterministic similarity behavior + threshold boundaries
 - [x] Offline proof receipt test for semantic safety net artifacts (`tests/test_m7_semantic_proof_receipt.py`)
+- [x] `semantic_norm_v1` normalization contract is explicit and shared across sidecar/boost paths (test-backed deterministic composition + versioned hash/cache-key behavior)
 
 ---
 

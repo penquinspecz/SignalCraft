@@ -76,12 +76,16 @@ def test_semantic_boost_is_deterministic_with_stable_rounding(tmp_path: Path) ->
     assert first["entries"] == second["entries"]
 
     by_job = {item["job_id"]: item for item in first["entries"]}
-    assert by_job["c"]["similarity"] == 0.350249
-    assert by_job["c"]["semantic_boost"] == 1.751245
-    assert by_job["c"]["final_score"] == 70
+    assert by_job["a"]["similarity"] == 0.272367
+    assert by_job["a"]["semantic_boost"] == 1.361835
+    assert by_job["a"]["final_score"] == 71
+    assert by_job["b"]["similarity"] == 0.272367
+    assert by_job["b"]["semantic_boost"] == 1.361835
+    assert by_job["b"]["final_score"] == 70
+    assert by_job["c"]["similarity"] == 0.143273
+    assert by_job["c"]["semantic_boost"] == 0.716365
+    assert by_job["c"]["final_score"] == 69
     assert by_job["c"]["reasons"] == ["boost_applied"]
-    assert by_job["a"]["semantic_boost"] == 0.0
-    assert by_job["b"]["semantic_boost"] == 0.0
 
     assert first["cache_hit_counts"]["miss"] == 3
     assert first["cache_hit_counts"]["write"] == 3

@@ -15,6 +15,12 @@ from .core import (
     embed_texts,
     normalize_text_for_embedding,
 )
+from .normalization import (
+    compose_job_text_semantic_norm_v1,
+    normalize_job_text_semantic_norm_v1,
+    normalize_profile_text_semantic_norm_v1,
+    semantic_content_hash_v1,
+)
 from .step import finalize_semantic_artifacts, run_semantic_sidecar, semantic_score_artifact_path
 
 __all__ = [
@@ -22,6 +28,10 @@ __all__ = [
     "SEMANTIC_NORM_VERSION",
     "DeterministicHashEmbeddingBackend",
     "normalize_text_for_embedding",
+    "compose_job_text_semantic_norm_v1",
+    "normalize_job_text_semantic_norm_v1",
+    "normalize_profile_text_semantic_norm_v1",
+    "semantic_content_hash_v1",
     "embed_texts",
     "cosine_similarity",
     "embedding_cache_dir",

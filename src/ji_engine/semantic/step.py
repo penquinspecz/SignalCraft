@@ -13,6 +13,7 @@ from .cache import (
     save_cache_entry,
 )
 from .core import DEFAULT_SEMANTIC_MODEL_ID, SEMANTIC_NORM_VERSION, embed_texts, normalize_text_for_embedding
+from .normalization import normalize_job_text_semantic_norm_v1, semantic_content_hash_v1
 
 
 def _sanitize_run_id(run_id: str) -> str:
@@ -52,19 +53,7 @@ def _job_id(job: Dict[str, Any]) -> str:
 
 
 def _job_embedding_text(job: Dict[str, Any]) -> str:
-    fields = (
-        "title",
-        "location",
-        "team",
-        "company",
-        "apply_url",
-        "detail_url",
-        "summary",
-        "description",
-        "raw_text",
-    )
-    values = [str(job.get(field) or "") for field in fields]
-    return " ".join(values)
+    return normalize_job_text_semantic_norm_v1(job)
 
 
 def _collect_ranked_records(
@@ -151,7 +140,7 @@ def run_semantic_sidecar(
         return summary, summary_path
 
     profile_text = normalize_text_for_embedding(_canonical_profile_text(profile_data))
-    candidate_profile_hash = _sha256_text(profile_text)
+    candidate_profile_hash = semantic_content_hash_v1(profile_text)
 
     records = _collect_ranked_records(provider_outputs, max_jobs)
     if not records:
@@ -165,8 +154,8 @@ def run_semantic_sidecar(
         profile = record["profile"]
         job = record["job"]
         job_id = _job_id(job)
-        job_text = normalize_text_for_embedding(_job_embedding_text(job))
-        job_content_hash = _sha256_text(job_text)
+        job_text = _job_embedding_text(job)
+        job_content_hash = semantic_content_hash_v1(job_text)
         cache_key = build_embedding_cache_key(
             job_id=job_id,
             job_content_hash=job_content_hash,

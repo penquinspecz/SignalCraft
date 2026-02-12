@@ -263,6 +263,20 @@ Determinism contract:
 - Cache location: `state/embeddings/<model_id>/<cache_key>.json`.
 - Cache entries store only model id, deterministic metadata, input hashes, and vector values.
 
+Semantic normalization contract (`semantic_norm_v1`):
+- Job embedding text is composed from ordered labeled fields:
+  - `title`
+  - `location` (`location` fallback `locationName`)
+  - `team` (`team` fallback `department`/`departmentName`)
+  - `summary`
+  - `description` (`description` fallback `jd_text`/`raw_text`)
+- Field composition order is fixed and independent of JSON key order.
+- Normalization lowercases and tokenizes to alphanumeric tokens before hashing/embedding.
+- Content hashes are version-tagged (`semantic_norm_v1`) so future normalization changes require an explicit version bump and naturally invalidate cache keys.
+- Why this exists:
+  - debuggability: a single stable normalization path is shared by sidecar and boost modes
+  - deterministic cache keys: equivalent job content with formatting differences resolves to the same normalized hash/key
+
 Run artifact:
 - Every run writes `state/runs/<run_id-sanitized>/semantic/semantic_summary.json` even when disabled.
 - Every run writes `state/runs/<run_id-sanitized>/semantic/semantic_scores.json` (possibly empty when disabled).

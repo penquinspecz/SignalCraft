@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Tuple
@@ -17,7 +16,11 @@ from .core import (
     SEMANTIC_NORM_VERSION,
     cosine_similarity,
     embed_texts,
-    normalize_text_for_embedding,
+)
+from .normalization import (
+    normalize_job_text_semantic_norm_v1,
+    normalize_profile_text_semantic_norm_v1,
+    semantic_content_hash_v1,
 )
 
 
@@ -36,28 +39,7 @@ def _clamp(value: int, lo: int, hi: int) -> int:
 
 
 def _profile_text(profile_payload: Any) -> str:
-    return normalize_text_for_embedding(
-        json.dumps(profile_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    )
-
-
-def _job_text(job: Dict[str, Any]) -> str:
-    fields = [
-        str(job.get("title") or ""),
-        str(job.get("location") or job.get("locationName") or ""),
-        str(job.get("team") or ""),
-        str(job.get("department") or job.get("departmentName") or ""),
-        str(job.get("summary") or ""),
-        str(job.get("description") or ""),
-        str(job.get("jd_text") or ""),
-    ]
-    return normalize_text_for_embedding(" ".join(fields))
-
-
-def _sha256(text: str) -> str:
-    import hashlib
-
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return normalize_profile_text_semantic_norm_v1(profile_payload)
 
 
 def _job_id(job: Dict[str, Any]) -> str:
@@ -94,7 +76,7 @@ def _resolve_profile_vector(
     model_id: str,
 ) -> Tuple[List[float], str, bool]:
     profile_text = _profile_text(profile_payload)
-    profile_hash = _sha256(profile_text)
+    profile_hash = semantic_content_hash_v1(profile_text)
     cache_key = build_embedding_cache_key(
         job_id="__candidate_profile__",
         job_content_hash=profile_hash,
@@ -200,8 +182,8 @@ def apply_bounded_semantic_boost(
             )
             continue
 
-        job_text = _job_text(job)
-        job_hash = _sha256(job_text)
+        job_text = normalize_job_text_semantic_norm_v1(job)
+        job_hash = semantic_content_hash_v1(job_text)
         cache_key = build_embedding_cache_key(
             job_id=jid,
             job_content_hash=job_hash,
