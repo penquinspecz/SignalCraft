@@ -61,7 +61,7 @@ from ji_engine.config import (
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
 from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
 from ji_engine.semantic.core import DEFAULT_SEMANTIC_MODEL_ID
-from ji_engine.semantic.step import run_semantic_sidecar
+from ji_engine.semantic.step import finalize_semantic_artifacts, semantic_score_artifact_path
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
@@ -2769,7 +2769,28 @@ def _resolve_semantic_settings() -> Dict[str, Any]:
         max_jobs = 200
     if max_jobs < 1:
         max_jobs = 1
-    return {"enabled": enabled, "model_id": model_id, "max_jobs": max_jobs}
+    try:
+        max_boost = float((os.environ.get("SEMANTIC_MAX_BOOST") or "5").strip())
+    except ValueError:
+        max_boost = 5.0
+    try:
+        min_similarity = float((os.environ.get("SEMANTIC_MIN_SIMILARITY") or "0.72").strip())
+    except ValueError:
+        min_similarity = 0.72
+    try:
+        top_k = int((os.environ.get("SEMANTIC_TOP_K") or "50").strip())
+    except ValueError:
+        top_k = 50
+    if top_k < 1:
+        top_k = 1
+    return {
+        "enabled": enabled,
+        "model_id": model_id,
+        "max_jobs": max_jobs,
+        "max_boost": max(0.0, max_boost),
+        "min_similarity": max(0.0, min(1.0, min_similarity)),
+        "top_k": top_k,
+    }
 
 
 def main() -> int:
@@ -2920,6 +2941,7 @@ def main() -> int:
     provenance_by_provider: Dict[str, Dict[str, Any]] = {}
     discord_status_by_provider: Dict[str, Dict[str, str]] = {}
     provider_policy_lines: Dict[str, str] = {}
+    semantic_settings = _resolve_semantic_settings()
     flag_payload = {
         "profile": args.profile,
         "profiles": args.profiles,
@@ -3026,16 +3048,17 @@ def main() -> int:
                     "provider_profile": diff_report_by_provider_profile,
                 },
             )
-        semantic_settings = _resolve_semantic_settings()
-        semantic_summary, semantic_summary_path = run_semantic_sidecar(
+        semantic_summary, semantic_summary_path, semantic_scores_path = finalize_semantic_artifacts(
             run_id=run_id,
-            provider_outputs=provider_outputs,
-            state_dir=STATE_DIR,
             run_metadata_dir=RUN_METADATA_DIR,
-            candidate_profile_path=DATA_DIR / "candidate_profile.json",
             enabled=bool(semantic_settings["enabled"]),
             model_id=str(semantic_settings["model_id"]),
-            max_jobs=int(semantic_settings["max_jobs"]),
+            policy={
+                "max_jobs": int(semantic_settings["max_jobs"]),
+                "top_k": int(semantic_settings["top_k"]),
+                "max_boost": float(semantic_settings["max_boost"]),
+                "min_similarity": float(semantic_settings["min_similarity"]),
+            },
         )
         telemetry["semantic"] = {
             "enabled": semantic_summary.get("enabled"),
@@ -3043,6 +3066,7 @@ def main() -> int:
             "embedded_job_count": semantic_summary.get("embedded_job_count"),
             "skipped_reason": semantic_summary.get("skipped_reason"),
             "summary_path": str(semantic_summary_path),
+            "scores_path": str(semantic_scores_path),
         }
         run_metadata_path = _persist_run_metadata(
             run_id,
@@ -3622,6 +3646,8 @@ def main() -> int:
                     str(REPO_ROOT / "scripts" / "score_jobs.py"),
                     "--profile",
                     profile,
+                    "--provider_id",
+                    "openai",
                     "--in_path",
                     str(score_in),
                     "--out_json",
@@ -3636,6 +3662,15 @@ def main() -> int:
                     str(args.min_score),
                     "--out_md_top_n",
                     str(top_md),
+                    "--semantic_scores_out",
+                    str(
+                        semantic_score_artifact_path(
+                            run_id=run_id,
+                            provider="openai",
+                            profile=profile,
+                            run_metadata_dir=RUN_METADATA_DIR,
+                        )
+                    ),
                 ] + us_only_flag
                 if args.ai or args.ai_only:
                     cmd.append("--prefer_ai")
@@ -3864,6 +3899,8 @@ def main() -> int:
                     str(REPO_ROOT / "scripts" / "score_jobs.py"),
                     "--profile",
                     profile,
+                    "--provider_id",
+                    provider,
                     "--in_path",
                     str(in_path),
                     "--out_json",
@@ -3878,6 +3915,15 @@ def main() -> int:
                     str(args.min_score),
                     "--out_md_top_n",
                     str(top_md),
+                    "--semantic_scores_out",
+                    str(
+                        semantic_score_artifact_path(
+                            run_id=run_id,
+                            provider=provider,
+                            profile=profile,
+                            run_metadata_dir=RUN_METADATA_DIR,
+                        )
+                    ),
                 ] + us_only_flag
                 if args.ai or args.ai_only:
                     cmd.append("--prefer_ai")
