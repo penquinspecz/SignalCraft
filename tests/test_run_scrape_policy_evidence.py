@@ -148,3 +148,10 @@ def test_chaos_mode_sets_deterministic_provenance_fields(tmp_path: Path, monkeyp
     assert meta["live_error_reason"] == "chaos_forced_error"
     assert meta["live_error_type"] == "transient_error"
     assert meta["snapshot_used"] is True
+
+
+def test_default_policy_user_agent_is_signalcraft(monkeypatch) -> None:
+    monkeypatch.delenv("JOBINTEL_USER_AGENT", raising=False)
+    run_scrape = importlib.reload(run_scrape_module)
+    snapshot = run_scrape._build_policy_snapshot("openai", {})
+    assert snapshot["user_agent"] == "signalcraft-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)"

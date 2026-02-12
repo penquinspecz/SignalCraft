@@ -53,7 +53,7 @@ def test_run_scrape_marks_provider_unavailable_on_live_failure(tmp_path, monkeyp
             "allowlist_allowed": True,
             "final_allowed": True,
             "reason": "ok",
-            "user_agent": "jobintel-bot/1.0",
+            "user_agent": "signalcraft-bot/1.0",
             "allowlist_entries": ["*"],
         },
     )

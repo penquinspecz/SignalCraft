@@ -43,10 +43,21 @@ def test_run_daily_writes_semantic_summary_when_disabled(tmp_path: Path, monkeyp
     assert rc == 0
 
     summary_path = state_dir / "runs" / "20260102T000000Z" / "semantic" / "semantic_summary.json"
+    run_report_path = state_dir / "runs" / "20260102T000000Z" / "run_report.json"
     assert summary_path.exists()
+    assert run_report_path.exists()
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    run_report = json.loads(run_report_path.read_text(encoding="utf-8"))
     assert summary["enabled"] is False
     assert summary["skipped_reason"] == "semantic_disabled"
+    assert "normalized_text_hash" in summary
+    assert "embedding_cache_key" in summary
+    assert run_report["semantic_enabled"] is False
+    assert run_report["semantic_mode"] == "boost"
+    assert run_report["semantic_model_id"] == "deterministic-hash-v1"
+    assert run_report["semantic_threshold"] == 0.72
+    assert run_report["semantic_max_boost"] == 5.0
+    assert isinstance(run_report["embedding_backend_version"], str) and run_report["embedding_backend_version"]
 
 
 def test_semantic_enabled_bypasses_short_circuit_and_writes_artifacts(tmp_path: Path, monkeypatch) -> None:

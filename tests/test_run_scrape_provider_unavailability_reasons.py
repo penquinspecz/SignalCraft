@@ -59,7 +59,7 @@ def test_run_scrape_marks_unavailable_on_deny_with_reason_and_mode(tmp_path, mon
             "allowlist_allowed": False,
             "final_allowed": False,
             "reason": "deny",
-            "user_agent": "jobintel-bot/1.0",
+            "user_agent": "signalcraft-bot/1.0",
             "allowlist_entries": [],
         },
     )
@@ -128,7 +128,7 @@ def test_run_scrape_marks_unavailable_on_empty_live_success(tmp_path, monkeypatc
             "allowlist_allowed": True,
             "final_allowed": True,
             "reason": "ok",
-            "user_agent": "jobintel-bot/1.0",
+            "user_agent": "signalcraft-bot/1.0",
             "allowlist_entries": ["*"],
         },
     )
