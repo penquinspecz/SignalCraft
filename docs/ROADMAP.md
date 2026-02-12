@@ -89,7 +89,7 @@ Last verified: `2026-02-07T05:48:59Z` @ `ae6ceba`
 - [x] “Replay a run” workflow exists (`scripts/replay_run.py`) with hash verification + optional `--recalc`
 - [x] Dashboard dependency management: core install excludes dashboard deps; dashboard extras + clear runtime guidance are documented and CI guard is warn-only. Evidence: `pyproject.toml`, `src/ji_engine/dashboard/app.py`, `Makefile`, `.github/workflows/ci.yml`, `docs/OPERATIONS.md`.
 - [ ] AI insights scope: currently weekly “pulse”; Phase 2 adds per-job recommendations and profile-aware coaching.
-- [ ] Document CI smoke gate design and failure modes (why it fails, what to inspect)
+- [x] Document CI smoke gate design and failure modes (why it fails, what to inspect). Evidence: `docs/CI_SMOKE_GATE.md`.
 - [x] **IAM footguns:** document runtime vs operator verify roles for object-store access in K8s (IRSA) + AWS
 - [x] **Artifact hygiene:** redaction scanner + deterministic sanity tests added (`src/ji_engine/utils/redaction.py`, `tests/test_redaction_scan.py`), with opt-in fail-closed enforcement (`REDACTION_ENFORCE=1`)
 

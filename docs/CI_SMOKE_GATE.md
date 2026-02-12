@@ -3,6 +3,10 @@
 This document is the operational contract for CI smoke gates.
 It describes exactly what CI runs, what each step proves, and how to debug failures quickly.
 
+Product naming note:
+- SignalCraft is the product name.
+- JIE (Job Intelligence Engine) remains the internal engine codename in code paths and env vars.
+
 ## CI Step Order
 
 1. `actions/checkout@v4`
@@ -136,6 +140,15 @@ Required artifacts (in `smoke_artifacts/`):
 
 ## Failure Modes And What To Inspect
 
+Before drilling into a failure, reproduce with an AWS-isolated env so local credentials or metadata do not alter behavior:
+
+```bash
+export AWS_CONFIG_FILE=/dev/null
+export AWS_SHARED_CREDENTIALS_FILE=/dev/null
+export AWS_EC2_METADATA_DISABLED=true
+export PYTHONPATH=src
+```
+
 ### Failure: `make gate-ci` in `pytest -q`
 
 Inspect:
@@ -144,6 +157,24 @@ Inspect:
 .venv/bin/python -m pytest -q -x
 .venv/bin/python -m pytest -q <failing_test_path>::<test_name> -vv
 ```
+
+### Failure: provider config contract (schema fail-closed)
+
+Symptoms: provider load fails with missing required keys/unknown keys/type mismatch.
+
+Inspect:
+
+```bash
+export PYTHONPATH=src
+./.venv/bin/python -m pytest -q tests/test_provider_registry.py -vv
+./.venv/bin/python -m pytest -q tests/test_run_scrape_provider_selection.py -vv
+./.venv/bin/python -m pytest -q tests/test_run_daily_provider_selection.py -vv
+```
+
+Then inspect:
+- `config/providers.json`
+- `schemas/providers.schema.v1.json`
+- `src/ji_engine/providers/registry.py`
 
 ### Failure: snapshot immutability check
 
@@ -175,6 +206,22 @@ Inspect:
 
 ```bash
 DOCKER_BUILDKIT=1 docker build --no-cache --progress=plain --build-arg RUN_TESTS=1 -t jobintel:tests .
+```
+
+### Failure: optional dashboard dependency path
+
+Symptoms: dashboard import/runtime error (for example missing `fastapi`/`uvicorn`).
+Core CI smoke should not fail for dashboard extras alone.
+
+Inspect:
+
+```bash
+./.venv/bin/python - <<'PY'
+import importlib.util
+missing = [name for name in ("fastapi", "uvicorn") if importlib.util.find_spec(name) is None]
+print({"missing_dashboard_deps": missing})
+PY
+./.venv/bin/python -m pytest -q tests/test_dashboard_app.py -vv
 ```
 
 ### Failure: determinism contract checks
@@ -232,6 +279,38 @@ git diff -- requirements.txt requirements-dev.txt
 If local network is unavailable, local export may use deterministic installed-env fallback.
 CI remains strict and fail-closed.
 
+### Failure: redaction enforcement (if enabled)
+
+Symptoms: run aborts with secret-like tokens found in generated artifacts.
+
+Inspect:
+
+```bash
+REDACTION_ENFORCE=1 ./.venv/bin/python scripts/run_daily.py --offline --snapshot-only --providers openai --profiles cs
+./.venv/bin/python -m pytest -q tests/test_redaction_scan.py -vv
+```
+
+If failing on generated outputs, inspect:
+- `state/runs/<run_id>/run_report.json`
+- `state/runs/<run_id>/*` JSON/markdown artifact files flagged in the error
+
+## Where To Look First (Decision Tree)
+
+1. Did `pytest -q` fail in CI?
+   - Run `./.venv/bin/python -m pytest -q -x` and inspect the first failing test.
+2. Did snapshot validation fail (`verify_snapshots_immutable.py`)?
+   - Inspect `data/*_snapshots` and rerun `./.venv/bin/python scripts/verify_snapshots_immutable.py`.
+3. Did provider load/selection fail before scraping?
+   - Inspect `config/providers.json`, schema file, and registry tests listed above.
+4. Did smoke artifacts fail contract checks?
+   - Inspect `smoke_artifacts/smoke_summary.json` then `smoke_artifacts/smoke.log`.
+5. Did replay/publish determinism checks fail?
+   - Start at `/tmp/jobintel_ci_state/runs/ci-run/run_report.json`, then rerun `publish_s3.py --plan --json` and `replay_run.py --strict --json`.
+6. Did cronjob smoke fail?
+   - Run `make cronjob-smoke`, inspect temp state run dir and its `run_report.json`.
+7. Did redaction enforcement fail (when enabled)?
+   - Run redaction tests and inspect flagged artifact paths in the exception message.
+
 ## Reproduce CI Smoke Locally
 
 ### Local Python path (fastest)
@@ -246,6 +325,14 @@ python -m venv .venv
 make gate-ci
 make cronjob-smoke
 .venv/bin/python scripts/check_roadmap_discipline.py
+```
+
+AWS-isolated equivalent:
+
+```bash
+AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_EC2_METADATA_DISABLED=true PYTHONPATH=src make gate-ci
+AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_EC2_METADATA_DISABLED=true PYTHONPATH=src make cronjob-smoke
+AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_EC2_METADATA_DISABLED=true PYTHONPATH=src ./.venv/bin/python -m pytest -q
 ```
 
 ### Docker truth build path
