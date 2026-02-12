@@ -248,7 +248,11 @@ def _print_family_counts(scored: List[Dict[str, Any]]) -> None:
 
 
 def _resolve_semantic_policy_from_env() -> SemanticPolicy:
-    enabled = os.environ.get("SEMANTIC_ENABLED", "").strip() == "1"
+    semantic_enabled = os.environ.get("SEMANTIC_ENABLED", "").strip() == "1"
+    semantic_mode = (os.environ.get("SEMANTIC_MODE") or "sidecar").strip().lower()
+    if semantic_mode not in {"sidecar", "boost"}:
+        semantic_mode = "sidecar"
+    enabled = semantic_enabled and semantic_mode == "boost"
     model_id = (os.environ.get("SEMANTIC_MODEL_ID") or DEFAULT_SEMANTIC_MODEL_ID).strip() or DEFAULT_SEMANTIC_MODEL_ID
     try:
         max_jobs = int((os.environ.get("SEMANTIC_MAX_JOBS") or "200").strip())

@@ -180,7 +180,7 @@ def _build_policy_snapshot(provider_id: str, policy: Dict[str, Any]) -> Dict[str
     allowlist = _parse_allowlist(_provider_env("JOBINTEL_LIVE_ALLOWLIST_DOMAINS", provider_id, ""))
     user_agent = os.environ.get(
         "JOBINTEL_USER_AGENT",
-        "jobintel-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)",
+        "signalcraft-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)",
     )
     try:
         per_host_concurrency = int(_provider_env("JOBINTEL_PROVIDER_MAX_INFLIGHT_PER_HOST", provider_id, "2"))

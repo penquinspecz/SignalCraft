@@ -250,6 +250,7 @@ def finalize_semantic_artifacts(
     enabled: bool,
     model_id: str,
     policy: Dict[str, Any],
+    used_short_circuit: bool = False,
 ) -> tuple[Dict[str, Any], Path, Path]:
     run_dir = run_metadata_dir / _sanitize_run_id(run_id)
     semantic_dir = run_dir / "semantic"
@@ -261,6 +262,7 @@ def finalize_semantic_artifacts(
     entries: List[Dict[str, Any]] = []
     cache_totals = {"hit": 0, "miss": 0, "write": 0, "profile_hit": 0, "profile_miss": 0}
     skipped: List[str] = []
+    attempted_provider_profiles: set[tuple[str, str]] = set()
 
     for path in per_profile_paths:
         try:
@@ -271,6 +273,12 @@ def finalize_semantic_artifacts(
         if not isinstance(payload, dict):
             skipped.append(f"invalid_shape:{path.name}")
             continue
+        stem = path.stem
+        if stem.startswith("scores_"):
+            provider_profile = stem[len("scores_") :]
+            provider, _, profile = provider_profile.rpartition("_")
+            if provider and profile:
+                attempted_provider_profiles.add((provider, profile))
         for key in cache_totals:
             try:
                 cache_totals[key] += int(((payload.get("cache_hit_counts") or {}).get(key, 0)) or 0)
@@ -298,6 +306,11 @@ def finalize_semantic_artifacts(
         "enabled": bool(enabled),
         "model_id": model_id,
         "policy": dict(policy),
+        "used_short_circuit": bool(used_short_circuit),
+        "attempted_provider_profiles": [
+            {"provider": provider, "profile": profile}
+            for provider, profile in sorted(attempted_provider_profiles, key=lambda item: (item[0], item[1]))
+        ],
         "cache_hit_counts": cache_totals,
         "embedded_job_count": len(entries),
         "skipped_reason": None,

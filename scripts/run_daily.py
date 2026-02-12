@@ -59,7 +59,9 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
+from ji_engine.profile_loader import load_candidate_profile
 from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
+from ji_engine.semantic.boost import SemanticPolicy, apply_bounded_semantic_boost
 from ji_engine.semantic.core import DEFAULT_SEMANTIC_MODEL_ID
 from ji_engine.semantic.step import finalize_semantic_artifacts, semantic_score_artifact_path
 from ji_engine.utils.atomic_write import atomic_write_text
@@ -2761,6 +2763,9 @@ def _resolve_log_file_enabled(args: argparse.Namespace) -> bool:
 
 def _resolve_semantic_settings() -> Dict[str, Any]:
     enabled = os.environ.get("SEMANTIC_ENABLED", "").strip() == "1"
+    mode = (os.environ.get("SEMANTIC_MODE") or "sidecar").strip().lower()
+    if mode not in {"sidecar", "boost"}:
+        mode = "sidecar"
     model_id = (os.environ.get("SEMANTIC_MODEL_ID") or DEFAULT_SEMANTIC_MODEL_ID).strip() or DEFAULT_SEMANTIC_MODEL_ID
     max_jobs_raw = (os.environ.get("SEMANTIC_MAX_JOBS") or "200").strip()
     try:
@@ -2785,12 +2790,86 @@ def _resolve_semantic_settings() -> Dict[str, Any]:
         top_k = 1
     return {
         "enabled": enabled,
+        "mode": mode,
+        "apply_boost": enabled and mode == "boost",
         "model_id": model_id,
         "max_jobs": max_jobs,
         "max_boost": max(0.0, max_boost),
         "min_similarity": max(0.0, min(1.0, min_similarity)),
         "top_k": top_k,
     }
+
+
+def _write_semantic_sidecar_score(
+    *,
+    run_id: str,
+    provider: str,
+    profile: str,
+    ranked_json_path: Path,
+    semantic_settings: Dict[str, Any],
+) -> None:
+    semantic_path = semantic_score_artifact_path(
+        run_id=run_id,
+        provider=provider,
+        profile=profile,
+        run_metadata_dir=RUN_METADATA_DIR,
+    )
+    policy = {
+        "max_jobs": int(semantic_settings["max_jobs"]),
+        "top_k": int(semantic_settings["top_k"]),
+        "max_boost": float(semantic_settings["max_boost"]),
+        "min_similarity": float(semantic_settings["min_similarity"]),
+    }
+    fallback_payload: Dict[str, Any] = {
+        "enabled": True,
+        "model_id": str(semantic_settings["model_id"]),
+        "policy": policy,
+        "cache_hit_counts": {"hit": 0, "miss": 0, "write": 0, "profile_hit": 0, "profile_miss": 0},
+        "entries": [],
+        "skipped_reason": None,
+    }
+    try:
+        ranked_payload = _read_json(ranked_json_path)
+        ranked_jobs = ranked_payload if isinstance(ranked_payload, list) else []
+        profile_path = DATA_DIR / "candidate_profile.json"
+        try:
+            profile_obj = load_candidate_profile(str(profile_path))
+            if hasattr(profile_obj, "model_dump"):
+                profile_payload = profile_obj.model_dump()
+            elif hasattr(profile_obj, "dict"):
+                profile_payload = profile_obj.dict()
+            else:
+                profile_payload = profile_obj
+        except Exception:
+            profile_payload = _read_json(profile_path) if profile_path.exists() else {}
+        sidecar_policy = SemanticPolicy(
+            enabled=True,
+            model_id=str(semantic_settings["model_id"]),
+            max_jobs=int(semantic_settings["max_jobs"]),
+            top_k=int(semantic_settings["top_k"]),
+            max_boost=float(semantic_settings["max_boost"]),
+            min_similarity=float(semantic_settings["min_similarity"]),
+        )
+        _, evidence = apply_bounded_semantic_boost(
+            scored_jobs=ranked_jobs,
+            profile_payload=profile_payload,
+            state_dir=STATE_DIR,
+            policy=sidecar_policy,
+        )
+        for entry in evidence.get("entries", []):
+            if isinstance(entry, dict):
+                entry["provider"] = provider
+                entry["profile"] = profile
+        _write_canonical_json(semantic_path, evidence)
+    except Exception as exc:
+        fallback_payload["skipped_reason"] = "semantic_unavailable"
+        _write_canonical_json(semantic_path, fallback_payload)
+        logger.warning(
+            "Semantic sidecar evidence generation failed for provider=%s profile=%s: %s",
+            provider,
+            profile,
+            exc,
+        )
 
 
 def _resolve_run_id() -> str:
@@ -3061,11 +3140,13 @@ def main() -> int:
             enabled=bool(semantic_settings["enabled"]),
             model_id=str(semantic_settings["model_id"]),
             policy={
+                "mode": str(semantic_settings["mode"]),
                 "max_jobs": int(semantic_settings["max_jobs"]),
                 "top_k": int(semantic_settings["top_k"]),
                 "max_boost": float(semantic_settings["max_boost"]),
                 "min_similarity": float(semantic_settings["min_similarity"]),
             },
+            used_short_circuit=status == "short_circuit",
         )
         telemetry["semantic"] = {
             "enabled": semantic_summary.get("enabled"),
@@ -3530,6 +3611,8 @@ def main() -> int:
 
         if base_short:
             semantic_enabled = bool(semantic_settings["enabled"])
+            semantic_mode = str(semantic_settings["mode"])
+            semantic_requires_scoring = bool(semantic_settings["apply_boost"])
             # No-AI short-circuit: safe to skip everything downstream IF ranked artifacts exist.
             if not ai_required:
                 missing_artifacts: List[Path] = []
@@ -3562,11 +3645,31 @@ def main() -> int:
                         "Short-circuiting downstream stages (scoring not required)."
                     )
                     return 0
-                if not missing_artifacts and semantic_enabled:
+                if not missing_artifacts and semantic_enabled and semantic_mode == "sidecar":
+                    for profile in profiles:
+                        _write_semantic_sidecar_score(
+                            run_id=run_id,
+                            provider="openai",
+                            profile=profile,
+                            ranked_json_path=_provider_ranked_jobs_json("openai", profile),
+                            semantic_settings=semantic_settings,
+                        )
+                    telemetry["hashes"] = curr_hashes
+                    telemetry["counts"] = {
+                        "raw": _safe_len(_provider_raw_jobs_json("openai")),
+                        "labeled": _safe_len(_provider_labeled_jobs_json("openai")),
+                        "enriched": _safe_len(_provider_enriched_jobs_json("openai")),
+                    }
+                    telemetry["stages"] = {"short_circuit": {"duration_sec": 0.0}}
+                    _update_ai_telemetry(False)
+                    _finalize("short_circuit")
                     logger.info(
-                        "Semantic enabled; bypassing full short-circuit and re-running deterministic scoring "
-                        "to produce semantic artifacts."
+                        "No changes detected and ranked artifacts present. Short-circuiting scoring and writing "
+                        "semantic sidecar artifacts from existing ranked outputs."
                     )
+                    return 0
+                if not missing_artifacts and semantic_enabled and semantic_requires_scoring:
+                    logger.info("Semantic boost mode enabled; bypassing short-circuit to re-run deterministic scoring.")
                 else:
                     logger.info(
                         "Short-circuit skipped because ranked artifacts are missing; will re-run scoring. Missing: %s",
@@ -3584,7 +3687,21 @@ def main() -> int:
                 or (curr_ai_mtime_iso is not None and curr_ai_mtime_iso == prev_ai_mtime)
             )
 
-            if ai_fresh and prev_ai_ran and _ranked_up_to_date() and not semantic_enabled:
+            if (
+                ai_fresh
+                and prev_ai_ran
+                and _ranked_up_to_date()
+                and (not semantic_enabled or not semantic_requires_scoring)
+            ):
+                if semantic_enabled and semantic_mode == "sidecar":
+                    for profile in profiles:
+                        _write_semantic_sidecar_score(
+                            run_id=run_id,
+                            provider="openai",
+                            profile=profile,
+                            ranked_json_path=_provider_ranked_jobs_json("openai", profile),
+                            semantic_settings=semantic_settings,
+                        )
                 telemetry["hashes"] = curr_hashes
                 telemetry["counts"] = {
                     "raw": _safe_len(_provider_raw_jobs_json("openai")),
@@ -3594,7 +3711,13 @@ def main() -> int:
                 telemetry["stages"] = {"short_circuit": {"duration_sec": 0.0}}
                 _update_ai_telemetry(False)
                 _finalize("short_circuit")
-                logger.info("No changes detected and AI+ranked outputs fresh. Short-circuiting downstream stages.")
+                if semantic_enabled and semantic_mode == "sidecar":
+                    logger.info(
+                        "No changes detected and AI+ranked outputs fresh. Short-circuiting scoring and writing "
+                        "semantic sidecar artifacts from existing ranked outputs."
+                    )
+                else:
+                    logger.info("No changes detected and AI+ranked outputs fresh. Short-circuiting downstream stages.")
                 return 0
 
             # We still want AI and/or scoring to run, but we can skip scrape/classify/enrich.
@@ -3645,8 +3768,8 @@ def main() -> int:
                     REPO_ROOT / "config" / "profiles.json",
                 )
 
-                need_score = semantic_enabled or (not ai_required) or not ranked_json.exists()
-                if not semantic_enabled and ai_required:
+                need_score = semantic_requires_scoring or (not ai_required) or not ranked_json.exists()
+                if not semantic_requires_scoring and ai_required:
                     if ai_mtime is not None:
                         need_score = need_score or ((_file_mtime(ranked_json) or 0) < ai_mtime)
                     else:
@@ -3696,6 +3819,14 @@ def main() -> int:
                     prev = _read_json(state_path) if state_path.exists() else []
                     _write_json(state_path, curr)
                     # (diff/alerts handled in full path only; for freshness runs, we just persist state)
+                    if semantic_enabled and semantic_mode == "sidecar":
+                        _write_semantic_sidecar_score(
+                            run_id=run_id,
+                            provider="openai",
+                            profile=profile,
+                            ranked_json_path=ranked_json,
+                            semantic_settings=semantic_settings,
+                        )
 
             _finalize("success")
             return 0
@@ -3945,6 +4076,14 @@ def main() -> int:
 
                 record_stage(current_stage, lambda cmd=cmd: _run(cmd, stage=current_stage))
                 _apply_score_fallback_metadata(selection, ranked_json)
+                if bool(semantic_settings["enabled"]) and str(semantic_settings["mode"]) == "sidecar":
+                    _write_semantic_sidecar_score(
+                        run_id=run_id,
+                        provider=provider,
+                        profile=profile,
+                        ranked_json_path=ranked_json,
+                        semantic_settings=semantic_settings,
+                    )
 
                 # Warn if freshly produced artifacts are not writable for future runs.
                 warn_context = _stage_label("after_score", provider, profile)
