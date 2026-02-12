@@ -53,6 +53,31 @@ def test_dashboard_runs_populated(tmp_path: Path, monkeypatch) -> None:
         "artifacts": {artifact_path.name: artifact_path.relative_to(run_dir).as_posix()},
     }
     (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    (run_dir / "run_report.json").write_text(
+        json.dumps(
+            {
+                "semantic_enabled": True,
+                "semantic_mode": "boost",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "costs.json").write_text(
+        json.dumps(
+            {
+                "embeddings_count": 2,
+                "embeddings_estimated_tokens": 256,
+                "ai_calls": 1,
+                "ai_estimated_tokens": 32,
+                "total_estimated_tokens": 288,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "ai_insights.cs.json").write_text(
+        json.dumps({"metadata": {"prompt_version": "weekly_insights_v3"}}),
+        encoding="utf-8",
+    )
 
     client = TestClient(dashboard.app)
     resp = client.get("/runs")
@@ -62,10 +87,54 @@ def test_dashboard_runs_populated(tmp_path: Path, monkeypatch) -> None:
     detail = client.get(f"/runs/{run_id}")
     assert detail.status_code == 200
     assert detail.json()["run_id"] == run_id
+    assert detail.json()["semantic_enabled"] is True
+    assert detail.json()["semantic_mode"] == "boost"
+    assert detail.json()["ai_prompt_version"] == "weekly_insights_v3"
+    assert detail.json()["cost_summary"]["total_estimated_tokens"] == 288
 
     artifact = client.get(f"/runs/{run_id}/artifact/{artifact_path.name}")
     assert artifact.status_code == 200
     assert artifact.headers["content-type"].startswith("application/json")
+
+
+def test_dashboard_semantic_summary_endpoint(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    semantic_dir = run_dir / "semantic"
+    semantic_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "index.json").write_text(json.dumps({"run_id": run_id, "timestamp": run_id}), encoding="utf-8")
+    (semantic_dir / "semantic_summary.json").write_text(
+        json.dumps({"enabled": True, "model_id": "deterministic-hash-v1"}),
+        encoding="utf-8",
+    )
+    (semantic_dir / "scores_openai_cs.json").write_text(
+        json.dumps({"entries": [{"provider": "openai", "profile": "cs", "job_id": "job-1"}]}),
+        encoding="utf-8",
+    )
+    (semantic_dir / "scores_openai_se.json").write_text(
+        json.dumps({"entries": [{"provider": "openai", "profile": "se", "job_id": "job-se"}]}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/semantic_summary/cs")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    payload = resp.json()
+    assert payload["run_id"] == run_id
+    assert payload["profile"] == "cs"
+    assert payload["summary"]["enabled"] is True
+    assert payload["entries"] == [{"provider": "openai", "profile": "cs", "job_id": "job-1"}]
 
 
 def test_dashboard_latest_local(tmp_path: Path, monkeypatch) -> None:
