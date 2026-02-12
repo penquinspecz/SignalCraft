@@ -216,6 +216,13 @@ def test_run_scrape_jsonld_snapshot_provider_huggingface_fixture(tmp_path, monke
         "https://huggingface.co/jobs/research-engineer-llm-evaluation",
         "https://huggingface.co/jobs/staff-software-engineer-platform",
     ]
+    first_job_ids = [job["job_id"] for job in jobs]
+
+    rc_second = run_scrape.main(["--providers", "huggingface", "--providers-config", str(providers_path)])
+    assert rc_second == 0
+    jobs_second = json.loads(raw_path.read_text(encoding="utf-8"))
+    assert [job["job_id"] for job in jobs_second] == first_job_ids
+
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     assert meta["extraction_mode"] == "jsonld"
     assert meta["availability"] == "available"
@@ -255,12 +262,12 @@ def test_run_scrape_jsonld_snapshot_classification_is_deterministic(tmp_path, mo
     importlib.reload(config)
     importlib.reload(run_scrape)
 
-    expected = {
-        "deny.html": "deny",
-        "captcha.html": "captcha",
-        "empty_success.html": "empty_success",
-    }
-    for fixture_name, expected_reason in expected.items():
+    expected = [
+        ("captcha.html", "captcha"),
+        ("deny.html", "deny"),
+        ("empty_success.html", "empty_success"),
+    ]
+    for fixture_name, expected_reason in expected:
         (snapshot_dir / "index.html").write_text(
             Path(f"tests/fixtures/providers/huggingface/{fixture_name}").read_text(encoding="utf-8"),
             encoding="utf-8",
@@ -268,5 +275,30 @@ def test_run_scrape_jsonld_snapshot_classification_is_deterministic(tmp_path, mo
         rc = run_scrape.main(["--providers", "huggingface", "--providers-config", str(providers_path)])
         assert rc == 0
         meta = json.loads((data_dir / "ashby_cache" / "huggingface_scrape_meta.json").read_text(encoding="utf-8"))
+        assert meta["extraction_mode"] == "jsonld"
         assert meta["availability"] == "unavailable"
         assert meta["unavailable_reason"] == expected_reason
+
+
+def test_huggingface_provider_config_contract() -> None:
+    providers = json.loads(Path("config/providers.json").read_text(encoding="utf-8"))["providers"]
+    huggingface = next(provider for provider in providers if provider["provider_id"] == "huggingface")
+
+    required_keys = {
+        "provider_id",
+        "display_name",
+        "careers_urls",
+        "allowed_domains",
+        "extraction_mode",
+        "enabled",
+    }
+    assert required_keys.issubset(huggingface.keys())
+    assert huggingface["provider_id"] == "huggingface"
+    assert huggingface["display_name"] == "Hugging Face"
+    assert huggingface["careers_urls"] == ["https://huggingface.co/jobs"]
+    assert huggingface["allowed_domains"] == ["huggingface.co"]
+    assert huggingface["extraction_mode"] == "jsonld"
+    assert huggingface["enabled"] is True
+    # Config-only provider: snapshot-first, no live scraping contract.
+    assert huggingface["mode"] == "snapshot"
+    assert huggingface["live_enabled"] is False

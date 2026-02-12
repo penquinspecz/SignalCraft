@@ -85,12 +85,15 @@ def test_jsonld_provider_huggingface_required_fields_and_order(tmp_path: Path) -
         snapshot_dir=snapshot_dir,
         mode="SNAPSHOT",
     )
-    jobs = [item.to_dict() for item in provider.load_from_snapshot()]
+    first = [item.to_dict() for item in provider.load_from_snapshot()]
+    second = [item.to_dict() for item in provider.load_from_snapshot()]
+    jobs = first
 
     assert [job["apply_url"] for job in jobs] == [
         "https://huggingface.co/jobs/research-engineer-llm-evaluation",
         "https://huggingface.co/jobs/staff-software-engineer-platform",
     ]
+    assert [job["job_id"] for job in first] == [job["job_id"] for job in second]
     for job in jobs:
         assert job["title"]
         assert job["apply_url"]
