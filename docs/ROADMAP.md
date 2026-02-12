@@ -2,11 +2,24 @@
 
 This roadmap is the anti-chaos anchor. We optimize for:
 1) deterministic outputs, 2) debuggability, 3) deployability, 4) incremental intelligence.
+
 If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s probably churn.
 
 ---
 
-## Principles / Guardrails
+## Document Contract
+
+**This file is the plan. The repo is the truth.**  
+Every merged PR must:
+- declare which milestone box(es) moved,
+- cite evidence paths (tests, logs, proof bundles, artifacts),
+- and keep “Current State” aligned with what actually runs.
+
+**Roadmap discipline:** see `docs/CONTRIBUTING_ROADMAP_DISCIPLINE.md`.
+
+---
+
+## Principles / Guardrails (non-negotiable)
 
 - **One canonical pipeline entrypoint:** `scripts/run_daily.py`
 - **Determinism over cleverness:** same inputs → same outputs
@@ -14,596 +27,470 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 - **Small, test-backed changes:** no “refactor weeks” unless it buys a milestone
 - **Operational truth lives in artifacts:** run metadata + logs + outputs > vibes
 - **LLMs are allowed only with guardrails:** cache + schema + fail-closed + reproducible settings
-- **AI is last-mile:** deterministic pipeline produces stable artifacts; AI reads them and produces insight outputs.
-- **Multi-candidate is Phase 2+:** design plumbing now (paths/schemas), do not build UI complexity until Phase 1 is boring.
-- **Tests must be deterministic regardless of optional deps:** unit tests cannot change behavior based on whether optional tooling (e.g., Playwright) is installed
-- **Single source of truth for dependencies:** Docker, CI, and local dev install from the same dependency contract (no “works in Docker only” drift)
-- **Docs are a contract:** README status/architecture must match the runnable system; no “early dev” drift when the system is operational
-- **Cloud is not special:** AWS runs must be as replayable and inspectable as local runs (S3 is the artifact source of truth)
-- **Roadmap epilogue discipline is required:** every PR declares roadmap box changes + evidence paths; see `docs/CONTRIBUTING_ROADMAP_DISCIPLINE.md`
+- **AI is last-mile:** deterministic pipeline produces stable artifacts; AI reads them and produces insight outputs
+- **Multi-candidate is later:** design plumbing now (paths/schemas), avoid UI complexity until Phase 1 is boring
+- **Tests must be deterministic regardless of optional deps**
+- **Single source of truth for dependencies:** Docker, CI, local install from the same contract
+- **Docs are a contract:** README/ops docs must match runnable behavior
+- **Cloud is not special:** AWS runs must be replayable and inspectable like local
+- **Receipts required:** milestone completion means evidence exists in-repo
 
 ---
 
-## Updated Product Intent (so we don’t accidentally build the wrong thing)
+## Legal + Ethical Operation Contract (Product Constraint)
 
-### Phase 1 (current focus): “Useful every day, deployable via Kubernetes or cloud-agnostic schedulers”
+SignalCraft’s intent is to be a **discovery and alerting net**, not a replacement for employer career pages.
+
+### Hard rules (must remain true as we evolve)
+- **Always include canonical outbound links** to the original job posting and employer careers page.
+- **Do not re-host full job descriptions** as the primary experience.
+  - UI must emphasize summaries, signals, and diffs, and direct the user to the source for full details.
+  - If raw JD text exists in artifacts for scoring/replay, it must be treated as internal pipeline data with hygiene controls (redaction + retention + access).
+- **Respect robots/policies and site terms**:
+  - Maintain allowlist/denylist decisions in config.
+  - Log the policy decision in provenance; never “silently scrape.”
+- **Politeness by default**: per-host rate limits, concurrency caps, jitter, backoff, and circuit breaker must remain enforced.
+- **Opt-out support**: if a company requests exclusion, provider config must support disabling them cleanly (and future-proof for a “provider tombstone” record).
+- **User-Agent honesty**: stable UA string identifying the project + repo contact URL.
+- **No credentialed scraping** (logins, bypassing paywalls, defeating anti-bot) in core product scope.
+
+### Evidence expectations
+- Provenance includes robots/policy decision, scrape_mode, and whether snapshots were used.
+- Provider availability reasons are explicit (deny-page, captcha, blocked, timeout, policy_skip, etc.).
+
+---
+
+## Product Intent (big-picture, so we don’t build the wrong thing)
+
+### Phase 1 (now): “Useful every day, deployable via Kubernetes or cloud-agnostic schedulers”
 - Daily run produces artifacts + run registry
 - Discord notifications (deltas + top items)
 - Minimal dashboard API to browse runs/artifacts
-- Simple weekly AI insights report (cached, guarded, post summary to Discord)
+- Weekly AI insights report (cached, guarded, posted as a summary)
 - Kubernetes CronJob deployment: scheduled runs + object-store publishing + domain-backed dashboard endpoint (AWS optional)
 
-### Phase 2+: “Multi-user + powerful UI + deeper AI”
-- Users upload resume/job profile → their own scoring runs, alerts, and state
-- UI (simple but powerful): filters, search, explainability per job, lifecycle actions
-- AI: profile-aware coaching + per-job insights/recommendations + outreach suggestions (still guardrailed/cached)
+### Phase 2+: “Multi-user + powerful UX + deeper AI”
+- Users upload resume/profile → their own scoring runs, alerts, and state
+- Real UI: filters/search, explainability, lifecycle actions
+- AI: profile-aware coaching + per-job recommendations + outreach suggestions (still guardrailed/cached)
 
 ---
 
-## Current State (as of this commit)
+## Current State (Update this when reality changes)
 
-Last verified: `2026-02-12T14:43:14Z` @ `d33b22d`
+Last verified: **2026-02-12T23:35:20Z @ 0a7161cc5c74d12bffce55c83b1bc63bb716d296**  
+Latest release: **v0.1.0** (proof: `docs/proof/release-v0.1.0.md`)
 
-### Completed foundation (verified in repo/tests)
-- [x] Deterministic ranking + tie-breakers
-- [x] `--prefer_ai` is opt-in; no implicit AI switching
-- [x] Short-circuit reruns scoring if ranked artifacts missing
-- [x] `--no_enrich` input selection guarded by freshness (prefer enriched only when newer)
-- [x] Strong regression coverage across scoring paths + short-circuit behavior
-- [x] Docker smoke run validated; snapshots baked correctly (including per-job HTML)
-- [x] Repo-root path safety: config no longer depends on CWD (`REPO_ROOT` anchored to `__file__`)
-- [x] Run metadata includes inputs + scoring inputs by profile + output hashes
-- [x] Run report schema version is written and asserted in tests
-- [x] Exit codes normalized to policy: `0` success, `2` validation/missing inputs, `>=3` runtime/provider failures
-- [x] Job identity URLs normalized (query/fragment stripped; stable casing/trailing slash)
-- [x] `SMOKE_SKIP_BUILD` override works; snapshot debugging helpers exist (`make debug-snapshots`)
-- [x] Scoring diagnostics (min/p50/p90/max + bucket counts + top 10) printed in logs
-- [x] Top-N markdown output generated per run (even if shortlist is empty)
-- [x] `--min_score` + `SMOKE_MIN_SCORE` plumbing added (back-compat alias preserved)
-- [x] CS scoring heuristics recalibrated (shortlist no longer empty at sensible thresholds)
-- [x] Score clamping to 0–100 to prevent runaway (distribution tuning is iterative)
-
-### Delivery layer now implemented (Phase 1 progress)
-- [x] **Discord run-summary alerts** (no-op when webhook unset; honors `--no_post`; offline-safe)
-- [x] **Run registry + artifact persistence** under `state/runs/<run_id>/`
-- [x] **Minimal FastAPI dashboard API**:
-  - `/healthz`, `/runs`, `/runs/{run_id}`, `/runs/{run_id}/artifact/{name}`
-  - Serves artifacts with correct content types
-- [x] **Weekly AI insights step (guardrailed, cached)**:
-  - Prompt template versioned
-  - Output MD/JSON saved into run dir
-  - Posts short Discord summary when enabled
-  - Opt-in via `AI_ENABLED=1`; stub output when disabled/unavailable
-
-### New conventions added (scaffold + partial integration)
-- [x] `state/user_state/` convention + loader utility returning `{}` if missing (scaffold)
-- [x] User state overlay annotated in outputs (status tags/notes)
-- [x] User state overlay influences filtering/alert semantics (ignore/applied/interviewing suppression in shortlist + diffs + Discord paths)
+### Phase 1 foundations (true in repo/tests)
+- Deterministic scoring + tie-breakers
+- Deterministic run report with schema version
+- Input selection reason capture + replay tooling
+- Snapshot-based offline determinism for providers
+- Discord run summaries + diff-aware alerts
+- Minimal dashboard API for runs/artifacts
+- Weekly AI insights (guardrailed, cached), plus structured deterministic input artifacts
+- Semantic “safety net” implemented with explicit mode split:
+  - `SEMANTIC_MODE=sidecar|boost`
+  - sidecar never mutates ranked outputs
+- Deterministic cost accounting + budget guardrails (`costs.json`, token caps)
+- Strong CI/Docker smoke gates with documented failure modes (`docs/CI_SMOKE_GATE.md`)
 
 ---
 
-## Known Sharp Edges / TODO (updated)
-- [x] **Replayability gap closed:** selected scoring inputs are archived per run for regeneration
-- [x] Provider failure surfacing: retries/backoff, explicit unavailable reasons in run report + Discord
-- [x] Log destination / rotation strategy for AWS runs (stdout + CloudWatch + retention). Evidence: `scripts/run_daily.py`, `tests/test_run_daily_observability.py`, `docs/RUN_REPORT.md`, `docs/OPERATIONS.md`.
-- [x] “Replay a run” workflow exists (`scripts/replay_run.py`) with hash verification + optional `--recalc`
-- [x] Dashboard dependency management: core install excludes dashboard deps; dashboard extras + clear runtime guidance are documented and CI guard is warn-only. Evidence: `pyproject.toml`, `src/ji_engine/dashboard/app.py`, `Makefile`, `.github/workflows/ci.yml`, `docs/OPERATIONS.md`.
-- [ ] AI insights scope: currently weekly “pulse”; Phase 2 adds per-job recommendations and profile-aware coaching.
-- [ ] Document CI smoke gate design and failure modes (why it fails, what to inspect)
-- [x] **IAM footguns:** document runtime vs operator verify roles for object-store access in K8s (IRSA) + AWS
-- [x] **Artifact hygiene:** redaction scanner + deterministic sanity tests added (`src/ji_engine/utils/redaction.py`, `tests/test_redaction_scan.py`), with opt-in fail-closed enforcement (`REDACTION_ENFORCE=1`)
+# ARCHIVE — Milestones 1–9 (Completed / Superseded)
+
+**Archive rule:** These milestones are “done enough” for Phase 1.  
+Do not reopen unless a regression threatens determinism, replayability, or deployability.
+
+## Milestone 1 — Daily run deterministic & debuggable (Local + Docker + CI) ✅
+**Receipts:** see `docs/OPERATIONS.md`, CI smoke contracts, snapshot helpers.
+- [x] `pytest -q` passes locally/CI
+- [x] Docker smoke produces ranked outputs + run report
+- [x] Exit codes normalized
+- [x] Snapshot debugging helpers (`make debug-snapshots`)
+- [x] CI deterministic artifact validation
+
+## Milestone 2 — Determinism Contract & Replayability ✅
+**Receipts:** `docs/RUN_REPORT.md`, `scripts/replay_run.py`, tests covering selection reasons + archival + `--recalc`.
+- [x] Run report explains selection
+- [x] Schema contract documented
+- [x] Selected inputs archived per run
+- [x] Replay workflow + hash verification
+
+## Milestone 3 — Scheduled run + object-store publishing (K8s CronJob first) ✅
+**Receipts:** proof bundles under `ops/proof/bundles/m3-*`, runbooks, publish/verify scripts.
+- [x] CronJob runs end-to-end
+- [x] S3 publish plan + offline verification
+- [x] Real bucket publish verified (+ latest pointers)
+- [x] Live scrape proof in-cluster
+- [x] Politeness/backoff/circuit breaker enforced
+
+## Milestone 4 — On-Prem primary + Cloud DR (proven once; stability pending) ◐
+**Status:** Partially complete: backup/restore + cloud DR proven once, on-prem 72h stability not yet proven.
+**Receipts:** `ops/proof/bundles/m4-*`, runbooks in repo.
+- [x] Backup/restore rehearsal (encrypted + checksummed)
+- [x] DR rehearsal end-to-end (bring up → restore → run → teardown)
+- [ ] On-prem 72h stability receipts (blocked by hardware timing)
+
+## Milestone 5 — Provider Expansion (config-driven, offline proof) ◐
+**Status:** Offline multi-provider proof exists; “fully config-driven provider registry” still needs consolidation/hardening as a single coherent milestone (see Milestone 10 below).
+**Receipts:** `docs/proof/m5-offline-multi-provider-2026-02-11.md`
+
+## Milestone 6 — History & intelligence (identity, dedupe, user state) ✅
+**Receipts:** `src/ji_engine/history_retention.py`, tests, `docs/OPERATIONS.md`.
+- [x] Stable job identity + identity-based diffs
+- [x] Retention rules enforced
+- [x] User state overlay affects outputs and alerts
+
+## Milestone 7 — Semantic Safety Net (deterministic) ✅ (Phase 1 scope)
+**Receipts:** `docs/proof/m7-semantic-safety-net-offline-2026-02-12.md`, tests.
+- [x] Deterministic embedding backend (hash backend) + cache
+- [x] Sidecar + boost modes
+- [x] Thresholds testable/documented
+- [x] Evidence artifacts produced
+
+## Milestone 8 — Hardening & scaling (Phase 1 subset done) ◐
+**Status:** Several elements exist (cost guardrails, provider availability reasons, observability basics), but consolidation is needed (see Milestone 12).
+- [x] Cost guardrails + costs artifact
+- [x] Provider unavailable reasons surfaced
+- [x] CI smoke gate failure modes documented
+- [ ] Full “operational hardening pack” milestone still needed
+
+## Milestone 9 — Multi-user (deferred to Phase 3) ⏸
+**Status:** intentionally deferred; do not start UX/product complexity until Phase 2/3 tranche.
 
 ---
 
-## Milestone 1 — Daily run is deterministic & debuggable (Local + Docker + CI)
+# NEW ROADMAP — Big Milestones (Phase 1.5 → Phase 2 foundations)
 
-**Goal:** “Boring daily.” If something changes, we know *exactly* why.
+These milestones are intentionally **thicker**: each has real DoD, smaller sub-work items, and receipts.
+
+## Milestone 10 — Provider Platform v1 (Config-Driven, Policy-Aware, Deterministic)
+
+**Goal:** Adding providers is boring, safe, and consistent. Provider work is consolidated here.
 
 ### Definition of Done (DoD)
-- [x] `pytest -q` passes locally and in CI
-- [x] Docker smoke run produces ranked outputs for at least one profile
-- [x] A single JSON run report is written every run (counts, hashes, selected inputs, output hashes)
-- [x] Clear exit codes: `0` success, `2` validation/missing inputs, `>=3` runtime/provider failures
-- [x] Docs: “How to run / How to debug / What files to inspect”
-- [x] Snapshot debugging helpers exist (`make debug-snapshots`)
-- [x] Scoring diagnostics present in logs
-- [x] CI smoke test is deterministic and artifact-validated (no heredoc or shell fragility)
-- [x] CI, Docker, and local execution verified against identical dependency contracts
+- Provider registry exists with a **versioned schema** (YAML/JSON):
+  - `provider_id`, display name
+  - careers URLs + allowed domains
+  - extraction mode(s) (snapshot/live), cadence, and policy flags
+  - robots/terms decision record (allow/deny/manual_review)
+  - opt-out capability (provider tombstone)
+- Provider addition requires **0–1 small code change** (ideally config-only).
+- Extraction interface is stable + deterministic:
+  - deterministic primary parse path (JSON-LD / structured HTML / API when available)
+  - deterministic normalization (URL, locations, team/role family)
+- Snapshot fixtures are first-class:
+  - fixture pack includes index + per-job pages as needed
+  - snapshot contract tests enforce fixture completeness for enabled providers
+- Live scraping remains policy-aware + polite:
+  - UA, rate limits, backoff, circuit breaker, deny-page detection remain enforced
+  - provenance records policy decision and scrape_mode
 
 ### Work Items
-- [x] `docs/OPERATIONS.md` describing input selection rules + flags + failure modes + artifact locations
-- [x] Run report includes: run_id, git_sha/image_tag (best-effort), timings, counts per stage,
-      selected input paths + mtimes + hashes, output hashes
-- [x] CI docker smoke test asserts ranked artifacts + run report exists
-- [x] Baked-in snapshot validation (index + per-job HTML count check)
+- [ ] Define `provider_config.schema.json` (or equivalent) + loader + validation tests
+- [ ] Move any “provider truth” that is still scattered into the registry
+- [ ] Add “provider tombstone” record type + tests + behavior rules
+- [ ] Add at least 3 providers beyond current set using registry (snapshot-first), with fixtures
+- [ ] Expand provenance schema to include provider registry hash/version
+- [ ] Docs: `docs/PROVIDERS.md` (how to add, policy rules, fixtures, receipts)
+
+### Receipts Required
+- Proof doc: `docs/proof/m10-provider-platform-v1-<date>.md`
+- Tests proving: config validation, fixture completeness, deterministic ordering, deny/tombstone behavior
 
 ---
 
-## Milestone 2 — Determinism Contract & Replayability (Local Truth > Vibes)
+## Milestone 11 — Artifact Model v2 (Public UI-Safe vs Internal Replay-Safe)
 
-**Goal:** Given a run report, you can reproduce and explain the output.
+**Goal:** Make legality + UX constraints enforceable via artifact design.
 
 ### Definition of Done (DoD)
-- [x] Run report records *why* each scoring input was selected (rule + freshness comparison),
-      not just which file was used.
-- [x] Run report has a stable schema contract documented:
-  - [x] `run_report_schema_version` exists
-  - [x] `docs/RUN_REPORT.md` documents fields + meanings
-- [x] **Input archival exists for regeneration:** the *exact selected scoring inputs* for a run are copied into
-      `state/runs/<run_id>/inputs/...` (or equivalent), sufficient to re-run scoring without mutable `data/` files.
-- [x] “Replay a run” instructions exist:
-  - given a run_id (and/or archived history dir), reproduce the exact shortlist output
-- [x] Optional helper script `scripts/replay_run.py` validates hashes and prints a clear reproducibility report.
-- [x] Optional but high-leverage: replay tool can **recalculate** scoring from archived inputs and diff against archived outputs.
+- Artifacts are explicitly split into:
+  - **UI-safe artifacts** (summaries, signals, diffs, links; no raw JD required)
+  - **replay-safe artifacts** (archival inputs sufficient for reproducibility; access-controlled by deployment)
+- UI-safe artifacts must be sufficient for dashboards and alerts:
+  - canonical links, deltas, scoring explanation, top signals, status tags
+- Replay-safe artifacts continue to support determinism:
+  - hash verification, recalc diff, provenance
+- Redaction/hygiene policy applies to replay-safe artifacts:
+  - scanning + optional enforcement remains stable
+- Retention policy differentiates UI-safe vs replay-safe (future-proof for multi-user)
 
 ### Work Items
-- [x] Add `selection_reason` fields in run report for:
-  - labeled vs enriched resolution
-  - enriched vs AI-enriched resolution (when applicable)
-- [x] Add `docs/RUN_REPORT.md` with schema and troubleshooting
-- [x] Add `scripts/replay_run.py` (read-only) + tests
-- [x] Add input archival step to end-of-run:
-  - archive the *selected* scoring inputs (labeled/enriched/ai-enriched, whichever won)
-  - archive the candidate profile used for scoring
-  - record archived paths + hashes in run report
-- [x] Extend replay tooling with `--recalc` (or similar):
-  - load archived inputs
-  - run current scoring against them deterministically
-  - diff outputs vs archived ranked artifacts
+- [ ] Define `docs/ARTIFACTS.md` with artifact taxonomy and “public vs internal” rules
+- [ ] Implement UI-safe “job card” JSON artifact per run/profile:
+  - minimal fields, canonical links, safe snippet policy
+- [ ] Ensure Discord alerts and dashboard endpoints can run entirely from UI-safe artifacts
+- [ ] Add tests: UI-safe artifacts contain no banned raw fields (policy enforced)
+- [ ] Update dashboard endpoints to prefer UI-safe artifacts by default
+
+### Receipts Required
+- Proof doc: `docs/proof/m11-artifact-model-v2-<date>.md`
+- Tests enforcing “UI-safe has no raw JD” (or explicit bounded snippets if chosen)
 
 ---
 
-## Milestone 3 — Scheduled run + object-store publishing (Kubernetes CronJob first)
+## Milestone 12 — Operations Hardening Pack (Run Reliability + Observability + Guardrails)
 
-**Goal:** “It runs itself.” A Kubernetes CronJob (or equivalent orchestrator) runs daily, publishes to an
-S3-compatible object store, optional alerts.
+**Goal:** “No babysitting.” When it fails, it fails loudly and explainably.
 
 ### Definition of Done (DoD)
-- [x] Kubernetes CronJob runs end-to-end with mounted/ephemeral state
-- [x] Publish plan + offline verification contract exists for object-store keys (verifiable allowlist)
-- [x] End-to-end publish to a real object-store bucket verified (runs + latest keys)
-- [x] Discord alerts sent only when diffs exist (or optionally always send summary; configurable)
-- [x] Minimal object-store IAM policy documented (least privilege; AWS example)
-- [x] Live scraping verified in-cluster (EKS) with provenance showing live_attempted=true and live_result=success (not skipped/failed) — run + commit proof log. Receipt: `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/liveproof-2026-02-07T01:55:39.183131+00:00.log`.
-- [x] Scrape politeness, rate limiting, and anti-bot hardening implemented (required before adding more providers)
-- [x] Domain-backed dashboard endpoint (API first; UI can come later)
-- [x] Runbook: deploy, inspect last run, roll back, rotate secrets
- - [x] Proof artifacts captured (for verification). Receipt: `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/` (includes liveproof log, proof JSON, verify transcript, manifest, README, excerpt).
-   - CloudWatch log line with `run_id`
-   - Provenance JSON line captured showing `live_attempted=true` and `live_result != skipped`
-   - `ops/proof/liveproof-<run_id>.log` captured (contains JOBINTEL_RUN_ID + [run_scrape][provenance])
-   - Provenance line shows `scrape_mode=live`, `snapshot_used=false`, `parsed_job_count` captured
-   - Logs show `s3_status=ok` and `PUBLISH_CONTRACT pointer_global=ok`
-   - Live proof manifest stored in repo: `ops/k8s/jobintel/jobs/jobintel-liveproof.job.yaml`
-   - `s3://<bucket>/<prefix>/runs/<run_id>/<provider>/<profile>/...` populated
-   - `python scripts/verify_published_s3.py --bucket <bucket> --run-id <run_id> --verify-latest` outputs OK
-
-Current Status:
-- Milestone 3 infra + politeness receipt blockers are proven once with committed bundles.
-- Deployment surfaces remain in place (`ops/k8s/jobintel/dashboard.yaml`, `ops/k8s/RUNBOOK.md`, `src/ji_engine/dashboard/app.py`).
-
-Receipts (repo evidence):
-- Scrape policy implementation + deterministic tests: `scripts/run_scrape.py`, `tests/test_provider_politeness.py`, `tests/test_run_scrape_policy_evidence.py`
-- Dashboard API + deploy surface: `src/ji_engine/dashboard/app.py`, `ops/k8s/jobintel/dashboard.yaml`
-- Runbook and proof procedures: `ops/k8s/RUNBOOK.md`, `docs/PROOF_RUN_CHECKLIST.md`
-- Terraform + EKS scaffolding present (but not counted as human-run receipt): `ops/aws/infra/eks/README.md`, `ops/aws/infra/eks/main.tf`
-- Operational receipts captured for run_id `2026-02-07T01:55:39.183131+00:00`: `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/liveproof-2026-02-07T01:55:39.183131+00:00.log`, `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/proofs/2026-02-07T01:55:39.183131+00:00.json`, `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/verify_published_s3-2026-02-07T01:55:39.183131+00:00.log`.
-- Infra receipts captured for run_id `2026-02-07T03:27:56.111686+00:00`: `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/provision_terraform_apply_reconcile.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/terraform_evidence.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_describe_pod.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_get_events.log`, `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/receipt.json`.
-- Politeness receipts captured for run_id `2026-02-07T04:40:00Z`: `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/run.log`, `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/provenance.json`, `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/receipt.json`, `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/manifest.json`.
-- Infra receipts capture script exists (plan-first, execute-explicit): `scripts/ops/capture_m3_infra_receipts.py`, `tests/test_capture_m3_infra_receipts_plan.py`. Do not check terraform-apply / ECR-pull boxes until real infra receipts are committed under `ops/proof/bundles/m3-<run_id>/infra/`.
-- Politeness proof tooling exists (plan-first, execute-explicit): `scripts/ops/prove_m3_backoff_cb.py`, `ops/k8s/jobintel/jobs/jobintel-politeness-proof.job.yaml`, `src/ji_engine/proof/politeness_proof.py`, `tests/test_politeness_proof.py`, `tests/test_prove_m3_backoff_cb.py`.
+- Every run produces:
+  - run report + costs + provenance + UI-safe artifacts
+  - explicit failure stage and reason on error
+- Operational visibility:
+  - local: one command to inspect last run (fast)
+  - cloud/k8s: log pointers + run_id discovery documented and reliable
+- Guardrails enforced:
+  - AI token caps + embeddings caps fail-closed (already exists; must remain wired everywhere)
+  - provider circuit breaker behavior documented + verifiable in artifacts
+- CI smoke gate is comprehensive and aligned with real run shape.
 
 ### Work Items
-- [x] Implement `scripts/publish_s3.py` and wire it into end-of-run (after artifacts persisted)
-- [x] Publish plan + offline verification (`publish_s3 --plan --json`, `verify_published_s3 --offline`)
-- [x] Orchestrator-shape local smoke (`make ecs-shape-smoke`)
-- [x] K8s CronJob manifests exist (base + AWS overlay)
-- [x] K8s overlays for live/publish modes exist (composable)
-- [x] Proof tooling exists (`scripts/prove_cloud_run.py`)
-- [x] Machine-parseable run_id log line + success pointer exists
-- [x] IRSA wiring is parameterized and documented (no manual YAML editing)
-- [x] Deterministic helper exists to discover subnet_ids for EKS bootstrap
-- [x] Scrape Politeness, Rate Limiting & Anti-Bot Hardening (required before adding more providers)
-- [x] Per-provider politeness policy enforced (global QPS + per-host concurrency caps + jitter), recorded in provenance
-- [x] Deterministic exponential backoff for transient failures (max retries + max sleep), recorded in logs
-- [x] Circuit breaker: after N consecutive failures, pause LIVE attempts for cool-down window; degrade to snapshot-only per provider; surface in provenance
-- [x] Robots/policy handling: log decision + allowlist (do not silently ignore)
-- [x] Bot/deny-page detection: detect CAPTCHA/Cloudflare/access denied/empty-success; feed availability + circuit breaker
-- [x] User-Agent discipline: explicit UA string + contact-ish metadata (if appropriate) and consistent across requests
-- [x] Proof requirements: provenance shows rate_limit policy applied; logs show backoff/circuit-breaker events; robots/allowlist decision recorded; test plan captured. Receipt: `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/run.log` and `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/provenance.json`.
-- [x] Unit test: backoff + circuit-breaker decisions are deterministic given failure sequence
-- [x] In-cluster proof: live run logs include rate-limit/backoff/circuit-breaker events for at least one provider. Receipt: `ops/proof/bundles/m3-2026-02-07T04:40:00Z/politeness/run.log`.
-- [x] Proof run executed (EKS one-off job + real S3 publish + proof JSON captured). Receipt: `ops/proof/bundles/m3-2026-02-07T01:55:39.183131+00:00/proofs/2026-02-07T01:55:39.183131+00:00.json`.
-- [x] EKS bootstrap path exists (Terraform) + IRSA wiring documented. Receipt: `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/provision_terraform_apply_reconcile.log` (with supporting `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/terraform_evidence.log` and `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/receipt.json`).
-- [x] EKS can pull image (ECR golden path documented + working). Receipt: `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_describe_pod.log` and `ops/proof/bundles/m3-2026-02-07T03:27:56.111686+00:00/infra/kubectl_get_events.log` (`Reason=Pulled`, image + image digest captured for `jobintel-liveproof-20260207032751-pdk5f`).
-- Receipts rule: infra execution boxes are checked only with receipts in hand (proof JSON + verify output).
-- Note: check “Proof run executed” only after `state/proofs/<run_id>.json` exists locally and `verify_published_s3` is OK.
-  - Evidence required:
-    - JOBINTEL_RUN_ID log line captured
-    - `state/proofs/<run_id>.json` exists locally
-    - `verify_published_s3` outputs OK (runs + latest)
-- Note: check “EKS bootstrap path exists” only after a human-run `terraform init/plan/apply` completes and outputs are used to render the overlay.
-- Receipts — run_id: `2026-02-05T02:35:34.028118+00:00`
-- Receipts — s3 latest prefix: `s3://my-real-jobintel-bucket/jobintel/latest/openai/cs/`
-- Receipts — s3 run prefix: `s3://my-real-jobintel-bucket/jobintel/runs/2026-02-05T02:35:34.028118+00:00/openai/cs/`
-- Receipts — pointer path: `s3://my-real-jobintel-bucket/jobintel/state/last_success.json`
-- [x] Define object-store key structure + latest semantics + retention strategy:
-  - `s3://<bucket>/runs/<run_id>/<provider>/<profile>/...`
-  - `s3://<bucket>/latest/<provider>/<profile>/...`
-- [x] Add `ops/aws/README.md` with:
-  - required env vars/secrets (Discord webhook, AI keys, dashboard URL)
-  - ECS taskdef + EventBridge schedule steps
-  - IAM least-privilege policy (task role + operator verify role)
-  - CloudWatch logs + metrics basics
-- [x] Add `ops/aws/infra/` scaffolding (Terraform or CDK — pick one; keep minimal)
-- [x] Add a “deployment smoke” script to validate AWS env vars and connectivity
-- [x] Add a published-artifact verification script (`scripts/verify_published_s3.py`) and CI-friendly checks (optional)
+- [ ] Consolidate run inspection tooling: `scripts/ops/inspect_last_run.py` (or equivalent)
+- [ ] Add `docs/FAILURE_PLAYBOOK.md` keyed by `failed_stage`
+- [ ] Add CloudWatch/cluster logging “minimum viable” checklist with receipts (even if optional)
+- [ ] Add “provider availability dashboard summary” artifact per run
+- [ ] Ensure `docs/CI_SMOKE_GATE.md` is always current with workflows
+
+### Receipts Required
+- Proof doc: `docs/proof/m12-ops-hardening-<date>.md`
+- Evidence artifacts from a forced provider failure scenario (offline deterministic simulation)
 
 ---
 
-## Milestone 4 — On-Prem Primary (k3s) + Cloud DR (AWS) Without Babysitting
+## Milestone 13 — AI Insights v1 (Actually Useful Weekly Intelligence)
 
-**Intent:** Move SignalCraft to an **on-prem primary runtime** (Raspberry Pi k3s) with a **cloud disaster-recovery path** (AWS) that is **validated, rehearsed, and reproducible** — without turning AWS into a permanently running cost sink, and without creating a fragile “active/active” science project.
-
-Status note: backup + restore rehearsal receipts exist under `ops/proof/bundles/m4-20260207T020313Z-rehearsal/`; DR cloud rehearsal is now proven once under `ops/proof/bundles/m4-20260207T022326Z-dr/`; long-running on-prem stability receipts are still missing.
-
-**Principles / Non-Goals (keep us honest):**
-- ✅ **Primary execution on-prem** (k3s). Cloud is **cold standby** / DR only.
-- ✅ **Deterministic rebuild**: infra + k8s + app comes up from code + backups.
-- ✅ **Backups are boring**: scheduled, encrypted, checksummed, and tested.
-- ✅ **Upgrades are routine**: simple runbooks, no heroics.
-- ❌ No active/active between on-prem and cloud.
-- ❌ No dual-write / live replication complexity.
-- ❌ No permanent “always-on” EKS as the normal operating model.
+**Goal:** Weekly insights are not vibes. They are grounded, actionable, and safe.
 
 ### Definition of Done (DoD)
-This milestone is complete only when all items below are **true and proven with artifacts**:
-
-#### 1) On-Prem k3s Cluster is Operational + Documented
-- [ ] k3s cluster (3x Pi4, 8GB each) runs stable for 72h with:
-  - [ ] control plane stable (no crash loops / repeated restarts)
-  - [ ] node readiness stable (no flapping, no frequent NotReady)
-  - [ ] time sync verified (NTP) and consistent across nodes
-- [ ] Storage strategy implemented:
-  - [ ] **Primary storage** on USB3 1TB for stateful data (not SD)
-  - [ ] SD used only for OS boot (or documented if otherwise)
-  - [ ] filesystem choice documented (e.g., ext4) + mount options
-  - [ ] clear capacity expectations: DB size growth, artifact growth
-- [ ] Networking baseline documented:
-  - [ ] LAN assumptions and DHCP/static IP plan
-  - [ ] DNS + local name resolution strategy
-  - [ ] ingress strategy (see section 4)
-- [ ] k3s install is automated / reproducible:
-  - [ ] scripts or IaC-style automation (idempotent)
-  - [ ] pinned versions (k3s + critical components)
-  - [ ] upgrade plan documented + tested at least once in a safe rehearsal
-
-#### 2) Cluster Management Strategy Chosen and Hardened (Rancher Optional but Supported)
-Choose **one** as the default path and keep the others as optional:
-
-**Option A (Lean):** “kubectl + GitOps” (default for lowest maintenance)
-- [ ] GitOps tool chosen (Flux or ArgoCD) and deployed OR explicit rationale for not using
-- [ ] cluster state fully described by manifests in repo (excluding secrets)
-
-**Option B (Operable UI):** Rancher manages k3s cluster
-- [ ] Rancher installed in a dedicated namespace
-- [ ] k3s cluster imported/managed and health is green
-- [ ] access model documented (local admin, SSO optional)
-- [ ] clear statement on what Rancher is used for:
-  - [ ] visibility + upgrades + cluster lifecycle
-  - [ ] NOT a dumping ground for manual drift
-
-**DoD requirement regardless of option:**
-- [ ] “Single source of truth” is explicit (Git is truth; UI changes must reconcile back)
-- [ ] Manual UI-only changes are treated as a failure condition (documented)
-
-#### 3) “Low Maintenance” Guardrails Implemented (No Regular Babysitting)
-- [ ] Observability baseline exists:
-  - [ ] log access is easy (kubectl logs + centralized option documented)
-  - [ ] core health check commands documented and fast (<5 minutes)
-- [ ] Node health is self-healing where feasible:
-  - [ ] k3s service auto-restart enabled and validated
-  - [ ] kubelet/container runtime stability verified
-- [ ] Upgrade discipline codified:
-  - [ ] “upgrade checklist” runbook exists
-  - [ ] “rollback / restore” runbook exists
-- [ ] Maintenance boundaries defined:
-  - [ ] what will be upgraded on schedule (k3s, app image, add-ons)
-  - [ ] what is “as-needed” (Rancher, OS packages)
-  - [ ] what is intentionally NOT part of scope (active/active replication)
-
-#### 4) Ingress + TLS + DNS: Production-Grade but Not Fancy
-- [ ] Ingress chosen and deployed (Traefik default for k3s is fine, or NGINX if preferred)
-- [ ] TLS strategy implemented:
-  - [ ] local CA or Let’s Encrypt (document constraints if no public DNS)
-  - [ ] cert rotation and renewal documented + validated
-- [ ] DNS strategy:
-  - [ ] local DNS (Pi-hole / router DNS / internal) OR public DNS if exposed
-- [ ] Access strategy for “home/office” vs “away” documented:
-  - [ ] preferred: VPN (Tailscale/WireGuard) to avoid exposing services publicly
-  - [ ] explicitly disallow “random open ports” without a documented reason
-
-#### 5) App Runs on k3s: CronJob-First, Kubernetes-Native (CNCF discipline)
-- [ ] SignalCraft runs as a Kubernetes CronJob on k3s
-- [ ] All required secrets/config are Kubernetes-native:
-  - [ ] Secrets stored as encrypted at rest (SOPS/age preferred) OR clear alternative documented
-  - [ ] ConfigMaps for non-sensitive configs
-- [ ] Storage and state:
-  - [ ] `state/` and proof artifacts persist across pod restarts
-  - [ ] DB is stateful (Postgres) with persistent volume claims
-- [ ] “No drift” deployment:
-  - [ ] manifests templated (kustomize/helm) and tracked in repo
-  - [ ] deploy is one command (or one GitOps sync)
-
-#### 6) Backup System (On-Prem → Cloud) is Implemented, Encrypted, and Tested
-Backups must cover the “four truths”:
-1) **Database** (Postgres)
-2) **Artifacts / state** (proofs, snapshots, outputs)
-3) **Manifests / config** (Git)
-4) **Infra definition** (IaC / scripts)
-
-**Requirements:**
-- [ ] DB backups:
-  - [ ] scheduled `pg_dump` (or pg_basebackup if justified)
-  - [x] compressed + encrypted. Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup_receipt.json` (`db_mode=state_runs_export` justified alternative).
-  - [ ] retention policy (e.g., daily 14 days, weekly 8 weeks)
-- [ ] Artifact backups:
-  - [x] `state/` + proof receipts + published outputs (as applicable). Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup_receipt.json`.
-  - [x] checksummed (hash manifest) and verified after upload. Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/checksum_verify.log`.
-- [ ] Offsite target:
-  - [ ] AWS S3 bucket with versioning enabled
-  - [ ] least-privilege IAM user/role credentials
-  - [ ] SSE-S3 or SSE-KMS + documented key ownership
-- [ ] Restore test:
-  - [x] at least one full restore to a clean environment (local or cloud). Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/restore_receipt.json` (`restore_dir=/private/tmp/jobintel-m4-restore-20260207T020313Z-rehearsal`).
-  - [x] evidence captured (timestamps, run IDs, checksums). Receipts: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup.log`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/checksum_verify.log`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/restore_verify.log`.
-
-#### 7) Cloud DR Path is Real (Cold Standby), Proven Once, and Tear-Down Friendly
-The goal is **rebuild on demand**, not “always-on cloud.”
-
-- [x] DR infrastructure definition exists (Terraform or equivalent):
-  - [ ] Either:
-    - [ ] EKS minimal cluster definition, or
-    - [x] EC2 + k3s (cheaper and simpler for “cold standby”)
-- [x] DR runbook exists: “from zero to running SignalCraft”
-  - [x] provision infra
-  - [x] deploy manifests
-  - [x] restore DB + artifacts
-  - [x] validate a job run
-  - [x] tear down cloud infra
-- [x] DR rehearsal performed end-to-end at least once:
-  - [x] evidence captured (logs, output artifacts). Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/dr_rehearsal_receipt.json`, `ops/proof/bundles/m4-20260207T022326Z-dr/provision_terraform_apply_x86_ami.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/restore.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/run.log`.
-  - [x] teardown succeeded and verified (no lingering spend). Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/teardown.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/teardown_verify_no_lingering.log`.
-
-#### 8) Runbooks: Normal Ops, Upgrades, Disaster Recovery
-Minimum required runbooks:
-- [x] `RUNBOOK_ONPREM_INSTALL.md` (k3s bootstrap, storage, networking)
-- [x] `RUNBOOK_DEPLOY.md` (deploy app, rotate secrets, inspect last run)
-- [x] `RUNBOOK_UPGRADES.md` (k3s + add-ons + app image)
-- [x] `RUNBOOK_BACKUPS.md` (what is backed up, schedule, retention, restore steps)
-- [x] `RUNBOOK_DISASTER_RECOVERY.md` (AWS cold start restore + validation + teardown)
-- [ ] Each runbook includes:
-  - [ ] preflight checks
-  - [ ] success criteria
-  - [ ] “if it fails” branches
-  - [ ] commands that can be copy/pasted
-
-#### 9) Evidence / Proof Artifacts (So This Isn’t Just “It Works On My Desk”)
-- [ ] Proof artifacts stored in repo or documented location:
-  - [x] backup success logs + checksum verification output. Receipts: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup.log`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/checksum_verify.log`.
-  - [x] restore proof (DB restored + artifacts present). Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/restore_receipt.json`.
-  - [x] DR rehearsal proof (cloud came up, run executed, outputs produced). Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/dr_rehearsal_receipt.json`, `ops/proof/bundles/m4-20260207T022326Z-dr/run.log`.
-- [x] All evidence references run_id and timestamps. Receipts: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup.log`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/restore.log`.
-
----
-
-### Implementation Notes / Guardrails (Hard Rules)
-- No manual “clickops drift”: if UI is used (Rancher/AWS console), the final state must be reflected back into code or documented as intentional.
-- Cloud DR must be “cheap by default”:
-  - keep nodes scaled to zero where possible
-  - use teardown as part of rehearsal
-- Security baseline:
-  - no plaintext secrets in repo
-  - no long-lived admin keys without rotation plan
-- Upgrade safety:
-  - always validate add-on versions compatibility (coredns, vpc-cni, kube-proxy if applicable)
-  - keep rollback options clear (restore from backup beats fiddling)
-
----
-
-### Deliverables (Repo Artifacts)
-- [x] `ops/onprem/`:
-  - [x] k3s install scripts or automation
-  - [x] storage setup notes/scripts
-  - [x] networking notes (ingress/DNS/VPN)
-- [x] `ops/dr/`:
-  - [x] Terraform (EKS or EC2+k3s) OR equivalent reproducible infra code
-  - [x] teardown scripts
-- [ ] `ops/runbooks/` (or `ops/k8s/` if that’s your existing convention):
-  - [ ] all runbooks listed above
-- [ ] `scripts/ops/`:
-  - [x] backup script(s) (db + artifacts) with encryption + verification. Receipts: `scripts/ops/backup_onprem.py`, `scripts/ops/restore_onprem.py`, `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup_receipt.json`.
-  - [x] restore script(s)
-  - [x] DR bring-up + validate + teardown orchestration script
-
----
-
-### Acceptance Test (Single Command “Prove It”)
-A “prove it” sequence exists that can be run by Future You:
-- [x] Deterministic prove-it orchestration exists in plan mode with receipts bundle (`scripts/ops/prove_it_m4.py`, `tests/test_prove_it_m4.py`)
-- [ ] On-prem:
-  - [ ] deploy
-  - [ ] run a scrape/job
-  - [ ] confirm outputs + proof receipts
-  - [x] run backups. Receipt: `ops/proof/bundles/m4-20260207T020313Z-rehearsal/backup_receipt.json`.
-- [ ] DR rehearsal:
-  - [x] bring up cloud infra. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/provision_terraform_apply_x86_ami.log`.
-  - [x] restore. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/restore_receipt.json`.
-  - [x] run job. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/run.log`.
-  - [x] verify outputs. Receipt: `ops/proof/bundles/m4-20260207T022326Z-dr/dr_rehearsal_receipt.json`.
-  - [x] teardown cloud infra. Receipts: `ops/proof/bundles/m4-20260207T022326Z-dr/teardown.log`, `ops/proof/bundles/m4-20260207T022326Z-dr/teardown_verify_no_lingering.log`.
-
-Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repeat it without discovering surprise tribal knowledge.
-
----
-
-## Milestone 5 — Provider Expansion (Safe, Config-Driven, Deterministic)
-
-**Goal:** Add multiple AI companies without turning this into a scraper-maintenance job.
-
-**Core rule:** no “LLM as scraper” unless cached, schema-validated, deterministic, and fail-closed.
-
-### Definition of Done (DoD)
-- [ ] Provider registry supports adding a new company via configuration:
-  - name, careers URL(s), extraction mode, allowed domains, update cadence
-- [ ] Extraction has a deterministic primary path (API/structured HTML/JSON-LD) when possible
-- [ ] Optional LLM fallback extraction exists only with guardrails:
-  - temperature 0, strict JSON schema, parse+validate, cache keyed by page hash,
-    and “unavailable” on parse failures (no best-effort junk)
-- [ ] A new provider can be added with ≤1 small code change (ideally none) + a config entry.
-
-### Work Items
-- [ ] Define provider config schema (YAML/JSON) and loader
-- [ ] Implement a “safe extraction” interface:
-  - `extract_jobs(html) -> List[JobStub]` deterministic
-- [ ] Add at least 2 additional AI companies using the config mechanism
-
-### Milestone 5 Receipt (2026-02-11)
-- Run id: `m5-proof-2026-02-11T23:59:15Z`
-- Providers: `openai`, `scaleai`, `replit` (stable deterministic order by provider_id)
-- Mode: offline + snapshot-only (no live network scraping)
-- Proof artifacts: `state/runs/m5proof20260211T235915Z/`
-- Run report: `state/runs/m5proof20260211T235915Z/run_report.json`
-- Proof bundle note: `docs/proof/m5-offline-multi-provider-2026-02-11.md` (SignalCraft receipt for JIE internals)
-
----
-
-## Milestone 6 — History & intelligence (identity, dedupe, trends + user state)
-
-**Goal:** track jobs across time, reduce noise, and make changes meaningful.
-
-### Definition of Done (DoD)
-- [x] `job_identity()` produces stable IDs across runs for the same posting
-- [x] URL normalization reduces false deltas
-- [x] Dedupe collapse: same job across multiple listings/URLs → one canonical record
-- [x] “Changes since last run” uses identity-based diffing (not just row diffs)
-- [x] History directory grows predictably (retention rules) documented and enforced. Evidence: `src/ji_engine/history_retention.py`, `tests/test_history_retention.py`, `scripts/run_daily.py`, `docs/OPERATIONS.md`.
-- [x] **User State overlay** exists and affects outputs:
-  - applied / ignore / interviewing / saved, etc.
-  - shortlist + alerts respect this state (filter or annotate)
-
-### Work Items
-- [x] Implement/validate identity strategy (title/location/team + URL + JD hash fallback)
-- [x] Store per-run identity map + provenance in `state/history/<profile>/...`. Evidence: `src/ji_engine/history_retention.py`, `scripts/run_daily.py`, `tests/test_history_retention.py`, `docs/OPERATIONS.md`.
-- [x] Identity-based diffs for new/changed/removed
-- [x] Implement `state/user_state/<profile>.json` overlay:
-  - schema: `{ "<job_id>": { "status": "...", "date": "...", "notes": "..." } }`
-  - integrate into shortlist writer and alerting (filtering + de-prioritization semantics defined and test-backed)
-- [x] Retention policy (keep last N runs + daily snapshots) documented and enforced (pointer-only pruning under `state/history`; `state/runs` is retained by default)
-
----
-
-## Milestone 7 — Semantic Safety Net (Deterministic Discovery)
-
-**Goal:** Catch “good fits with weird wording” without losing explainability.
-
-**Rule:** Semantic similarity is a bounded booster / classifier safety net, not a replacement for explainable rules.
-
-Status: In progress
-Receipts:
-- `docs/proof/m7-semantic-safety-net-offline-2026-02-12.md`
-
-### Definition of Done (DoD)
-- [ ] Deterministic embedding path (fixed model + stable text normalization)
-- [ ] Similarity used as bounded adjustment or relevance floor
-- [ ] Thresholds are testable + documented
-- [ ] Artifacts include similarity evidence
-
-### Work Items
-- [x] Scaffold deterministic semantic sidecar (offline hash backend + cache under `state/embeddings/` + `semantic_summary.json` evidence artifact; no ranking impact yet)
-- [x] Embedding cache + cost controls (max jobs embedded per run)
-- [x] Tests for deterministic similarity behavior + threshold boundaries
-- [x] Offline proof receipt test for semantic safety net artifacts (`tests/test_m7_semantic_proof_receipt.py`)
-
----
-
-## Milestone 8 — Hardening & scaling (providers, cost controls, observability)
-
-**Goal:** resilient providers, predictable cost, better monitoring.
-
-### Definition of Done (DoD)
-- [ ] Provider layer supports retries/backoff + explicit unavailable reasons
-- [ ] Rate limiting / quota controls enforced
-- [ ] Observability: CloudWatch metrics/alarms + run dashboards
-- [ ] Optional caching backend (S3 cache for AI outputs/embeddings)
-- [ ] Log sink + rotation strategy documented
-
-### Work Items
-- [ ] Provider abstraction hardening (Ashby + future providers) with snapshot/live toggles
-- [ ] Cost controls: sampling, max jobs enriched, max AI tokens per run
-- [ ] Log sink + rotation strategy documented
-
----
-
-## Milestone 9 — Multi-user (Phase 2/3) — Profiles, uploads, and per-user experiences
-
-**Goal:** other people can use the engine safely, with isolation and a clean UX.
-
-### Definition of Done (DoD)
-- [ ] Multiple candidate profiles supported:
-  - profiles stored under `state/candidates/<candidate_id>/candidate_profile.json`
-  - runs and user_state isolated per candidate/profile
-- [ ] Resume/job-profile ingestion:
-  - user uploads resume (PDF/DOCX/text) or fills structured job interests
-  - pipeline produces a normalized `candidate_profile.json` (schema-validated)
-- [ ] UI authentication and authorization (basic, practical)
-- [ ] AI insights become profile-aware (coach-like, but grounded in artifacts)
-- [ ] Security Review (Multi-Model)
-- [ ] Move into Rancher/NV? Rancher desktop?
-- [ ] Actual GUI?
-- [ ] Linkedin page instead of resume for ingestion?
-- [ ] interact with data on web (tables etc)
-- [ ] Alternatives to discord? (email etc)
-- [ ] expanded job category tuning and selectability
-
-### Work Items
-- [ ] Candidate profile schema versioning + validation
-- [ ] Ingestion scripts: `scripts/ingest_resume.py` (Phase 2), `scripts/create_candidate.py`
-- [ ] “Job interests” config: role families, locations, remote preference, seniority bands
-- [ ] Isolation rules in run registry, artifact keys, S3 paths
-- [ ] UI foundations (Phase 2): minimal front-end that sits on top of the API
-
----
-
-## AI Roadmap (explicit, so it stays “last-mile”)
-
-### Phase 1 AI (done/ongoing)
-- [x] Weekly AI insights report (cached, schema’d, fail-closed, opt-in)
-- [ ] Improve insights quality using more structured inputs:
-  - diffs, top families, common skill gaps, location/seniority trends
-- [ ] Add “AI insights per run” toggle (still bounded + cached)
-
-### Phase 2 AI
-- [ ] Profile-aware AI coaching:
-  - what to look for this week, what to learn, what to highlight on resume
-- [ ] Per-job AI briefs:
-  - why it matches, likely interview focus areas, suggested resume bullets, questions to ask
-- [ ] Still guardrailed:
-  - cache keyed by job_id + jd hash + profile hash + prompt version
-  - schema validation
+- Weekly insights uses **structured deterministic input** (already underway) and improves usefulness:
+  - diff trends (7/14/30 window)
+  - role family and seniority shifts
+  - location/remote trends
+  - recurring skill tokens and “missing skills” signals derived from structured fields
+- Output includes:
+  - summary (Discord-safe)
+  - full report markdown (artifact)
+  - JSON schema output (artifact)
+  - metadata containing cache keys + input hashes + prompt version
+- Strict guardrails:
   - deterministic settings
+  - schema validation
+  - fail-closed on parse errors
+  - cache keyed on run+inputs+prompt version
+  - explicit “no raw JD leakage” contract
+
+### Work Items
+- [ ] Define `ai_weekly_insights.schema.json`
+- [ ] Add “evidence appendix” section in markdown output referencing which structured fields drove claims
+- [ ] Add a “top 5 actions this week” section tied to trends
+- [ ] Tests: cache key correctness, schema validation, privacy/no leakage
+
+### Receipts Required
+- Proof doc: `docs/proof/m13-ai-insights-v1-<date>.md`
+- Two-run comparison proof showing deterministic output changes when inputs change
 
 ---
 
-## Non-goals (right now)
-- Big UI build until Milestone 2 (scheduled runs + object-store publishing) is solid
-- Provider explosion until identity + history are stable (except targeted additions)
-- “LLM as scraper” without strict guardrails and caches
+## Milestone 14 — AI Per-Job Briefs v1 (Profile-Aware, Guardrailed, Cached)
+
+**Goal:** Make the system feel like a coach *per job*, without turning into a hallucination generator.
+
+### Definition of Done (DoD)
+- For shortlisted jobs, generate a per-job brief:
+  - why it matches (grounded in scoring signals)
+  - likely interview focus areas (bounded claims)
+  - “resume bullet suggestions” (based on candidate profile + job signals)
+  - questions to ask / red flags
+- Guardrails:
+  - deterministic settings
+  - strict schema output
+  - caching keyed by job_id + job_hash + profile_hash + prompt_version
+  - fail-closed (no “best effort” garbage)
+- Legal/UI-safe:
+  - briefs reference source links; do not replace full JD browsing
+
+### Work Items
+- [ ] Candidate profile hash contract (even before multi-user)
+- [ ] `ai_job_brief.schema.json` + prompt template v1
+- [ ] Pipeline step: generate briefs for top N (bounded, cost-controlled)
+- [ ] Add cost accounting integration (brief tokens counted)
+- [ ] Add artifacts:
+  - `state/runs/<run_id>/ai/job_briefs/<job_id>.json`
+  - optional markdown render
+
+### Receipts Required
+- Proof doc: `docs/proof/m14-ai-job-briefs-v1-<date>.md`
+- Determinism proof: same inputs produce identical brief output hashes
 
 ---
 
-## Backlog Parking Lot (ideas that can wait)
-- Fancy dashboards (search, charts, actions) beyond minimal API
-- Multi-candidate UX and resume ingestion
-- AI outreach automation (email drafts, networking messages)
-- Advanced analytics across providers once history is stable
+## Milestone 15 — Explainability v1 (Score Reasons Users Can Trust)
+
+**Goal:** Make “why this scored high” transparent and stable.
+
+### Definition of Done (DoD)
+- Each job in UI-safe artifacts includes:
+  - top contributing signals (deterministic)
+  - penalties/filters applied (deterministic)
+  - semantic contribution (if enabled) bounded and visible
+  - user state suppression reason (if applicable)
+- Explanation format is stable and test-backed.
+
+### Work Items
+- [ ] Add `explanation_v1` structure to UI-safe job cards
+- [ ] Tests for stable ordering and stable wording keys (no random dict order)
+- [ ] Docs: `docs/EXPLAINABILITY.md`
+
+### Receipts Required
+- Proof doc + snapshot of artifacts showing explanation fields
+
+---
+
+## Milestone 16 — Dashboard Plumbing v2 (API First, UI Later)
+
+**Goal:** Rock-solid backend surfaces so UI later is easy.
+
+### Definition of Done (DoD)
+- Dashboard API supports:
+  - listing runs with pagination + filters (provider/profile/date)
+  - fetching UI-safe artifacts efficiently
+  - downloading replay-safe artifacts only via explicit endpoints (deployment-dependent)
+  - basic “health + version + schema versions” endpoint
+- Dependency model remains clean:
+  - core install works without dashboard deps
+  - dashboard extras are explicit
+- CI verifies dashboard contract (warn-only okay if optional deps absent, but contract tests exist).
+
+### Work Items
+- [ ] Add `/version` endpoint exposing build metadata + schema versions
+- [ ] Add `/runs/latest` and `/runs/<run_id>/profiles` helpers for UI simplicity
+- [ ] Add “artifact index” endpoint that lists available artifacts by type (ui_safe, replay_safe)
+- [ ] Document API contract in `docs/API.md`
+
+### Receipts Required
+- Proof doc demonstrating API can power a basic UI without touching internals
+
+---
+
+## Milestone 17 — Release Discipline v1 (Predictable, CLI-First)
+
+**Goal:** Releases become boring proof points.
+
+### Definition of Done (DoD)
+- Release process documented and enforced:
+  - changelog updated
+  - tags signed/annotated
+  - GitHub release created
+  - proof doc created for each release
+- Release gate checklist exists and is used.
+
+### Work Items
+- [ ] Add `docs/RELEASE_CHECKLIST.md` (preflight, CI green, smoke proof, receipts)
+- [ ] Add `scripts/ops/release_preflight.py` (optional helper; deterministic checks only)
+- [ ] Ensure `CHANGELOG.md` stays current and meaningful
+
+### Receipts Required
+- Each release has `docs/proof/release-vX.Y.Z.md` and references the SHA/tag
+
+---
+
+## Milestone 18 — On-Prem Execution Proof (k3s receipts, hardware-dependent)
+
+**Goal:** Prove on-prem is stable and boring once hardware is ready.
+
+### Definition of Done (DoD)
+- k3s cluster runs stable for 72h with receipts:
+  - node readiness stable
+  - time sync verified
+  - storage on USB (not SD)
+- SignalCraft CronJob runs daily on-prem with stable artifacts
+- Backup runs on schedule (on-prem → S3) and restore rehearsal repeats
+
+### Work Items
+- [ ] Add `docs/proof/m18-onprem-72h-<date>.md` with logs and metrics snapshots
+- [ ] Add “one-command prove-it” wrapper for on-prem path (or documented manual sequence)
+
+---
+
+## Milestone 19 — Compliance/Policy Review Pack (Legality + Safety + Data Hygiene)
+
+**Goal:** Turn “we believe it’s fine” into enforceable constraints + documentation.
+
+### Definition of Done (DoD)
+- Written policy docs exist and match implementation:
+  - discovery net principle
+  - content handling rules (UI-safe vs replay-safe)
+  - provider policy decisions and opt-out
+  - retention and deletion strategy
+- “Security review” checklist exists (multi-model review acceptable):
+  - secrets handling
+  - dependency risk
+  - artifact exposure risk
+  - injection and prompt-safety boundaries
+- Automated checks exist for high-risk regressions:
+  - redaction enforcement option
+  - no-raw-JD leakage in UI-safe artifacts
+  - provider allowlist compliance
+
+### Work Items
+- [ ] Add `docs/POLICY_LEGALITY.md`
+- [ ] Add `docs/SECURITY_REVIEW_CHECKLIST.md`
+- [ ] Add a lightweight “policy gate” test suite (fast, deterministic)
+
+---
+
+## Milestone 20 — “Phase 2 Launchpad” (Plumbing for multi-user + real UI without building it yet)
+
+**Goal:** Create the foundation so Phase 2 feels like assembly, not archaeology.
+
+### Definition of Done (DoD)
+- Candidate/profile identity model exists (even if single-user in practice):
+  - `candidate_id` + profile config paths
+  - run registry and user_state are ready for isolation
+- Object-store key structure supports multi-user later (namespaced)
+- API surfaces are compatible with a future UI auth boundary (even if auth not implemented yet).
+
+### Work Items
+- [ ] Define `candidate_profile.schema.json` + versioning
+- [ ] Update run registry to include candidate_id (default `local-default`)
+- [ ] Namespaced artifact paths (no breaking changes; compatibility layer)
+
+---
+
+# Phase 3 Preview — Milestones 21–30 (Big Product Moves)
+
+These are intentionally preview-level. We flesh them into full DoD when Phase 2 begins.
+
+21) **Multi-user + Auth v1** (basic practical auth, isolation enforced)  
+22) **Resume/LinkedIn ingestion v1** (PDF/DOCX/text; schema’d; deterministic parsing pipeline)  
+23) **Real UI v1** (search/filter/actions; job lifecycle; explainability in UI)  
+24) **AI coaching v1** (weekly plan personalized; learning roadmap; portfolio suggestions)  
+25) **AI outreach v1** (message drafts; networking sequences; guarded and optional)  
+26) **Advanced analytics v1** (trends across providers; time series; dedupe stability)  
+27) **Alternative alerts** (email, push, RSS; rate-limited; preferences)  
+28) **Provider scale pack** (more providers, anti-bot resiliency, legal/policy enforcement tooling)  
+29) **Cost optimization pack** (S3 caches, sampling, batch strategies, budget dashboards)  
+30) **Code bloat review + architecture cleanup** (intentional pruning, module boundaries, doc alignment)
+
+---
+
+## “How many milestones should we do?”
+
+**More than 10 is correct**, but not as “50 tiny milestones.”  
+The plan above gives you:
+- **10 thick milestones** (10–20) that could easily carry the project through the next major phase,
+- plus a **preview of 21–30** so the long-term product arc stays coherent.
+
+That keeps the “big milestone energy” while still allowing careful sub-work inside each.
+
+---
+
+## Notes / Reminders
+
+- Keep legality constraints enforced by artifact/UI design (Milestone 11 + 19).
+- Keep UI work focused on plumbing until Phase 3.
+- Keep AI work aggressively guardrailed and grounded in artifacts (Milestones 13–15).
+- Keep on-prem timing aligned to hardware availability (Milestones 18+).
