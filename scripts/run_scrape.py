@@ -269,6 +269,38 @@ def _chaos_enabled(provider_id: str) -> bool:
     return not provider_target or provider_target == provider_id.lower()
 
 
+def _runtime_unavailable_reason(error: str) -> str:
+    lowered = error.lower()
+    if "blocked marker: captcha" in lowered:
+        return "captcha"
+    if "captcha" in lowered or "cloudflare" in lowered or "verify you are human" in lowered:
+        return "captcha"
+    deny_markers = ("access denied", "forbidden", "request blocked", "blocked marker")
+    if any(marker in lowered for marker in deny_markers):
+        return "deny"
+    if "empty content" in lowered or "too small" in lowered or "missing html tags" in lowered:
+        return "empty_success"
+    return "extraction_error"
+
+
+def _finalize_unavailable_provider(
+    *,
+    provider_id: str,
+    output_dir: Path,
+    provenance: Dict[str, Any],
+    reason: str,
+    error: str,
+) -> None:
+    provenance["availability"] = "unavailable"
+    provenance["unavailable_reason"] = reason
+    provenance["error"] = error
+    if provenance.get("live_result") is None:
+        provenance["live_result"] = "failed"
+    _write_raw_jobs(provider_id, [], output_dir)
+    _write_scrape_meta(provider_id, output_dir, provenance)
+    _log_provenance(provider_id, provenance)
+
+
 def main(argv: List[str] | None = None) -> int:
     if not logging.getLogger().hasHandlers():
         logging.basicConfig(
@@ -418,7 +450,17 @@ def main(argv: List[str] | None = None) -> int:
                             reason,
                         )
                         provider = OpenAICareersProvider(mode="SNAPSHOT", data_dir=str(output_dir))
-                        raw_jobs = provider.load_from_snapshot()
+                        try:
+                            raw_jobs = provider.load_from_snapshot()
+                        except RuntimeError as exc:
+                            _finalize_unavailable_provider(
+                                provider_id=provider_id,
+                                output_dir=output_dir,
+                                provenance=provenance,
+                                reason=_runtime_unavailable_reason(str(exc)),
+                                error=str(exc),
+                            )
+                            continue
                         provenance["scrape_mode"] = "snapshot"
                         provenance["snapshot_used"] = True
                     else:
@@ -455,7 +497,17 @@ def main(argv: List[str] | None = None) -> int:
                         provenance["live_attempted"] = e.reason != "circuit_breaker"
                         logger.warning(f"[run_scrape] LIVE failed ({e!r}) → falling back to SNAPSHOT")
                         provider = OpenAICareersProvider(mode="SNAPSHOT", data_dir=str(output_dir))
-                        raw_jobs = provider.load_from_snapshot()
+                        try:
+                            raw_jobs = provider.load_from_snapshot()
+                        except RuntimeError as exc:
+                            _finalize_unavailable_provider(
+                                provider_id=provider_id,
+                                output_dir=output_dir,
+                                provenance=provenance,
+                                reason=_runtime_unavailable_reason(str(exc)),
+                                error=str(exc),
+                            )
+                            continue
                         provenance["scrape_mode"] = "snapshot"
                         provenance["snapshot_used"] = True
                     except Exception as e:
@@ -471,11 +523,31 @@ def main(argv: List[str] | None = None) -> int:
                         provenance["live_result"] = "failed"
                         logger.warning(f"[run_scrape] LIVE failed ({e!r}) → falling back to SNAPSHOT")
                         provider = OpenAICareersProvider(mode="SNAPSHOT", data_dir=str(output_dir))
-                        raw_jobs = provider.load_from_snapshot()
+                        try:
+                            raw_jobs = provider.load_from_snapshot()
+                        except RuntimeError as exc:
+                            _finalize_unavailable_provider(
+                                provider_id=provider_id,
+                                output_dir=output_dir,
+                                provenance=provenance,
+                                reason=_runtime_unavailable_reason(str(exc)),
+                                error=str(exc),
+                            )
+                            continue
                         provenance["scrape_mode"] = "snapshot"
                         provenance["snapshot_used"] = True
                 else:
-                    raw_jobs = provider.fetch_jobs()
+                    try:
+                        raw_jobs = provider.fetch_jobs()
+                    except RuntimeError as exc:
+                        _finalize_unavailable_provider(
+                            provider_id=provider_id,
+                            output_dir=output_dir,
+                            provenance=provenance,
+                            reason=_runtime_unavailable_reason(str(exc)),
+                            error=str(exc),
+                        )
+                        continue
                     provenance["scrape_mode"] = "snapshot"
                     provenance["live_result"] = "skipped"
                 provenance["snapshot_path"] = str(snapshot_path)
@@ -495,6 +567,9 @@ def main(argv: List[str] | None = None) -> int:
                 jobs = _normalize_jobs(raw_jobs)
                 _write_raw_jobs(provider_id, jobs, output_dir)
                 provenance["parsed_job_count"] = len(jobs)
+                if provenance.get("scrape_mode") == "live" and provenance.get("live_result") == "success" and not jobs:
+                    provenance["availability"] = "unavailable"
+                    provenance["unavailable_reason"] = "empty_success"
                 if mode == "LIVE" and snapshot_path.exists():
                     try:
                         baseline_jobs = provider.load_from_snapshot()
@@ -570,7 +645,17 @@ def main(argv: List[str] | None = None) -> int:
                                 )
                                 logger.error(msg)
                                 raise SystemExit(2)
-                            raw_jobs = provider.load_from_snapshot()
+                            try:
+                                raw_jobs = provider.load_from_snapshot()
+                            except RuntimeError as exc:
+                                _finalize_unavailable_provider(
+                                    provider_id=provider_id,
+                                    output_dir=output_dir,
+                                    provenance=provenance,
+                                    reason=_runtime_unavailable_reason(str(exc)),
+                                    error=str(exc),
+                                )
+                                continue
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                         else:
@@ -613,7 +698,17 @@ def main(argv: List[str] | None = None) -> int:
                                 )
                                 logger.error(msg)
                                 raise SystemExit(2)
-                            raw_jobs = provider.load_from_snapshot()
+                            try:
+                                raw_jobs = provider.load_from_snapshot()
+                            except RuntimeError as exc:
+                                _finalize_unavailable_provider(
+                                    provider_id=provider_id,
+                                    output_dir=output_dir,
+                                    provenance=provenance,
+                                    reason=_runtime_unavailable_reason(str(exc)),
+                                    error=str(exc),
+                                )
+                                continue
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                         except Exception as e:
@@ -635,11 +730,31 @@ def main(argv: List[str] | None = None) -> int:
                                 )
                                 logger.error(msg)
                                 raise SystemExit(2)
-                            raw_jobs = provider.load_from_snapshot()
+                            try:
+                                raw_jobs = provider.load_from_snapshot()
+                            except RuntimeError as exc:
+                                _finalize_unavailable_provider(
+                                    provider_id=provider_id,
+                                    output_dir=output_dir,
+                                    provenance=provenance,
+                                    reason=_runtime_unavailable_reason(str(exc)),
+                                    error=str(exc),
+                                )
+                                continue
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                     else:
-                        raw_jobs = provider.load_from_snapshot()
+                        try:
+                            raw_jobs = provider.load_from_snapshot()
+                        except RuntimeError as exc:
+                            _finalize_unavailable_provider(
+                                provider_id=provider_id,
+                                output_dir=output_dir,
+                                provenance=provenance,
+                                reason=_runtime_unavailable_reason(str(exc)),
+                                error=str(exc),
+                            )
+                            continue
                         provenance["scrape_mode"] = "snapshot"
                         provenance["live_result"] = "skipped"
                     jobs = _normalize_jobs(raw_jobs)
@@ -653,6 +768,13 @@ def main(argv: List[str] | None = None) -> int:
                             "parsed_job_count": len(jobs),
                         }
                     )
+                    if (
+                        provenance.get("scrape_mode") == "live"
+                        and provenance.get("live_result") == "success"
+                        and not jobs
+                    ):
+                        provenance["availability"] = "unavailable"
+                        provenance["unavailable_reason"] = "empty_success"
                     if mode == "LIVE" and snapshot_path.exists():
                         try:
                             baseline_jobs = provider.load_from_snapshot()
@@ -729,7 +851,17 @@ def main(argv: List[str] | None = None) -> int:
                                 )
                                 logger.error(msg)
                                 raise SystemExit(2)
-                            raw_jobs = provider.load_from_snapshot()
+                            try:
+                                raw_jobs = provider.load_from_snapshot()
+                            except RuntimeError as exc:
+                                _finalize_unavailable_provider(
+                                    provider_id=provider_id,
+                                    output_dir=output_dir,
+                                    provenance=provenance,
+                                    reason=_runtime_unavailable_reason(str(exc)),
+                                    error=str(exc),
+                                )
+                                continue
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                         else:
@@ -772,7 +904,17 @@ def main(argv: List[str] | None = None) -> int:
                                 )
                                 logger.error(msg)
                                 raise SystemExit(2)
-                            raw_jobs = provider.load_from_snapshot()
+                            try:
+                                raw_jobs = provider.load_from_snapshot()
+                            except RuntimeError as exc:
+                                _finalize_unavailable_provider(
+                                    provider_id=provider_id,
+                                    output_dir=output_dir,
+                                    provenance=provenance,
+                                    reason=_runtime_unavailable_reason(str(exc)),
+                                    error=str(exc),
+                                )
+                                continue
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                         except Exception as e:
@@ -794,20 +936,31 @@ def main(argv: List[str] | None = None) -> int:
                                 )
                                 logger.error(msg)
                                 raise SystemExit(2)
-                            raw_jobs = provider.load_from_snapshot()
+                            try:
+                                raw_jobs = provider.load_from_snapshot()
+                            except RuntimeError as exc:
+                                _finalize_unavailable_provider(
+                                    provider_id=provider_id,
+                                    output_dir=output_dir,
+                                    provenance=provenance,
+                                    reason=_runtime_unavailable_reason(str(exc)),
+                                    error=str(exc),
+                                )
+                                continue
                             provenance["scrape_mode"] = "snapshot"
                             provenance["snapshot_used"] = True
                     else:
                         try:
                             raw_jobs = provider.load_from_snapshot()
                         except RuntimeError as exc:
-                            logger.warning(
-                                "[run_scrape] SNAPSHOT load failed for %s (%r); marking provider unavailable",
-                                provider_id,
-                                exc,
+                            _finalize_unavailable_provider(
+                                provider_id=provider_id,
+                                output_dir=output_dir,
+                                provenance=provenance,
+                                reason=_runtime_unavailable_reason(str(exc)),
+                                error=str(exc),
                             )
-                            provenance["error"] = str(exc)
-                            raw_jobs = []
+                            continue
                         provenance["scrape_mode"] = "snapshot"
                         provenance["live_result"] = "skipped"
                     jobs = _normalize_jobs(raw_jobs)
@@ -837,6 +990,13 @@ def main(argv: List[str] | None = None) -> int:
                     if classification and not provenance.get("unavailable_reason"):
                         provenance["availability"] = "unavailable"
                         provenance["unavailable_reason"] = classification
+                    if (
+                        provenance.get("scrape_mode") == "live"
+                        and provenance.get("live_result") == "success"
+                        and not jobs
+                    ):
+                        provenance["availability"] = "unavailable"
+                        provenance["unavailable_reason"] = "empty_success"
                     if snapshot_meta.get("fetched_at"):
                         provenance["fetched_at"] = snapshot_meta.get("fetched_at")
                     if provenance.get("scrape_mode") == "snapshot" and provenance.get("attempts_made", 0) == 0:
