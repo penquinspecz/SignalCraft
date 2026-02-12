@@ -42,7 +42,7 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s p
 
 ## Current State (as of this commit)
 
-Last verified: `2026-02-07T05:48:59Z` @ `ae6ceba`
+Last verified: `2026-02-12T03:09:46Z` @ `fe0eb70`
 
 ### Completed foundation (verified in repo/tests)
 - [x] Deterministic ranking + tie-breakers
@@ -62,6 +62,9 @@ Last verified: `2026-02-07T05:48:59Z` @ `ae6ceba`
 - [x] `--min_score` + `SMOKE_MIN_SCORE` plumbing added (back-compat alias preserved)
 - [x] CS scoring heuristics recalibrated (shortlist no longer empty at sensible thresholds)
 - [x] Score clamping to 0–100 to prevent runaway (distribution tuning is iterative)
+- [x] Product naming contract applied in human-facing surfaces: SignalCraft is product name; JIE remains internal codename in code/runtime paths
+- [x] Provider registry contracts + deterministic enablement filtering are merged and test-backed (`tests/test_provider_registry.py`, `tests/test_run_daily_provider_selection.py`, `tests/test_run_scrape_provider_selection.py`)
+- [x] Semantic run artifacts are emitted per run (`state/runs/<run_id>/semantic/semantic_summary.json` and `semantic_scores.json`) with deterministic receipt coverage (`tests/test_m7_semantic_proof_receipt.py`)
 
 ### Delivery layer now implemented (Phase 1 progress)
 - [x] **Discord run-summary alerts** (no-op when webhook unset; honors `--no_post`; offline-safe)
@@ -90,6 +93,7 @@ Last verified: `2026-02-07T05:48:59Z` @ `ae6ceba`
 - [x] Dashboard dependency management: core install excludes dashboard deps; dashboard extras + clear runtime guidance are documented and CI guard is warn-only. Evidence: `pyproject.toml`, `src/ji_engine/dashboard/app.py`, `Makefile`, `.github/workflows/ci.yml`, `docs/OPERATIONS.md`.
 - [ ] AI insights scope: currently weekly “pulse”; Phase 2 adds per-job recommendations and profile-aware coaching.
 - [ ] Document CI smoke gate design and failure modes (why it fails, what to inspect)
+- [ ] Semantic thresholds can legitimately yield zero non-zero boosts on some datasets/runs; this is expected behavior at stricter thresholds, not a runtime bug
 - [x] **IAM footguns:** document runtime vs operator verify roles for object-store access in K8s (IRSA) + AWS
 - [x] **Artifact hygiene:** redaction scanner + deterministic sanity tests added (`src/ji_engine/utils/redaction.py`, `tests/test_redaction_scan.py`), with opt-in fail-closed enforcement (`REDACTION_ENFORCE=1`)
 
@@ -454,19 +458,19 @@ Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repe
 **Core rule:** no “LLM as scraper” unless cached, schema-validated, deterministic, and fail-closed.
 
 ### Definition of Done (DoD)
-- [ ] Provider registry supports adding a new company via configuration:
+- [x] Provider registry supports adding a new company via configuration:
   - name, careers URL(s), extraction mode, allowed domains, update cadence
-- [ ] Extraction has a deterministic primary path (API/structured HTML/JSON-LD) when possible
+- [x] Extraction has a deterministic primary path (API/structured HTML/JSON-LD) when possible
 - [ ] Optional LLM fallback extraction exists only with guardrails:
   - temperature 0, strict JSON schema, parse+validate, cache keyed by page hash,
     and “unavailable” on parse failures (no best-effort junk)
-- [ ] A new provider can be added with ≤1 small code change (ideally none) + a config entry.
+- [x] A new provider can be added with ≤1 small code change (ideally none) + a config entry.
 
 ### Work Items
-- [ ] Define provider config schema (YAML/JSON) and loader
-- [ ] Implement a “safe extraction” interface:
+- [x] Define provider config schema (YAML/JSON) and loader
+- [x] Implement a “safe extraction” interface:
   - `extract_jobs(html) -> List[JobStub]` deterministic
-- [ ] Add at least 2 additional AI companies using the config mechanism
+- [x] Add at least 2 additional AI companies using the config mechanism
 
 ### Milestone 5 Receipt (2026-02-11)
 - Run id: `m5-proof-2026-02-11T23:59:15Z`
@@ -475,6 +479,7 @@ Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repe
 - Proof artifacts: `state/runs/m5proof20260211T235915Z/`
 - Run report: `state/runs/m5proof20260211T235915Z/run_report.json`
 - Proof bundle note: `docs/proof/m5-offline-multi-provider-2026-02-11.md` (SignalCraft receipt for JIE internals)
+- Provider expansion merged after receipt run: `huggingface` jsonld config-only provider with contract tests (`tests/test_jsonld_provider.py`, `tests/test_run_scrape_jsonld_provider.py`)
 
 ---
 
@@ -512,6 +517,14 @@ Milestone 4 is DONE when the above is rehearsed once end-to-end and you can repe
 Status: In progress
 Receipts:
 - `docs/proof/m7-semantic-safety-net-offline-2026-02-12.md`
+- `tests/test_m7_semantic_proof_receipt.py` (offline deterministic receipt test)
+- `tests/test_run_daily_semantic.py` (short-circuit semantic behavior contract; #41 guarantee)
+
+Merged status (current main truth):
+- [x] Deterministic semantic scaffold merged (offline hash embeddings + cache + run artifacts)
+- [x] Bounded semantic safety-net boost merged (bounded `semantic_boost`, deterministic rounding, artifact evidence)
+- [x] Offline proof receipt merged (`docs/proof/m7-semantic-safety-net-offline-2026-02-12.md`)
+- [x] Short-circuit fix merged (#41): `SEMANTIC_ENABLED=1` does not silently skip semantic; semantic artifacts are produced deterministically on reruns
 
 ### Definition of Done (DoD)
 - [ ] Deterministic embedding path (fixed model + stable text normalization)
