@@ -217,7 +217,10 @@ def _safety_diff(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="jobintel")
+    parser = argparse.ArgumentParser(
+        prog="jobintel",
+        description="SignalCraft CLI (Job Intelligence Engine, JIE).",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     snapshots = subparsers.add_parser("snapshots", help="Snapshot maintenance")
@@ -230,7 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--fetch", choices=["requests", "playwright"], default="requests")
     refresh.add_argument("--timeout", type=float, default=20.0)
     refresh.add_argument("--min-bytes", type=int, default=MIN_BYTES_DEFAULT)
-    refresh.add_argument("--user-agent", default="job-intelligence-engine/0.1 (+snapshot-refresh)")
+    refresh.add_argument("--user-agent", default="signalcraft/0.1 (+snapshot-refresh)")
     refresh.add_argument(
         "--providers-config",
         default=str(DEFAULT_PROVIDERS_CONFIG),

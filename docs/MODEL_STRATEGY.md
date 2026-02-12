@@ -1,4 +1,4 @@
-## Model strategy (Cursor) — job-intelligence-engine
+## Model strategy (Cursor) — SignalCraft
 
 This repo benefits from **fast iteration for small changes** and **high-reliability reasoning** for pipeline orchestration, concurrency, and multi-file refactors. Use this playbook to choose the cheapest model that still keeps you safe.
 

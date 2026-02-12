@@ -31,7 +31,7 @@ def fetch_html(
         "error": None,
     }
 
-    ua = user_agent or "job-intelligence-engine/0.1 (+snapshot-fetch)"
+    ua = user_agent or "signalcraft/0.1 (+snapshot-fetch)"
     base_headers = {
         "User-Agent": ua,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",

@@ -66,7 +66,7 @@ def build_run_summary_message(
     jobs = _load_ranked(ranked_json)
     shortlist_count = _count_shortlist(jobs, min_score)
 
-    lines = [f"**JobIntel — {provider} / {profile} — {ts}**"]
+    lines = [f"**SignalCraft — {provider} / {profile} — {ts}**"]
     lines.append(
         "Deltas: new={new} changed={changed} removed={removed}".format(
             new=diff_counts.get("new", 0),

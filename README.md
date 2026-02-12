@@ -1,13 +1,21 @@
-# Job Intelligence Engine (JIE)
+# SignalCraft
 
-[![CI](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/ci.yml)
-[![Docker Smoke](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/docker-smoke.yml/badge.svg)](https://github.com/penquinspecz/job-intelligence-engine/actions/workflows/docker-smoke.yml)
+[![CI](https://github.com/penquinspecz/SignalCraft/actions/workflows/ci.yml/badge.svg)](https://github.com/penquinspecz/SignalCraft/actions/workflows/ci.yml)
+[![Docker Smoke](https://github.com/penquinspecz/SignalCraft/actions/workflows/docker-smoke.yml/badge.svg)](https://github.com/penquinspecz/SignalCraft/actions/workflows/docker-smoke.yml)
 
 
 An AI-powered job intelligence system that monitors frontier AI company careers pages, classifies roles, matches them to a candidate profile, and generates deterministic artifacts, diffs, and alerts.
 
 This repository is built as a **portfolio-grade, production-minded system**: deterministic by default, debuggable via artifacts, and deployable as a scheduled job (AWS/ECS or Kubernetes CronJob).  
 The “AI” is intentionally **last-mile** — the deterministic pipeline produces stable outputs first; AI (when enabled) reads those artifacts under strict guardrails.
+
+---
+
+## Naming
+
+- **SignalCraft** is the public product name used in docs and operator-facing UX.
+- **Job Intelligence Engine (JIE)** is the internal engine codename and remains in code/package paths for now.
+- We are intentionally not renaming packages, imports, or state paths in this pass to avoid churn and preserve operational stability.
 
 ---
 

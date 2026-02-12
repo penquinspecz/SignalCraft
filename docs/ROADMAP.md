@@ -1,4 +1,4 @@
-# JobIntel Roadmap
+# SignalCraft Roadmap
 
 This roadmap is the anti-chaos anchor. We optimize for:
 1) deterministic outputs, 2) debuggability, 3) deployability, 4) incremental intelligence.
@@ -243,7 +243,7 @@ Receipts (repo evidence):
 
 ## Milestone 4 — On-Prem Primary (k3s) + Cloud DR (AWS) Without Babysitting
 
-**Intent:** Move JobIntel to an **on-prem primary runtime** (Raspberry Pi k3s) with a **cloud disaster-recovery path** (AWS) that is **validated, rehearsed, and reproducible** — without turning AWS into a permanently running cost sink, and without creating a fragile “active/active” science project.
+**Intent:** Move SignalCraft to an **on-prem primary runtime** (Raspberry Pi k3s) with a **cloud disaster-recovery path** (AWS) that is **validated, rehearsed, and reproducible** — without turning AWS into a permanently running cost sink, and without creating a fragile “active/active” science project.
 
 Status note: backup + restore rehearsal receipts exist under `ops/proof/bundles/m4-20260207T020313Z-rehearsal/`; DR cloud rehearsal is now proven once under `ops/proof/bundles/m4-20260207T022326Z-dr/`; long-running on-prem stability receipts are still missing.
 
@@ -324,7 +324,7 @@ Choose **one** as the default path and keep the others as optional:
   - [ ] explicitly disallow “random open ports” without a documented reason
 
 #### 5) App Runs on k3s: CronJob-First, Kubernetes-Native (CNCF discipline)
-- [ ] JobIntel runs as a Kubernetes CronJob on k3s
+- [ ] SignalCraft runs as a Kubernetes CronJob on k3s
 - [ ] All required secrets/config are Kubernetes-native:
   - [ ] Secrets stored as encrypted at rest (SOPS/age preferred) OR clear alternative documented
   - [ ] ConfigMaps for non-sensitive configs
@@ -365,7 +365,7 @@ The goal is **rebuild on demand**, not “always-on cloud.”
   - [ ] Either:
     - [ ] EKS minimal cluster definition, or
     - [x] EC2 + k3s (cheaper and simpler for “cold standby”)
-- [x] DR runbook exists: “from zero to running JobIntel”
+- [x] DR runbook exists: “from zero to running SignalCraft”
   - [x] provision infra
   - [x] deploy manifests
   - [x] restore DB + artifacts

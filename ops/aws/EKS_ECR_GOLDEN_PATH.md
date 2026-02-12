@@ -1,6 +1,6 @@
 # EKS + ECR Golden Path (Kubernetes-First)
 
-This is the minimal copy/paste path to run JobIntel in EKS with a pullable ECR image and IRSA-backed publish.
+This is the minimal copy/paste path to run SignalCraft in EKS with a pullable ECR image and IRSA-backed publish.
 
 ## Inputs
 

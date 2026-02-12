@@ -48,7 +48,7 @@ CONFIRM_DESTROY=1 scripts/ops/dr_teardown.sh
 ```
 
 Success criteria:
-- Infra comes up, one JobIntel run executes, teardown removes cloud infra.
+- Infra comes up, one SignalCraft run executes, teardown removes cloud infra.
 
 If it fails:
 - bringup: inspect `ops/proof/bundles/m4-<run_id>/provision_terraform_apply*.log`
