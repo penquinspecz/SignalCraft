@@ -191,3 +191,63 @@ def test_score_jobs_semantic_disabled_matches_baseline(tmp_path: Path) -> None:
     assert evidence["enabled"] is False
     assert evidence["skipped_reason"] == "semantic_disabled"
     assert evidence["entries"] == []
+
+
+def test_score_jobs_semantic_sidecar_mode_does_not_mutate_scores(tmp_path: Path) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    fixture = repo_root / "tests" / "fixtures" / "openai_enriched_jobs.sample.json"
+
+    baseline_dir = tmp_path / "baseline"
+    baseline_dir.mkdir(parents=True, exist_ok=True)
+    baseline_json = baseline_dir / "ranked.json"
+
+    sidecar_dir = tmp_path / "sidecar"
+    sidecar_dir.mkdir(parents=True, exist_ok=True)
+    sidecar_json = sidecar_dir / "ranked.json"
+    semantic_out = sidecar_dir / "semantic_scores.json"
+
+    base_cmd = [
+        sys.executable,
+        "scripts/score_jobs.py",
+        "--profile",
+        "cs",
+        "--in_path",
+        str(fixture),
+        "--out_json",
+        str(baseline_json),
+        "--out_csv",
+        str(baseline_dir / "ranked.csv"),
+        "--out_families",
+        str(baseline_dir / "families.json"),
+        "--out_md",
+        str(baseline_dir / "shortlist.md"),
+    ]
+    subprocess.run(base_cmd, cwd=repo_root, check=True)
+
+    sidecar_cmd = [
+        sys.executable,
+        "scripts/score_jobs.py",
+        "--profile",
+        "cs",
+        "--in_path",
+        str(fixture),
+        "--out_json",
+        str(sidecar_json),
+        "--out_csv",
+        str(sidecar_dir / "ranked.csv"),
+        "--out_families",
+        str(sidecar_dir / "families.json"),
+        "--out_md",
+        str(sidecar_dir / "shortlist.md"),
+        "--semantic_scores_out",
+        str(semantic_out),
+    ]
+    env = dict(os.environ)
+    env["SEMANTIC_ENABLED"] = "1"
+    env["SEMANTIC_MODE"] = "sidecar"
+    subprocess.run(sidecar_cmd, cwd=repo_root, check=True, env=env)
+
+    assert baseline_json.read_text(encoding="utf-8") == sidecar_json.read_text(encoding="utf-8")
+    evidence = json.loads(semantic_out.read_text(encoding="utf-8"))
+    assert evidence["enabled"] is False
+    assert evidence["skipped_reason"] == "semantic_disabled"

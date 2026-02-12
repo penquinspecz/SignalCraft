@@ -182,7 +182,7 @@ Live scraping enforces a robots/policy decision before any network fetch:
   `JOBINTEL_LIVE_ALLOWLIST_DOMAINS_<PROVIDER>` controls which hosts are permitted for live fetches.
   If the allowlist is set and a host is not listed, live scraping is skipped and the run falls back to snapshots.
 - Robots: the runner fetches `https://<host>/robots.txt` and evaluates `User-agent` rules using a consistent
-  `JOBINTEL_USER_AGENT` (default: `jobintel-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)`).
+  `JOBINTEL_USER_AGENT` (default: `signalcraft-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)`).
   Disallow or fetch failures are treated conservatively (live skipped → snapshot fallback).
 
 Every decision is logged as `[provider_retry][robots] ...` and recorded in provenance:
@@ -241,14 +241,18 @@ Scoring input resolution is handled by `scripts/run_daily.py`:
 
 ## Semantic Safety Net (M7, bounded and deterministic)
 
-Semantic is a bounded safety-net booster. It does not replace deterministic base scoring.
-Final score contract:
+Semantic is deterministic and runs in one of two modes controlled by `SEMANTIC_MODE`:
+- `sidecar` (default when `SEMANTIC_ENABLED=1`): compute semantic evidence only; does not mutate ranked outputs.
+- `boost`: apply bounded semantic boost to scoring output.
+
+When `SEMANTIC_MODE=boost`, final score contract is:
 - `final_score = clamp(base_score + semantic_boost, 0, 100)`
 - `semantic_boost` is bounded in `[0, SEMANTIC_MAX_BOOST]`
-- If semantic is disabled or unavailable, ranked outputs must match pre-semantic behavior exactly.
+- If semantic is disabled/unavailable, or mode is `sidecar`, ranked outputs must match pre-semantic behavior exactly.
 
 Environment flags:
-- `SEMANTIC_ENABLED=1` enables semantic embedding/cache sidecar (default off).
+- `SEMANTIC_ENABLED=1` enables semantic processing (default off).
+- `SEMANTIC_MODE` selects semantic behavior: `sidecar` or `boost` (default `sidecar`).
 - `SEMANTIC_MODEL_ID` selects model id (default `deterministic-hash-v1`).
 - `SEMANTIC_MAX_JOBS` bounds per-run embedding workload (default `200`).
 - `SEMANTIC_TOP_K` only evaluates semantic similarity for the top-K base-scored jobs (default `50`).
@@ -266,10 +270,15 @@ Determinism contract:
 Run artifact:
 - Every run writes `state/runs/<run_id-sanitized>/semantic/semantic_summary.json` even when disabled.
 - Every run writes `state/runs/<run_id-sanitized>/semantic/semantic_scores.json` (possibly empty when disabled).
+- Short-circuit behavior:
+  - `SEMANTIC_ENABLED=1` + `SEMANTIC_MODE=sidecar`: keep short-circuit when ranked outputs are fresh, and write semantic artifacts from existing ranked JSON.
+  - `SEMANTIC_ENABLED=1` + `SEMANTIC_MODE=boost`: bypass short-circuit and rerun deterministic scoring so bounded boost can be applied.
 - Summary includes:
   - `enabled`
   - `model_id`
-  - `policy` (`max_jobs`, `top_k`, `max_boost`, `min_similarity`)
+  - `policy` (`mode`, `max_jobs`, `top_k`, `max_boost`, `min_similarity`)
+  - `used_short_circuit`
+  - `attempted_provider_profiles`
   - `cache_hit_counts`
   - `embedded_job_count`
   - `skipped_reason` (when disabled/unavailable/fail-closed)
@@ -286,10 +295,10 @@ Privacy boundary:
 - Only hashes, job ids, cache keys, and minimal provider/profile metadata are persisted.
 
 Debug checklist:
-- Confirm semantic config in env (`SEMANTIC_ENABLED`, `SEMANTIC_MODEL_ID`, `SEMANTIC_TOP_K`, `SEMANTIC_MAX_BOOST`, `SEMANTIC_MIN_SIMILARITY`).
+- Confirm semantic config in env (`SEMANTIC_ENABLED`, `SEMANTIC_MODE`, `SEMANTIC_MODEL_ID`, `SEMANTIC_TOP_K`, `SEMANTIC_MAX_BOOST`, `SEMANTIC_MIN_SIMILARITY`).
 - Inspect `state/runs/<run_id-sanitized>/semantic/semantic_summary.json` for `skipped_reason` and cache counters.
 - Inspect `state/runs/<run_id-sanitized>/semantic/semantic_scores.json` for per-job similarity/boost decisions.
-- Compare ranked output hashes with `SEMANTIC_ENABLED=0` when validating no-semantic parity behavior.
+- Compare ranked output hashes with `SEMANTIC_ENABLED=0` or `SEMANTIC_MODE=sidecar` when validating no-rescore parity behavior.
 
 ## Artifacts and where they live
 

@@ -60,7 +60,7 @@ from ji_engine.config import (
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
 from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
-from ji_engine.semantic.core import DEFAULT_SEMANTIC_MODEL_ID
+from ji_engine.semantic.core import DEFAULT_SEMANTIC_MODEL_ID, EMBEDDING_BACKEND_VERSION
 from ji_engine.semantic.step import finalize_semantic_artifacts, semantic_score_artifact_path
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.content_fingerprint import content_fingerprint
@@ -1120,6 +1120,7 @@ def _persist_run_metadata(
     environment_fingerprint: Optional[Dict[str, Optional[str]]] = None,
     logs: Optional[Dict[str, Any]] = None,
     log_retention: Optional[Dict[str, Any]] = None,
+    semantic_contract: Optional[Dict[str, Any]] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -1208,6 +1209,15 @@ def _persist_run_metadata(
         "git_sha": _best_effort_git_sha(),
         "image_tag": os.environ.get("IMAGE_TAG"),
     }
+    semantic_contract = semantic_contract or {}
+    payload["semantic_enabled"] = bool(semantic_contract.get("semantic_enabled", False))
+    payload["semantic_mode"] = str(semantic_contract.get("semantic_mode", "boost"))
+    payload["semantic_model_id"] = str(semantic_contract.get("semantic_model_id", DEFAULT_SEMANTIC_MODEL_ID))
+    payload["semantic_threshold"] = float(semantic_contract.get("semantic_threshold", 0.72))
+    payload["semantic_max_boost"] = float(semantic_contract.get("semantic_max_boost", 5.0))
+    payload["embedding_backend_version"] = str(
+        semantic_contract.get("embedding_backend_version", EMBEDDING_BACKEND_VERSION)
+    )
     if archived_inputs_by_provider_profile:
         payload["archived_inputs_by_provider_profile"] = archived_inputs_by_provider_profile
     if delta_summary is not None:
@@ -2685,6 +2695,77 @@ def _briefs_status_line(run_id: str, profile: str) -> Optional[str]:
     return f"AI briefs: generated for top {count}"
 
 
+def _safe_int_env(name: str, default: int = 0) -> int:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return max(0, value)
+
+
+def _estimate_tokens_from_text(text: str) -> int:
+    return max(1, len(text) // 4)
+
+
+def _collect_run_costs(
+    *,
+    run_id: str,
+    profiles: List[str],
+    semantic_summary: Dict[str, Any],
+    embedding_token_estimate_per_item: int = 128,
+) -> Dict[str, int]:
+    run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
+    embeddings_count = int((semantic_summary.get("embedded_job_count") or 0) or 0)
+    embeddings_estimated_tokens = max(0, embeddings_count) * max(1, int(embedding_token_estimate_per_item))
+    ai_calls = 0
+    ai_estimated_tokens = 0
+
+    for profile in profiles:
+        insights_path = run_dir / f"ai_insights.{profile}.json"
+        if insights_path.exists():
+            try:
+                insights_payload = json.loads(insights_path.read_text(encoding="utf-8"))
+            except Exception:
+                insights_payload = None
+            if isinstance(insights_payload, dict) and str(insights_payload.get("status") or "") == "ok":
+                ai_calls += 1
+                structured_input = insights_payload.get("structured_input") or {}
+                ai_estimated_tokens += _estimate_tokens_from_text(
+                    json.dumps(structured_input, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                )
+
+        briefs_path = run_dir / f"ai_job_briefs.{profile}.json"
+        if briefs_path.exists():
+            try:
+                briefs_payload = json.loads(briefs_path.read_text(encoding="utf-8"))
+            except Exception:
+                briefs_payload = None
+            if isinstance(briefs_payload, dict) and str(briefs_payload.get("status") or "") == "ok":
+                briefs = briefs_payload.get("briefs") or []
+                ai_calls += len(briefs) if isinstance(briefs, list) else 0
+                meta = briefs_payload.get("metadata") if isinstance(briefs_payload.get("metadata"), dict) else {}
+                ai_estimated_tokens += int((meta or {}).get("estimated_tokens_used", 0) or 0)
+
+    return {
+        "embeddings_count": embeddings_count,
+        "embeddings_estimated_tokens": embeddings_estimated_tokens,
+        "ai_calls": ai_calls,
+        "ai_estimated_tokens": ai_estimated_tokens,
+        "total_estimated_tokens": embeddings_estimated_tokens + ai_estimated_tokens,
+    }
+
+
+def _write_costs_artifact(run_id: str, payload: Dict[str, int]) -> Path:
+    run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
+    path = run_dir / "costs.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_canonical_json(path, payload)
+    return path
+
+
 def _all_providers_unavailable(provenance_by_provider: Dict[str, Dict[str, Any]], providers: List[str]) -> bool:
     if not providers:
         return False
@@ -2761,6 +2842,9 @@ def _resolve_log_file_enabled(args: argparse.Namespace) -> bool:
 
 def _resolve_semantic_settings() -> Dict[str, Any]:
     enabled = os.environ.get("SEMANTIC_ENABLED", "").strip() == "1"
+    semantic_mode = (os.environ.get("SEMANTIC_MODE") or "boost").strip().lower()
+    if semantic_mode not in {"sidecar", "boost"}:
+        semantic_mode = "boost"
     model_id = (os.environ.get("SEMANTIC_MODEL_ID") or DEFAULT_SEMANTIC_MODEL_ID).strip() or DEFAULT_SEMANTIC_MODEL_ID
     max_jobs_raw = (os.environ.get("SEMANTIC_MAX_JOBS") or "200").strip()
     try:
@@ -2785,6 +2869,7 @@ def _resolve_semantic_settings() -> Dict[str, Any]:
         top_k = 1
     return {
         "enabled": enabled,
+        "mode": semantic_mode,
         "model_id": model_id,
         "max_jobs": max_jobs,
         "max_boost": max(0.0, max_boost),
@@ -2967,8 +3052,9 @@ def main() -> int:
         "history_keep_days": history_keep_days,
     }
 
-    def _finalize(status: str, extra: Optional[Dict[str, Any]] = None) -> None:
-        telemetry["status"] = status
+    def _finalize(status: str, extra: Optional[Dict[str, Any]] = None) -> str:
+        final_status = status
+        telemetry["status"] = final_status
         telemetry["hashes"] = {
             "raw": _hash_file(_provider_raw_jobs_json("openai")),
             "labeled": _hash_file(_provider_labeled_jobs_json("openai")),
@@ -2991,7 +3077,7 @@ def main() -> int:
             "output_mtime": telemetry["ai_output_mtime"],
         }
         telemetry["ended_at"] = _utcnow_iso()
-        telemetry["success"] = status == "success"
+        telemetry["success"] = final_status == "success"
         if extra:
             telemetry.update(extra)
         _write_last_run(telemetry)
@@ -3069,12 +3155,48 @@ def main() -> int:
         )
         telemetry["semantic"] = {
             "enabled": semantic_summary.get("enabled"),
+            "mode": str(semantic_settings["mode"]),
             "model_id": semantic_summary.get("model_id"),
             "embedded_job_count": semantic_summary.get("embedded_job_count"),
             "skipped_reason": semantic_summary.get("skipped_reason"),
             "summary_path": str(semantic_summary_path),
             "scores_path": str(semantic_scores_path),
         }
+        costs_payload = _collect_run_costs(
+            run_id=run_id,
+            profiles=profiles_list,
+            semantic_summary=semantic_summary,
+        )
+        costs_path = _write_costs_artifact(run_id, costs_payload)
+        telemetry["costs"] = {
+            **costs_payload,
+            "path": str(costs_path),
+        }
+
+        max_ai_tokens_per_run = _safe_int_env("MAX_AI_TOKENS_PER_RUN", 0)
+        max_embeddings_per_run = _safe_int_env("MAX_EMBEDDINGS_PER_RUN", 0)
+        budget_errors: List[str] = []
+        if max_ai_tokens_per_run > 0 and costs_payload["ai_estimated_tokens"] > max_ai_tokens_per_run:
+            budget_errors.append(
+                f"ai_estimated_tokens={costs_payload['ai_estimated_tokens']} > MAX_AI_TOKENS_PER_RUN={max_ai_tokens_per_run}"
+            )
+        if max_embeddings_per_run > 0 and costs_payload["embeddings_count"] > max_embeddings_per_run:
+            budget_errors.append(
+                f"embeddings_count={costs_payload['embeddings_count']} > MAX_EMBEDDINGS_PER_RUN={max_embeddings_per_run}"
+            )
+        if budget_errors and final_status != "error":
+            final_status = "error"
+            telemetry["status"] = final_status
+            telemetry["success"] = False
+            telemetry["failed_stage"] = "cost_guardrails"
+            telemetry["error"] = "; ".join(budget_errors)
+            telemetry["cost_guardrails"] = {
+                "max_ai_tokens_per_run": max_ai_tokens_per_run,
+                "max_embeddings_per_run": max_embeddings_per_run,
+                "violations": budget_errors,
+            }
+            _write_last_run(telemetry)
+            logger.error("Cost guardrail violation: %s", telemetry["error"])
         run_metadata_path = _persist_run_metadata(
             run_id,
             telemetry,
@@ -3096,6 +3218,14 @@ def main() -> int:
             environment_fingerprint=environment_fingerprint,
             logs=run_log_pointers,
             log_retention=log_retention_summary,
+            semantic_contract={
+                "semantic_enabled": bool(semantic_settings["enabled"]),
+                "semantic_mode": str(semantic_settings["mode"]),
+                "semantic_model_id": str(semantic_settings["model_id"]),
+                "semantic_threshold": float(semantic_settings["min_similarity"]),
+                "semantic_max_boost": float(semantic_settings["max_boost"]),
+                "embedding_backend_version": EMBEDDING_BACKEND_VERSION,
+            },
         )
         if telemetry.get("success", False):
             try:
@@ -3455,6 +3585,7 @@ def main() -> int:
         )
         if s3_failed:
             raise SystemExit(s3_exit_code or 2)
+        return final_status
 
     current_stage = "startup"
 
@@ -3697,8 +3828,8 @@ def main() -> int:
                     _write_json(state_path, curr)
                     # (diff/alerts handled in full path only; for freshness runs, we just persist state)
 
-            _finalize("success")
-            return 0
+            final_status = _finalize("success")
+            return 0 if final_status == "success" else 2
 
         def _stage_label(base: str, provider: Optional[str] = None, profile: Optional[str] = None) -> str:
             if openai_only and (provider is None or provider == "openai"):
@@ -3782,8 +3913,8 @@ def main() -> int:
                     _finalize("error", {"error": err_msg, "failed_stage": "provider_policy"})
                     return 3
             logger.info("Stopping after scrape (--scrape_only set)")
-            _finalize("success")
-            return 0
+            final_status = _finalize("success")
+            return 0 if final_status == "success" else 2
 
         # 2) Run classify/enrich/AI per provider.
         for provider in providers:
@@ -4292,8 +4423,8 @@ def main() -> int:
                     shortlist_md,
                 )
 
-        _finalize("success")
-        return 0
+        final_status = _finalize("success")
+        return 0 if final_status == "success" else 2
 
     except subprocess.CalledProcessError as e:
         cmd_str = " ".join(e.cmd) if isinstance(e.cmd, (list, tuple)) else str(e.cmd)

@@ -323,7 +323,7 @@ def evaluate_robots_policy(
 
     ua = user_agent or os.environ.get(
         "JOBINTEL_USER_AGENT",
-        "jobintel-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)",
+        "signalcraft-bot/1.0 (+https://github.com/penquinspecz/SignalCraft)",
     )
 
     decision: dict[str, object] = {
