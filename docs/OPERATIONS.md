@@ -25,18 +25,17 @@ CI:
 make gate-ci
 ```
 
-Repo guardrail preflight (fast, local, no network):
+Determinism parity preflight (local and CI-friendly):
 
 ```bash
 make doctor
 ```
 
-`make doctor` checks:
-- git status cleanliness (warns with remediation guidance if dirty)
+`make doctor` fails closed for:
+- dirty git status
 - unexpected additional worktrees holding `main`
-- `.venv` presence and expected Python major/minor
-- offline-safe AWS test defaults contract (`tests/conftest.py`)
-- required determinism contract docs (`docs/DETERMINISM_CONTRACT.md`, `docs/RUN_REPORT.md`)
+- missing/mismatched `.venv` against `.python-version`
+- missing CI parity contract files (`docs/DETERMINISM_CONTRACT.md`, `config/scoring.v1.json`, `schemas/run_health.schema.v1.json`)
 
 CI smoke gate contract and failure-mode diagnostics:
 - `docs/CI_SMOKE_GATE.md`
