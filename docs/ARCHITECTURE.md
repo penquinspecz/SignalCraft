@@ -228,6 +228,16 @@ Future evolution toward product:
 - Run state partitions by candidate.
 - No cross-user artifact leakage.
 
+### Namespace Reservation (Current Policy)
+
+- Reserved state layout: `state/candidates/<candidate_id>/{runs,history,user_state,...}`
+- `candidate_id` is strict (`[a-z0-9_]{1,64}`), fail-closed on invalid values.
+- Default single-user namespace is `candidate_id=local`.
+- Backward compatibility remains deterministic:
+  - readers check namespaced paths first
+  - `local` readers fall back to legacy un-namespaced paths (`state/runs`, `state/last_success.json`)
+  - S3 writes namespaced pointers and keeps legacy global pointers for `local` only.
+
 ### Profile Ingestion
 
 - Structured profile schema.

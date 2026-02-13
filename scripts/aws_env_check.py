@@ -13,7 +13,7 @@ import sys
 from typing import Any, Dict, List, Tuple
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, MissingDependencyException
 
 DEFAULT_PREFIX = "jobintel"
 
@@ -46,8 +46,15 @@ def _resolve_prefix(explicit: str | None) -> Tuple[str | None, List[str]]:
 def _resolve_credentials(region: str | None) -> Tuple[Dict[str, Any], List[str], List[str]]:
     warnings: List[str] = []
     errors: List[str] = []
-    session = boto3.session.Session()
-    creds = session.get_credentials()
+    try:
+        session = boto3.session.Session()
+        creds = session.get_credentials()
+    except MissingDependencyException as exc:
+        errors.append(f"credentials not detected (missing dependency): {exc}")
+        return {"present": False, "source": "none", "validated": False}, warnings, errors
+    except Exception as exc:  # pragma: no cover - defensive
+        errors.append(f"credentials not detected ({exc.__class__.__name__})")
+        return {"present": False, "source": "none", "validated": False}, warnings, errors
     if creds is None:
         errors.append("credentials not detected (boto3 session)")
         return {"present": False, "source": "none", "validated": False}, warnings, errors

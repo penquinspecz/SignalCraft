@@ -39,6 +39,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ji_engine.config import (
     DATA_DIR,
+    DEFAULT_CANDIDATE_ID,
     ENRICHED_JOBS_JSON,
     HISTORY_DIR,
     LABELED_JOBS_JSON,
@@ -53,6 +54,7 @@ from ji_engine.config import (
     ranked_families_json,
     ranked_jobs_csv,
     ranked_jobs_json,
+    sanitize_candidate_id,
     state_last_ranked,
 )
 from ji_engine.config import (
@@ -137,6 +139,10 @@ LAST_SUCCESS_JSON = STATE_DIR / "last_success.json"
 RUN_REPORT_SCHEMA_VERSION = 1
 PROOFS_DIR = STATE_DIR / "proofs"
 PROOF_RECEIPT_SCHEMA_VERSION = 1
+try:
+    CANDIDATE_ID = sanitize_candidate_id(os.environ.get("JOBINTEL_CANDIDATE_ID", DEFAULT_CANDIDATE_ID))
+except ValueError as exc:
+    raise SystemExit(f"invalid JOBINTEL_CANDIDATE_ID: {exc}")
 
 
 def _flush_logging() -> None:
@@ -1309,7 +1315,13 @@ def _resolve_s3_baseline(
             run_id,
         )
 
-    state, status, key = read_provider_last_success_state(bucket, prefix, provider, profile)
+    state, status, key = read_provider_last_success_state(
+        bucket,
+        prefix,
+        provider,
+        profile,
+        candidate_id=CANDIDATE_ID,
+    )
     logger.info(
         "Baseline pointer read: s3://%s/%s status=%s",
         bucket,
@@ -1350,7 +1362,7 @@ def _resolve_s3_baseline(
             key,
         )
 
-    state, status, key = read_last_success_state(bucket, prefix)
+    state, status, key = read_last_success_state(bucket, prefix, candidate_id=CANDIDATE_ID)
     logger.info(
         "Baseline pointer read: s3://%s/%s status=%s",
         bucket,
@@ -3341,6 +3353,7 @@ def main() -> int:
                         run_id=run_id,
                         bucket=None,
                         prefix=None,
+                        candidate_id=CANDIDATE_ID,
                         run_dir=RUN_METADATA_DIR / publish_s3._sanitize_run_id(run_id),
                         dry_run=dry_run,
                         require_s3=require_s3,
