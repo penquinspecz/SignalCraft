@@ -16,3 +16,6 @@ def test_state_dir_override(tmp_path, monkeypatch):
     assert config.STATE_DIR.exists()
     assert config.HISTORY_DIR.exists()
     assert config.RUN_METADATA_DIR.exists()
+    assert config.candidate_run_metadata_dir("local").exists()
+    assert config.candidate_history_dir("local").exists()
+    assert config.candidate_user_state_dir("local").exists()
