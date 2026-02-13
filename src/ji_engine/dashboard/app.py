@@ -8,6 +8,7 @@ See LICENSE for permitted use.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -21,30 +22,30 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
-from ji_engine.config import RUN_METADATA_DIR, STATE_DIR
+from ji_engine.config import DEFAULT_CANDIDATE_ID, STATE_DIR, sanitize_candidate_id
+from ji_engine.run_repository import FileSystemRunRepository
 from jobintel import aws_runs
 
 app = FastAPI(title="SignalCraft Dashboard API")
+logger = logging.getLogger(__name__)
+RUN_REPOSITORY = FileSystemRunRepository()
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
-
-
-def _run_dir(run_id: str) -> Path:
-    return RUN_METADATA_DIR / _sanitize_run_id(run_id)
-
-
-def _load_index(run_id: str) -> Dict[str, Any]:
-    index_path = _run_dir(run_id) / "index.json"
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail="Run not found")
+def _validated_candidate_id(candidate_id: str) -> str:
     try:
-        data = json.loads(index_path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise HTTPException(status_code=500, detail="Run index is invalid JSON") from exc
-    if not isinstance(data, dict):
-        raise HTTPException(status_code=500, detail="Run index has invalid shape")
+        return sanitize_candidate_id(candidate_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid candidate_id: {exc}") from exc
+
+
+def _run_dir(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
+    return RUN_REPOSITORY.run_dir(run_id, candidate_id)
+
+
+def _load_index(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    data = RUN_REPOSITORY.get_run(run_id, candidate_id=candidate_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Run not found")
     return data
 
 
@@ -70,24 +71,8 @@ def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
     return None
 
 
-def _list_runs() -> List[Dict[str, Any]]:
-    if not RUN_METADATA_DIR.exists():
-        return []
-    runs: List[Dict[str, Any]] = []
-    for path in RUN_METADATA_DIR.iterdir():
-        if not path.is_dir():
-            continue
-        index_path = path / "index.json"
-        if not index_path.exists():
-            continue
-        try:
-            data = json.loads(index_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict):
-            runs.append(data)
-    runs.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
-    return runs
+def _list_runs(candidate_id: str = DEFAULT_CANDIDATE_ID) -> List[Dict[str, Any]]:
+    return RUN_REPOSITORY.list_runs(candidate_id=candidate_id)
 
 
 def _resolve_artifact_path(run_dir: Path, index: Dict[str, Any], name: str) -> Path:
@@ -206,14 +191,16 @@ def healthz() -> Dict[str, str]:
 
 
 @app.get("/runs")
-def runs() -> List[Dict[str, Any]]:
-    return _list_runs()
+def runs(candidate_id: str = DEFAULT_CANDIDATE_ID) -> List[Dict[str, Any]]:
+    safe_candidate_id = _validated_candidate_id(candidate_id)
+    return _list_runs(safe_candidate_id)
 
 
 @app.get("/runs/{run_id}")
-def run_detail(run_id: str) -> Dict[str, Any]:
-    index = _load_index(run_id)
-    run_dir = _run_dir(run_id)
+def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_candidate_id = _validated_candidate_id(candidate_id)
+    index = _load_index(run_id, safe_candidate_id)
+    run_dir = _run_dir(run_id, safe_candidate_id)
     run_report = _load_json_object(run_dir / "run_report.json") or {}
     costs = _load_json_object(run_dir / "costs.json")
     prompt_version = _load_first_ai_prompt_version(run_dir)
@@ -226,16 +213,18 @@ def run_detail(run_id: str) -> Dict[str, Any]:
 
 
 @app.get("/runs/{run_id}/artifact/{name}")
-def run_artifact(run_id: str, name: str) -> Response:
-    index = _load_index(run_id)
-    run_dir = _run_dir(run_id)
+def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Response:
+    safe_candidate_id = _validated_candidate_id(candidate_id)
+    index = _load_index(run_id, safe_candidate_id)
+    run_dir = _run_dir(run_id, safe_candidate_id)
     path = _resolve_artifact_path(run_dir, index, name)
     return Response(path.read_bytes(), media_type=_content_type(path))
 
 
 @app.get("/runs/{run_id}/semantic_summary/{profile}")
-def run_semantic_summary(run_id: str, profile: str) -> Dict[str, Any]:
-    run_dir = _run_dir(run_id)
+def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_candidate_id = _validated_candidate_id(candidate_id)
+    run_dir = _run_dir(run_id, safe_candidate_id)
     semantic_dir = run_dir / "semantic"
     summary = _load_json_object(semantic_dir / "semantic_summary.json")
     if not summary:
@@ -258,7 +247,8 @@ def run_semantic_summary(run_id: str, profile: str) -> Dict[str, Any]:
 
 
 @app.get("/v1/latest")
-def latest() -> Dict[str, Any]:
+def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_candidate_id = _validated_candidate_id(candidate_id)
     if _s3_enabled():
         bucket = _s3_bucket()
         prefix = _s3_prefix()
@@ -272,8 +262,25 @@ def latest() -> Dict[str, Any]:
             "key": key,
             "payload": payload,
         }
+
+    indexed_latest = RUN_REPOSITORY.latest_run(candidate_id=safe_candidate_id)
+    if indexed_latest:
+        run_id = indexed_latest.get("run_id") if isinstance(indexed_latest, dict) else None
+        return {
+            "source": "local",
+            "candidate_id": safe_candidate_id,
+            "path": str(_run_dir(run_id or "", safe_candidate_id) / "index.json"),
+            "payload": indexed_latest,
+        }
+
+    logger.info("dashboard latest fallback to local pointer candidate_id=%s", safe_candidate_id)
     payload = _read_local_json(_state_last_success_path())
-    return {"source": "local", "path": str(_state_last_success_path()), "payload": payload}
+    return {
+        "source": "local",
+        "candidate_id": safe_candidate_id,
+        "path": str(_state_last_success_path()),
+        "payload": payload,
+    }
 
 
 @app.get("/v1/runs/{run_id}")
@@ -297,7 +304,8 @@ def run_receipt(run_id: str) -> Dict[str, Any]:
 
 
 @app.get("/v1/artifacts/latest/{provider}/{profile}")
-def latest_artifacts(provider: str, profile: str) -> Dict[str, Any]:
+def latest_artifacts(provider: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_candidate_id = _validated_candidate_id(candidate_id)
     if _s3_enabled():
         bucket = _s3_bucket()
         prefix = _s3_prefix()
@@ -305,11 +313,14 @@ def latest_artifacts(provider: str, profile: str) -> Dict[str, Any]:
         keys = _s3_list_keys(bucket, latest_prefix)
         return {"source": "s3", "bucket": bucket, "prefix": latest_prefix, "keys": keys}
 
-    pointer = _read_local_json(_state_last_success_path())
-    run_id = pointer.get("run_id")
+    latest_payload = RUN_REPOSITORY.latest_run(candidate_id=safe_candidate_id)
+    run_id = latest_payload.get("run_id") if isinstance(latest_payload, dict) else None
+    if not run_id:
+        pointer = _read_local_json(_state_last_success_path())
+        run_id = pointer.get("run_id")
     if not run_id:
         raise HTTPException(status_code=404, detail="Local last_success missing run_id")
-    run_dir = _run_dir(run_id)
+    run_dir = _run_dir(run_id, safe_candidate_id)
     report_path = run_dir / "run_report.json"
     if not report_path.exists():
         raise HTTPException(status_code=404, detail="Local run_report not found")
@@ -320,6 +331,7 @@ def latest_artifacts(provider: str, profile: str) -> Dict[str, Any]:
     files = [item.get("path") for item in outputs.values() if isinstance(item, dict) and item.get("path")]
     return {
         "source": "local",
+        "candidate_id": safe_candidate_id,
         "run_id": run_id,
         "paths": files,
     }
