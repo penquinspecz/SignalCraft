@@ -1,45 +1,126 @@
+© 2026 Chris Menendez. Source Available — All Rights Reserved.
+This repository is publicly viewable but not open source.
+See LICENSE for permitted use.
+
 # Architecture
 
-## Pipeline stages
+SignalCraft is architected as a deterministic career intelligence product, not a one-off scraping script. The system is designed so runs are reproducible, explainable, and operationally inspectable.
 
-Primary entrypoint: `scripts/run_daily.py`.
+Primary pipeline entrypoint: `scripts/run_daily.py`
 
-Stages (in order):
-- Scrape: `scripts/run_scrape.py` (snapshot or live).
-- Classify: `scripts/run_classify.py` (labels jobs).
-- Enrich: `scripts/enrich_jobs.py` (optional, controlled by `--no_enrich`).
-- AI augment: `scripts/run_ai_augment.py` (optional, controlled by `--ai` / `--ai_only`).
-- Score: `scripts/score_jobs.py` (produces ranked JSON/CSV/MD and families JSON).
-- Diff + archive: compares ranked outputs and writes history/run metadata.
+## Product-Grade Architecture Overview
 
-## Determinism rules
+### Layered system
 
-- Stable inputs yield stable outputs (no random run UUIDs in artifacts).
-- Scoring inputs are selected deterministically based on flags and file freshness.
-- Job identity uses a normalized URL or title/location fallback.
-- Content changes are tracked via `content_fingerprint` in ranked output.
-- Sorting uses score desc, then job identity as a stable tiebreaker.
-- Run reports are written to `state/runs/<run_id>.json` with stable ordering.
+1. Ingestion layer (config-driven providers)
+- Provider registry drives provider behavior and validation.
+- Snapshot and live modes are policy-aware and provenance-backed.
+- Provider contracts are enforced fail-closed.
 
-## Kubernetes CronJob deployment
+2. Deterministic normalization
+- Inputs are normalized into stable structures for downstream stages.
+- Semantic normalization (`semantic_norm_v1`) and other canonical transforms are versioned for replay safety.
+- Stable sorting and canonical field ordering are enforced where outputs are compared.
 
-- See `ops/k8s/` for a minimal CronJob + PVC setup.
-- Default command: `python scripts/run_daily.py --profiles cs --us_only --no_post --no_enrich`.
-- Mount `/app/data` and `/app/state` via PVCs for persistence.
-- Security defaults: non-root, read-only root filesystem, dropped capabilities, `RuntimeDefault` seccomp.
+3. Identity engine
+- Jobs receive stable identity signals to track continuity across runs.
+- Identity supports dedupe, run-over-run comparison, and deterministic tie-breaking.
 
-## Replay tooling
+4. Scoring engine
+- Base scoring is deterministic and explainable.
+- Semantic influence (when enabled) is bounded and policy-controlled.
+- Score outputs remain replayable from recorded artifacts.
 
-- Use `scripts/replay_run.py` with a run report to verify input/output hashes.
-- The run report documents selected inputs, outputs, and selection reasons.
-- For scoring-only replay, re-run `scripts/score_jobs.py` with the recorded `--in_path` and compare output hashes.
+5. History and diff engine
+- Per-run artifacts are written under `state/runs/<run_id>/`.
+- Diff logic captures new/changed/removed items using stable identity and fingerprints.
+- Run report + provenance provide post-run forensic detail.
 
-Determinism & Reproducibility Guarantees
+6. AI insights sidecar
+- AI reads deterministic artifacts; it is not a source-of-truth subsystem.
+- Inputs are structured and cache-keyed for reproducibility.
+- Fail-closed behavior preserves deterministic core outputs.
 
-All scrapes produce provenance metadata
+7. Delivery layer (API + object store)
+- Dashboard/API surfaces run artifacts for operational inspection.
+- Object-store publishing supports latest pointers and run-scoped retrieval.
+- Delivery does not replace source employer pages; it delivers intelligence and links.
 
-Snapshot-backed providers are deterministic by default
+### Runtime topology (ASCII)
 
-Job identity is stable across classify/enrich/score
+```text
+[Provider Registry + Policy]
+            |
+            v
+  [Ingestion: Snapshot/Live]
+            |
+            v
+ [Deterministic Normalization]
+            |
+            v
+      [Identity Engine]
+            |
+            v
+      [Scoring Engine] -----> [History + Diff Engine]
+            |                           |
+            |                           v
+            |                    [Run Artifacts]
+            |                           |
+            +-------------> [AI Insights Sidecar]
+                                        |
+                                        v
+                              [Delivery: API + Object Store]
+```
 
-CI enforces multi-provider golden outputs
+## AI Philosophy
+
+AI is a last-mile intelligence layer, never the source of truth.
+
+- Deterministic core first: ingestion, normalization, identity, scoring, and diffs are artifact-grounded.
+- Guardrailed execution: AI outputs are cache-backed, schema-validated, and fail-closed.
+- Reproducible settings: deterministic model/config controls (including deterministic temperature policy where configured).
+- Bounded influence: AI/semantic paths cannot unilaterally rewrite base ranking without explicit bounded controls.
+- Explainability preserved: score evidence and reasoning fields remain inspectable even when AI layers are enabled.
+
+## Multi-User Future Design
+
+SignalCraft currently prioritizes deterministic single-operator reliability, with multi-user architecture planned as additive isolation.
+
+### Candidate isolation model
+- Candidate identity becomes a first-class key (`candidate_id`) for run scoping and state separation.
+- User-level state overlays remain isolated per candidate/profile domain.
+
+### Profile ingestion
+- Candidate profiles become schema-versioned inputs with deterministic validation.
+- Profile changes are hash-tracked to support cache invalidation and reproducible re-runs.
+
+### Resume normalization pipeline
+- Resume/profile ingestion normalizes raw input into canonical structured fields.
+- Canonicalization is versioned so behavior changes are explicit and testable.
+
+### Per-user artifact partitioning
+- Artifacts partition by candidate/profile to prevent cross-user leakage.
+- UI-safe and replay-safe artifacts follow explicit contract boundaries.
+
+### S3 path isolation model
+- Object-store keys evolve toward namespaced paths, for example:
+  - `<prefix>/candidates/<candidate_id>/runs/<run_id>/...`
+- Compatibility layers can preserve existing single-user paths during migration.
+
+## Legal-Aware Design
+
+SignalCraft is designed as a discovery-and-alert net, not a replacement destination.
+
+- Original URLs preserved: canonical source links are retained in artifacts and outputs.
+- Attribution preserved: source/provider provenance is recorded alongside artifacts.
+- No content transformation beyond extraction: the system extracts structured intelligence signals; it does not position transformed content as the source-of-record.
+- Clear discovery-only intent: users are expected to verify details and apply on the original employer site.
+
+See `docs/LEGALITY_AND_ETHICS.md` for operational guardrails and policy posture.
+
+## Related Contracts
+
+- `docs/OPERATIONS.md`
+- `docs/RUN_REPORT.md`
+- `docs/CI_SMOKE_GATE.md`
+- `docs/ROADMAP.md`
