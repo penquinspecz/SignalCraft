@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -21,22 +22,57 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
-from ji_engine.config import RUN_METADATA_DIR, STATE_DIR
+from ji_engine.config import (
+    DEFAULT_CANDIDATE_ID,
+    RUN_METADATA_DIR,
+    STATE_DIR,
+    candidate_run_metadata_dir,
+    candidate_state_dir,
+    sanitize_candidate_id,
+)
 from jobintel import aws_runs
 
 app = FastAPI(title="SignalCraft Dashboard API")
 
 
+_RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.:+-]{1,128}$")
+
+
+def _sanitize_candidate_id(candidate_id: str) -> str:
+    try:
+        return sanitize_candidate_id(candidate_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid candidate_id") from exc
+
+
 def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
+    if not isinstance(run_id, str):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    raw = run_id.strip()
+    if not _RUN_ID_RE.fullmatch(raw):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    return raw.replace(":", "").replace("-", "").replace(".", "")
 
 
-def _run_dir(run_id: str) -> Path:
-    return RUN_METADATA_DIR / _sanitize_run_id(run_id)
+def _run_roots(candidate_id: str) -> List[Path]:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    roots = [candidate_run_metadata_dir(safe_candidate)]
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        roots.append(RUN_METADATA_DIR)
+    return roots
 
 
-def _load_index(run_id: str) -> Dict[str, Any]:
-    index_path = _run_dir(run_id) / "index.json"
+def _run_dir(run_id: str, candidate_id: str) -> Path:
+    safe_run_id = _sanitize_run_id(run_id)
+    for root in _run_roots(candidate_id):
+        path = root / safe_run_id
+        if path.exists():
+            return path
+    return _run_roots(candidate_id)[0] / safe_run_id
+
+
+def _load_index(run_id: str, candidate_id: str) -> Dict[str, Any]:
+    index_path = _run_dir(run_id, candidate_id) / "index.json"
     if not index_path.exists():
         raise HTTPException(status_code=404, detail="Run not found")
     try:
@@ -70,22 +106,28 @@ def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
     return None
 
 
-def _list_runs() -> List[Dict[str, Any]]:
-    if not RUN_METADATA_DIR.exists():
-        return []
+def _list_runs(candidate_id: str) -> List[Dict[str, Any]]:
     runs: List[Dict[str, Any]] = []
-    for path in RUN_METADATA_DIR.iterdir():
-        if not path.is_dir():
+    seen_paths: set[Path] = set()
+    for root in _run_roots(candidate_id):
+        if not root.exists():
             continue
-        index_path = path / "index.json"
-        if not index_path.exists():
-            continue
-        try:
-            data = json.loads(index_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            continue
-        if isinstance(data, dict):
-            runs.append(data)
+        for path in root.iterdir():
+            if not path.is_dir():
+                continue
+            resolved = path.resolve()
+            if resolved in seen_paths:
+                continue
+            seen_paths.add(resolved)
+            index_path = path / "index.json"
+            if not index_path.exists():
+                continue
+            try:
+                data = json.loads(index_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                continue
+            if isinstance(data, dict):
+                runs.append(data)
     runs.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
     return runs
 
@@ -130,8 +172,14 @@ def _s3_enabled() -> bool:
     return bool(_s3_bucket())
 
 
-def _state_last_success_path() -> Path:
-    return STATE_DIR / "last_success.json"
+def _state_last_success_path(candidate_id: str) -> Path:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    namespaced = candidate_state_dir(safe_candidate) / "last_success.json"
+    if namespaced.exists():
+        return namespaced
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return STATE_DIR / "last_success.json"
+    return namespaced
 
 
 def _read_local_json(path: Path) -> Dict[str, Any]:
@@ -169,15 +217,33 @@ def _read_s3_json(bucket: str, key: str) -> Tuple[Optional[Dict[str, Any]], str]
     return payload, "ok"
 
 
-def _local_proof_path(run_id: str) -> Path:
-    return STATE_DIR / "proofs" / f"{run_id}.json"
+def _local_proof_path(run_id: str, candidate_id: str) -> Path:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    namespaced = candidate_state_dir(safe_candidate) / "proofs" / f"{run_id}.json"
+    if namespaced.exists():
+        return namespaced
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return STATE_DIR / "proofs" / f"{run_id}.json"
+    return namespaced
 
 
-def _s3_proof_key(prefix: str, run_id: str) -> str:
+def _s3_proof_key(prefix: str, run_id: str, candidate_id: str) -> str:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    return f"{prefix}/state/candidates/{safe_candidate}/proofs/{run_id}.json".strip("/")
+
+
+def _s3_legacy_proof_key(prefix: str, run_id: str) -> str:
     return f"{prefix}/state/proofs/{run_id}.json".strip("/")
 
 
-def _s3_latest_prefix(prefix: str, provider: str, profile: str) -> str:
+def _s3_latest_prefix(prefix: str, provider: str, profile: str, candidate_id: str) -> str:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return f"{prefix}/latest/{provider}/{profile}/".strip("/")
+    return f"{prefix}/candidates/{safe_candidate}/latest/{provider}/{profile}/".strip("/")
+
+
+def _s3_legacy_latest_prefix(prefix: str, provider: str, profile: str) -> str:
     return f"{prefix}/latest/{provider}/{profile}/".strip("/")
 
 
@@ -206,14 +272,15 @@ def healthz() -> Dict[str, str]:
 
 
 @app.get("/runs")
-def runs() -> List[Dict[str, Any]]:
-    return _list_runs()
+def runs(candidate_id: str = DEFAULT_CANDIDATE_ID) -> List[Dict[str, Any]]:
+    return _list_runs(candidate_id)
 
 
 @app.get("/runs/{run_id}")
-def run_detail(run_id: str) -> Dict[str, Any]:
-    index = _load_index(run_id)
-    run_dir = _run_dir(run_id)
+def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    _sanitize_run_id(run_id)
+    index = _load_index(run_id, candidate_id)
+    run_dir = _run_dir(run_id, candidate_id)
     run_report = _load_json_object(run_dir / "run_report.json") or {}
     costs = _load_json_object(run_dir / "costs.json")
     prompt_version = _load_first_ai_prompt_version(run_dir)
@@ -226,16 +293,18 @@ def run_detail(run_id: str) -> Dict[str, Any]:
 
 
 @app.get("/runs/{run_id}/artifact/{name}")
-def run_artifact(run_id: str, name: str) -> Response:
-    index = _load_index(run_id)
-    run_dir = _run_dir(run_id)
+def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Response:
+    _sanitize_run_id(run_id)
+    index = _load_index(run_id, candidate_id)
+    run_dir = _run_dir(run_id, candidate_id)
     path = _resolve_artifact_path(run_dir, index, name)
     return Response(path.read_bytes(), media_type=_content_type(path))
 
 
 @app.get("/runs/{run_id}/semantic_summary/{profile}")
-def run_semantic_summary(run_id: str, profile: str) -> Dict[str, Any]:
-    run_dir = _run_dir(run_id)
+def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    _sanitize_run_id(run_id)
+    run_dir = _run_dir(run_id, candidate_id)
     semantic_dir = run_dir / "semantic"
     summary = _load_json_object(semantic_dir / "semantic_summary.json")
     if not summary:
@@ -258,11 +327,12 @@ def run_semantic_summary(run_id: str, profile: str) -> Dict[str, Any]:
 
 
 @app.get("/v1/latest")
-def latest() -> Dict[str, Any]:
+def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
     if _s3_enabled():
         bucket = _s3_bucket()
         prefix = _s3_prefix()
-        payload, status, key = aws_runs.read_last_success_state(bucket, prefix)
+        payload, status, key = aws_runs.read_last_success_state(bucket, prefix, candidate_id=safe_candidate)
         if status != "ok" or not payload:
             raise HTTPException(status_code=404, detail=f"s3 last_success not found ({status})")
         return {
@@ -272,17 +342,24 @@ def latest() -> Dict[str, Any]:
             "key": key,
             "payload": payload,
         }
-    payload = _read_local_json(_state_last_success_path())
-    return {"source": "local", "path": str(_state_last_success_path()), "payload": payload}
+    pointer_path = _state_last_success_path(safe_candidate)
+    payload = _read_local_json(pointer_path)
+    return {"source": "local", "path": str(pointer_path), "payload": payload}
 
 
 @app.get("/v1/runs/{run_id}")
-def run_receipt(run_id: str) -> Dict[str, Any]:
+def run_receipt(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    _sanitize_run_id(run_id)
+    safe_candidate = _sanitize_candidate_id(candidate_id)
     if _s3_enabled():
         bucket = _s3_bucket()
         prefix = _s3_prefix()
-        proof_key = _s3_proof_key(prefix, run_id)
+        proof_key = _s3_proof_key(prefix, run_id, safe_candidate)
         payload, status = _read_s3_json(bucket, proof_key)
+        if status != "ok" and safe_candidate == DEFAULT_CANDIDATE_ID:
+            legacy_key = _s3_legacy_proof_key(prefix, run_id)
+            payload, status = _read_s3_json(bucket, legacy_key)
+            proof_key = legacy_key
         if status == "ok" and payload:
             return {
                 "source": "s3",
@@ -291,25 +368,29 @@ def run_receipt(run_id: str) -> Dict[str, Any]:
                 "key": proof_key,
                 "payload": payload,
             }
-    local_path = _local_proof_path(run_id)
+    local_path = _local_proof_path(run_id, safe_candidate)
     payload = _read_local_json(local_path)
     return {"source": "local", "path": str(local_path), "payload": payload}
 
 
 @app.get("/v1/artifacts/latest/{provider}/{profile}")
-def latest_artifacts(provider: str, profile: str) -> Dict[str, Any]:
+def latest_artifacts(provider: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_candidate = _sanitize_candidate_id(candidate_id)
     if _s3_enabled():
         bucket = _s3_bucket()
         prefix = _s3_prefix()
-        latest_prefix = _s3_latest_prefix(prefix, provider, profile)
+        latest_prefix = _s3_latest_prefix(prefix, provider, profile, safe_candidate)
         keys = _s3_list_keys(bucket, latest_prefix)
+        if not keys and safe_candidate == DEFAULT_CANDIDATE_ID:
+            latest_prefix = _s3_legacy_latest_prefix(prefix, provider, profile)
+            keys = _s3_list_keys(bucket, latest_prefix)
         return {"source": "s3", "bucket": bucket, "prefix": latest_prefix, "keys": keys}
 
-    pointer = _read_local_json(_state_last_success_path())
+    pointer = _read_local_json(_state_last_success_path(safe_candidate))
     run_id = pointer.get("run_id")
     if not run_id:
         raise HTTPException(status_code=404, detail="Local last_success missing run_id")
-    run_dir = _run_dir(run_id)
+    run_dir = _run_dir(run_id, safe_candidate)
     report_path = run_dir / "run_report.json"
     if not report_path.exists():
         raise HTTPException(status_code=404, detail="Local run_report not found")
