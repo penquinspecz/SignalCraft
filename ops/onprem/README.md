@@ -29,6 +29,21 @@ This directory is the on-prem operations scaffold for SignalCraft primary runtim
 - Outbound internet allowed for job providers and object-store API.
 - Inbound app access over VPN only (Tailscale or WireGuard), no direct WAN exposure.
 
+## Friends Exposure (Recommended)
+
+For trusted friends traffic, preferred posture is:
+- Cloudflare Tunnel + Cloudflare Access as edge auth
+- Cluster service remains private (`ClusterIP`)
+- No direct WAN ingress/NAT to dashboard
+
+Operational guide:
+- `ops/onprem/RUNBOOK_DEPLOY.md` (section: Cloudflare Tunnel + Access)
+
+Security constraints to keep:
+- No in-app authentication is added in this phase; identity/auth is enforced at the edge.
+- No resume/LinkedIn URL ingestion path yet; this is intentionally deferred to avoid opening SSRF and uncontrolled egress vectors.
+- Scrape/fetch behavior remains provider-config driven, not user-URL driven.
+
 ## Storage choice
 
 - Default storage class: `local-path` (bundled with k3s).
@@ -48,6 +63,7 @@ This directory is the on-prem operations scaffold for SignalCraft primary runtim
 - `ops/onprem/RUNBOOK_BACKUPS.md`
 - `ops/onprem/RUNBOOK_BORING_72H_PROOF.md`
 - `ops/dr/RUNBOOK_DISASTER_RECOVERY.md`
+- `docs/proof/onprem-cloudflare-access-receipt-template.md`
 
 ## Milestone 4 prove-it bundle
 
