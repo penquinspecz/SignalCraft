@@ -1,5 +1,4 @@
 © 2026 Chris Menendez. Source Available — All Rights Reserved.  
-This repository is publicly viewable but not open source.  
 See LICENSE for permitted use.
 
 # SignalCraft Roadmap
@@ -12,6 +11,7 @@ We optimize for:
 3) Deployability  
 4) Incremental intelligence  
 5) Productization without chaos  
+6) Infrastructure portability  
 
 If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s churn.
 
@@ -19,15 +19,12 @@ If a change doesn’t advance a milestone’s Definition of Done (DoD), it’s c
 
 # Document Contract
 
-**This file is the plan. The repo is the truth.**
+This file is the plan. The repo is the truth.
 
 Every merged PR must:
 - Declare which milestone moved
 - Include evidence paths (tests, logs, proof bundles)
 - Keep “Current State” aligned with actual behavior
-
-Roadmap discipline lives in:
-`docs/CONTRIBUTING_ROADMAP_DISCIPLINE.md`
 
 ---
 
@@ -49,7 +46,7 @@ Roadmap discipline lives in:
 
 # Legal + Ethical Operation Contract
 
-SignalCraft is a **discovery and alerting net**, not a job board replacement.
+SignalCraft is a discovery and alerting net, not a job board replacement.
 
 Hard rules:
 
@@ -70,27 +67,21 @@ Evidence expectations:
 
 # Current State
 
-Last verified: **2026-02-13T01:00:59Z @ 555b095292109864c3016a52084e78e6616bd9d6**  
-Latest release: **v0.1.0**
+Last verified: 2026-02-13T01:00:59Z @ 555b095292109864c3016a52084e78e6616bd9d6  
+Latest release: v0.1.0
 
-Phase 1 foundation exists:
+Foundation exists:
 - Deterministic scoring
 - Replayability
 - Snapshot-backed providers
-- Discord alerts
-- Dashboard API (minimal)
 - AI weekly insights (guardrailed)
-- Semantic sidecar/boost modes
+- Per-job briefs
 - Cost guardrails
+- Discord alerts
+- Minimal dashboard API
 - CI smoke enforcement
 
 Phase 1 is real.
-
----
-
-# ARCHIVE — Milestones 1–9
-
-(unchanged logic; preserved as completed foundation)
 
 ---
 
@@ -100,223 +91,320 @@ Phase 1 is real.
 
 ## Milestone 10 — Provider Platform v1
 
-**Goal:** Provider expansion becomes boring.
+Goal: Provider expansion becomes boring.
 
-### Definition of Done
+Definition of Done
 
 - [ ] Versioned provider registry schema exists
-- [ ] Config validation tests enforce registry correctness
-- [ ] Provider addition requires no core refactor
-- [ ] Snapshot fixtures enforced for every enabled provider
+- [ ] Registry hash recorded in provenance
+- [ ] Provider config validated in CI
+- [ ] Snapshot fixtures enforced per provider
 - [ ] Provider tombstone supported
-- [ ] Provenance records registry hash/version
-- [ ] At least 3 additional providers added via registry
+- [ ] At least 3 new providers added via registry only
+- [ ] No core pipeline modification required to add provider
 
-### Receipts Required
+Receipts Required
 
-- Proof doc in `docs/proof/m10-provider-platform-v1-<date>.md`
 - Deterministic ordering tests
-- Snapshot completeness enforcement tests
+- Snapshot completeness enforcement
+- Proof doc in docs/proof/
 
 ---
 
-## Milestone 11 — Artifact Model v2 (UI-Safe vs Replay-Safe)
+## Milestone 11 — Artifact Model v2
 
-**Goal:** Legality and UX enforced by artifact shape.
+Goal: Legality + replayability enforced by shape.
 
-### Definition of Done
+Definition of Done
 
-- [ ] UI-safe artifact schema defined
-- [ ] Replay-safe artifact schema defined
-- [ ] Dashboard and alerts use UI-safe artifacts only
+- [ ] UI-safe artifact schema versioned
+- [ ] Replay-safe artifact schema versioned
 - [ ] UI-safe artifacts contain no raw JD text
+- [ ] Redaction boundaries enforced by tests
 - [ ] Retention policy documented
-- [ ] Tests enforce redaction boundaries
+- [ ] Artifact backward compatibility defined
 
-### Receipts Required
+Receipts Required
 
+- Schema validation suite
+- Artifact redaction tests
 - Proof doc
-- Schema validation tests
-- Privacy enforcement test suite
 
 ---
 
 ## Milestone 12 — Operations Hardening Pack
 
-**Goal:** Failure is explicit and inspectable.
+Goal: Failure is explicit and inspectable.
 
-### Definition of Done
+Definition of Done
 
-- [ ] Every run writes costs + provenance + report
-- [ ] failed_stage always populated on error
-- [ ] One-command run inspection tooling exists
-- [ ] Provider availability summary artifact generated
-- [ ] CI smoke aligned with real run shape
-- [ ] Failure playbook documented
+- [ ] failed_stage always populated
+- [ ] Cost telemetry always written
+- [ ] Provider availability artifact generated
+- [ ] One-command run inspection tooling
+- [ ] CI smoke matches real run structure
+- [ ] Failure playbook updated
 
-### Receipts Required
+Receipts Required
 
-- Forced provider failure proof
-- Artifact showing explicit failure stage
+- Forced failure proof run
+- Artifact inspection proof
 
 ---
 
-## Milestone 13 — AI Insights v1 (Useful Intelligence)
+## Milestone 13 — AI Insights v1 (Grounded Intelligence)
 
-**Goal:** Weekly insights are grounded and actionable.
+Goal: Weekly insights are useful and bounded.
 
-### Definition of Done
+Definition of Done
 
-- [ ] Structured deterministic input schema versioned
+- [ ] Deterministic input schema versioned
 - [ ] 7/14/30 day trend analysis
-- [ ] Top recurring skill tokens derived from structured fields
-- [ ] Output validated against strict schema
+- [ ] Skill token extraction from structured fields
+- [ ] Strict output schema enforcement
 - [ ] Cache keyed by input hash + prompt version
 - [ ] “Top 5 Actions” section included
 - [ ] No raw JD leakage
 
-### Receipts Required
+Receipts Required
 
-- Two-run deterministic diff proof
-- Schema validation test suite
+- Two-run determinism proof
+- Schema validation tests
 
 ---
 
 ## Milestone 14 — AI Per-Job Briefs v1
 
-**Goal:** Profile-aware coaching per job.
+Goal: Profile-aware coaching per job.
 
-### Definition of Done
+Definition of Done
 
 - [ ] Candidate profile hash contract defined
-- [ ] ai_job_brief.schema.json implemented
-- [ ] Brief generation bounded by cost guardrails
-- [ ] Caching keyed by job_id + job_hash + profile_hash
-- [ ] Output schema validated
+- [ ] ai_job_brief.schema.json enforced
+- [ ] Cache keyed by job_hash + profile_hash
+- [ ] Cost accounting integrated
 - [ ] Deterministic hash stability verified
+- [ ] Schema validation enforced in CI
 
-### Receipts Required
+Receipts Required
 
-- Deterministic output proof
-- Cost accounting artifact integration
+- Deterministic diff proof
+- Cost artifact proof
 
 ---
 
 ## Milestone 15 — Explainability v1
 
-**Goal:** Scores are interpretable.
+Goal: Scores are interpretable.
 
-### Definition of Done
+Definition of Done
 
-- [ ] explanation_v1 structure in UI-safe artifacts
+- [ ] explanation_v1 structure implemented
 - [ ] Top contributing signals surfaced
 - [ ] Penalties visible
-- [ ] Semantic contribution bounded + visible
-- [ ] Ordering deterministic
+- [ ] Semantic contribution bounded + surfaced
+- [ ] Deterministic ordering enforced
 
-### Receipts Required
+Receipts Required
 
 - Artifact snapshot proof
-- Ordering determinism tests
+- Ordering tests
 
 ---
 
 ## Milestone 16 — Dashboard Plumbing v2
 
-**Goal:** Backend-first UI readiness.
+Goal: Backend-first UI readiness.
 
-### Definition of Done
+Definition of Done
 
-- [ ] /version endpoint implemented
-- [ ] /runs/latest endpoint implemented
-- [ ] Artifact index endpoint implemented
-- [ ] API contract documented in docs/API.md
-- [ ] Optional dashboard deps isolated cleanly
+- [ ] /version endpoint
+- [ ] /runs/latest endpoint
+- [ ] Artifact index endpoint
+- [ ] API contract documented
+- [ ] Optional deps isolated cleanly
 
-### Receipts Required
+Receipts Required
 
 - API proof doc
-- Minimal UI simulation proof
+- Simulated UI proof
 
 ---
 
 ## Milestone 17 — Release Discipline v1
 
-**Goal:** Releases are reproducible proof events.
+Goal: Releases are proof events.
 
-### Definition of Done
+Definition of Done
 
-- [ ] Release checklist exists
+- [ ] Release checklist codified
 - [ ] Preflight validation script exists
-- [ ] Changelog discipline enforced
-- [ ] Each release has proof doc
+- [ ] Changelog enforcement policy
+- [ ] Every release includes proof bundle
+- [ ] Reproducible build instructions verified
 
 ---
 
-## Milestone 18 — On-Prem Execution Proof
-
-**Goal:** 72-hour stability receipt.
-
-### Definition of Done
-
-- [ ] 72-hour k3s stability logs captured
-- [ ] USB storage verified
-- [ ] Backup + restore rehearsal documented
-- [ ] CronJob receipts captured
+# INFRASTRUCTURE EVOLUTION
 
 ---
 
-## Milestone 19 — Compliance / Policy Pack
+## Milestone 18 — AWS DR & Failover Hardening
 
-**Goal:** Legality enforced by code + tests.
+Goal: Cloud execution survives failure.
 
-### Definition of Done
+Definition of Done
 
-- [ ] Policy docs align with implementation
-- [ ] Security review checklist exists
-- [ ] Redaction enforcement test suite exists
-- [ ] Provider allowlist enforcement tested
+- [ ] S3 versioning enabled
+- [ ] S3 lifecycle policy defined
+- [ ] Backup bucket replication strategy documented
+- [ ] Disaster recovery restore rehearsal executed
+- [ ] RTO + RPO explicitly defined
+- [ ] Infrastructure config versioned
+- [ ] Recovery playbook tested
+
+Receipts Required
+
+- Restore rehearsal proof
+- Recovery time measurement
+- Backup verification artifact
 
 ---
 
-## Milestone 20 — Phase 2 Launchpad (Multi-User Plumbing Only)
+## Milestone 19 — AWS → On-Prem Migration Contract
 
-**Goal:** Prepare without building UI.
+Goal: Migration is engineered, not improvised.
 
-### Definition of Done
+Definition of Done
+
+- [ ] Data migration plan documented
+- [ ] Artifact compatibility verified
+- [ ] Backwards compatibility test suite passes
+- [ ] Rollback plan documented
+- [ ] Dual-run validation (AWS vs on-prem output diff)
+- [ ] Zero artifact schema changes required
+- [ ] Migration dry run executed
+
+Receipts Required
+
+- Side-by-side artifact diff proof
+- Migration dry run log
+- Rollback rehearsal doc
+
+---
+
+## Milestone 20 — On-Prem Stability Proof (Post-Migration)
+
+Goal: On-prem becomes primary without chaos.
+
+Definition of Done
+
+- [ ] 72-hour continuous k3s run
+- [ ] CronJob stability verified
+- [ ] Storage durability verified
+- [ ] Backup + restore rehearsal on-prem
+- [ ] Resource utilization captured
+- [ ] Determinism validated against AWS baseline
+
+Receipts Required
+
+- Stability logs
+- Restore proof
+- Deterministic diff proof
+
+---
+
+# GOVERNANCE & HYGIENE
+
+---
+
+## Milestone 21 — Security Review Pack v1
+
+Goal: Security posture is audited, not assumed.
+
+Definition of Done
+
+- [ ] Threat model document created
+- [ ] Attack surface review performed
+- [ ] Secrets handling reviewed
+- [ ] Dependency audit completed
+- [ ] Least-privilege IAM documented
+- [ ] Static analysis tool integrated
+- [ ] Security.md aligned with reality
+
+Receipts Required
+
+- Threat model artifact
+- Dependency audit report
+- IAM review checklist
+
+---
+
+## Milestone 22 — Code Surface & Bloat Review
+
+Goal: Eliminate entropy.
+
+Definition of Done
+
+- [ ] Dead code removed
+- [ ] Unused deps removed
+- [ ] Duplicate logic consolidated
+- [ ] File structure rationalized
+- [ ] Public API boundaries clarified
+- [ ] Complexity hotspots documented
+- [ ] Size diff documented
+
+Receipts Required
+
+- Before/after LOC diff
+- Dependency tree comparison
+- Simplification proof doc
+
+---
+
+## Milestone 23 — Multi-User Plumbing (Foundation Only)
+
+Goal: Prepare for product without UI.
+
+Definition of Done
 
 - [ ] candidate_profile.schema.json defined
-- [ ] candidate_id integrated into run registry
-- [ ] Artifact path namespaced
-- [ ] Backwards compatibility maintained
-- [ ] No UI yet
+- [ ] candidate_id integrated in registry
+- [ ] Artifact path namespaced by candidate
+- [ ] Cross-user leakage tests implemented
+- [ ] Backward compatibility maintained
+- [ ] No UI implemented
+
+Receipts Required
+
+- Isolation test suite
+- Artifact namespace proof
 
 ---
 
-# Phase 3 Preview (21–30)
+# Phase 3 Preview (24–30)
 
-High-level product direction only.
-
-- Multi-user auth
+- Authentication + authz
 - Resume ingestion
-- Real UI
-- AI coaching
-- AI outreach
+- AI coaching expansion
+- AI outreach generation
 - Advanced analytics
-- Alert expansion
 - Provider scaling
 - Cost optimization
 - Architecture pruning
+- Partnership-ready ingestion
+- Production UI
 
 ---
 
 # Milestone Philosophy
 
-Fewer, thicker milestones > tiny checklists.
+Fewer, thicker milestones.
 
-Each milestone must:
+Every milestone must:
 - Produce artifacts
 - Produce tests
 - Produce receipts
 - Reduce chaos
 - Increase product clarity
+- Increase infrastructure resilience
