@@ -14,6 +14,8 @@ See [LICENSE](LICENSE) for permitted use.
 
 # SignalCraft
 
+[![ci](https://github.com/penquinspecz/SignalCraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/penquinspecz/SignalCraft/actions/workflows/ci.yml)
+
 **Deterministic Career Intelligence for Top Technology Companies**
 
 SignalCraft is a career intelligence engine that aggregates, normalizes, scores, and analyzes job postings directly from leading technology company career pages — with deterministic logic, reproducible outputs, and guardrailed AI augmentation.
