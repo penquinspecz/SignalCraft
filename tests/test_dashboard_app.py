@@ -97,6 +97,28 @@ def test_dashboard_runs_populated(tmp_path: Path, monkeypatch) -> None:
     assert artifact.headers["content-type"].startswith("application/json")
 
 
+def test_dashboard_runs_populated_namespaced_candidate(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.candidate_run_metadata_dir("alice") / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "index.json").write_text(json.dumps({"run_id": run_id, "timestamp": run_id}), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/runs", params={"candidate_id": "alice"})
+    assert resp.status_code == 200
+    assert resp.json() and resp.json()[0]["run_id"] == run_id
+
+
 def test_dashboard_semantic_summary_endpoint(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 
@@ -196,7 +218,11 @@ def test_dashboard_latest_s3(monkeypatch) -> None:
     monkeypatch.setattr(
         dashboard.aws_runs,
         "read_last_success_state",
-        lambda bucket, prefix: ({"run_id": "2026-01-01T00:00:00Z"}, "ok", "state/last_success.json"),
+        lambda bucket, prefix, candidate_id="local": (
+            {"run_id": "2026-01-01T00:00:00Z"},
+            "ok",
+            "state/last_success.json",
+        ),
     )
     monkeypatch.setattr(dashboard, "_s3_list_keys", lambda bucket, prefix: [f"{prefix}key.json"])
     monkeypatch.setattr(dashboard, "_read_s3_json", lambda bucket, key: ({"run_id": "2026-01-01T00:00:00Z"}, "ok"))
@@ -213,3 +239,19 @@ def test_dashboard_latest_s3(monkeypatch) -> None:
     run = client.get("/v1/runs/2026-01-01T00:00:00Z")
     assert run.status_code == 200
     assert run.json()["payload"]["run_id"] == "2026-01-01T00:00:00Z"
+
+
+def test_dashboard_rejects_invalid_candidate_id(monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", "/tmp/does-not-matter")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/runs", params={"candidate_id": "../escape"})
+    assert resp.status_code == 400
