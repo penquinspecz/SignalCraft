@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from ji_engine.config import DATA_DIR, RUN_METADATA_DIR
+from ji_engine.config import DATA_DIR, DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, sanitize_candidate_id
 from jobintel.ai_job_briefs import PROMPT_PATH, generate_job_briefs
 from jobintel.discord_notify import post_discord, resolve_webhook
 
@@ -21,15 +21,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _last_run_id() -> Optional[str]:
-    last_run = RUN_METADATA_DIR.parent / "last_run.json"
-    if not last_run.exists():
+def _read_last_run(path: Path) -> Optional[str]:
+    if not path.exists():
         return None
     try:
-        payload = json.loads(last_run.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
     return payload.get("run_id") if isinstance(payload, dict) else None
+
+
+def _last_run_id(candidate_id: str) -> Optional[str]:
+    namespaced = RUN_METADATA_DIR.parent / "candidates" / candidate_id / "last_run.json"
+    run_id = _read_last_run(namespaced)
+    if run_id:
+        return run_id
+    if candidate_id == DEFAULT_CANDIDATE_ID:
+        return _read_last_run(RUN_METADATA_DIR.parent / "last_run.json")
+    return None
 
 
 def _default_ranked_path(provider: str, profile: str) -> Path:
@@ -53,7 +62,11 @@ def _parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = _parse_args(argv)
-    run_id = args.run_id or _last_run_id()
+    try:
+        candidate_id = sanitize_candidate_id(os.environ.get("JOBINTEL_CANDIDATE_ID", DEFAULT_CANDIDATE_ID))
+    except ValueError as exc:
+        raise SystemExit(f"invalid JOBINTEL_CANDIDATE_ID: {exc}")
+    run_id = args.run_id or _last_run_id(candidate_id)
     if not run_id:
         raise SystemExit("run_id is required (no last_run.json found).")
 
@@ -83,6 +96,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         ai_reason=ai_reason,
         model_name=model_name,
         prompt_path=prompt_path,
+        candidate_id=candidate_id,
     )
 
     logger.info("AI job briefs written: %s", json_path)

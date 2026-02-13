@@ -13,7 +13,8 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ji_engine.config import RUN_METADATA_DIR
+from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR
+from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from ji_engine.utils.time import utc_now_z
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9+#.-]*")
@@ -47,10 +48,6 @@ _SKILL_KEYWORDS = {
 
 def _utcnow_iso() -> str:
     return utc_now_z(seconds_precision=True)
-
-
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -214,8 +211,21 @@ def _top_recurring_skill_tokens(jobs: List[Dict[str, Any]], limit: int = 3) -> L
     return _skill_keywords(jobs, limit=limit)
 
 
-def _rolling_diff_counts_7(provider: str, profile: str, *, run_limit: int = 7) -> Dict[str, Any]:
-    run_reports = sorted(RUN_METADATA_DIR.glob("*.json"), key=lambda p: p.name, reverse=True)
+def _repository_from_runs_dir(run_metadata_dir: Path) -> RunRepository:
+    return FileSystemRunRepository(run_metadata_dir)
+
+
+def _rolling_diff_counts_7(
+    provider: str,
+    profile: str,
+    *,
+    run_limit: int = 7,
+    run_repository: Optional[RunRepository] = None,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+    run_metadata_dir: Path = RUN_METADATA_DIR,
+) -> Dict[str, Any]:
+    repo = run_repository or _repository_from_runs_dir(run_metadata_dir)
+    run_reports = sorted(repo.list_run_metadata_paths(candidate_id=candidate_id), key=lambda p: p.name, reverse=True)
     series: List[Dict[str, Any]] = []
     totals = {"new": 0, "changed": 0, "removed": 0}
     for path in run_reports:
@@ -259,7 +269,10 @@ def build_weekly_insights_input(
     ranked_families_path: Optional[Path],
     run_id: str,
     run_metadata_dir: Path = RUN_METADATA_DIR,
+    run_repository: Optional[RunRepository] = None,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
 ) -> Tuple[Path, Dict[str, Any]]:
+    repo = run_repository or _repository_from_runs_dir(run_metadata_dir)
     curr_jobs = _load_jobs(ranked_path)
     prev_jobs = _load_jobs(prev_path)
     family_jobs = _load_jobs(ranked_families_path)
@@ -282,7 +295,14 @@ def build_weekly_insights_input(
         "top_families": _top_families(family_jobs if family_jobs else curr_jobs),
         "score_distribution": _score_distribution(curr_jobs),
         "skill_keywords": _skill_keywords(curr_jobs),
-        "rolling_diff_counts_7": _rolling_diff_counts_7(provider, profile, run_limit=7),
+        "rolling_diff_counts_7": _rolling_diff_counts_7(
+            provider,
+            profile,
+            run_limit=7,
+            run_repository=repo,
+            candidate_id=candidate_id,
+            run_metadata_dir=run_metadata_dir,
+        ),
         "top_recurring_skill_tokens": _top_recurring_skill_tokens(curr_jobs, limit=3),
         "median_score_trend_delta": {
             "current_median": current_median,
@@ -291,7 +311,7 @@ def build_weekly_insights_input(
         },
     }
 
-    run_dir = run_metadata_dir / _sanitize_run_id(run_id)
+    run_dir = repo.resolve_run_dir(run_id, candidate_id=candidate_id)
     out_path = run_dir / "ai" / f"insights_input.{profile}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")

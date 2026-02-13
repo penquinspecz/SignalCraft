@@ -6,6 +6,7 @@ from jobintel.aws_runs import (
     get_most_recent_successful_run_id_before,
     parse_run_id_from_key,
     read_last_success_state,
+    read_provider_last_success_state,
 )
 
 
@@ -78,4 +79,60 @@ def test_read_last_success_state_not_found():
     payload, status, key = read_last_success_state("bucket", "jobintel", client=MissingClient())
     assert payload is None
     assert status == "not_found"
+    assert key.endswith("state/candidates/local/last_success.json")
+
+
+def test_read_last_success_state_local_falls_back_to_legacy():
+    class FallbackClient:
+        def get_object(self, Bucket, Key):
+            if Key.endswith("state/candidates/local/last_success.json"):
+                from botocore.exceptions import ClientError
+
+                raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+
+            payload = json.dumps({"run_id": "2026-01-01T00:00:00Z"}).encode("utf-8")
+
+            class Body:
+                def __init__(self, data):
+                    self._data = data
+
+                def read(self):
+                    return self._data
+
+            return {"Body": Body(payload)}
+
+    payload, status, key = read_last_success_state("bucket", "jobintel", client=FallbackClient())
+    assert status == "ok"
+    assert payload == {"run_id": "2026-01-01T00:00:00Z"}
     assert key.endswith("state/last_success.json")
+
+
+def test_read_provider_last_success_state_local_falls_back_to_legacy():
+    class FallbackClient:
+        def get_object(self, Bucket, Key):
+            if Key.endswith("state/candidates/local/openai/cs/last_success.json"):
+                from botocore.exceptions import ClientError
+
+                raise ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+
+            payload = json.dumps({"run_id": "2026-01-01T00:00:00Z"}).encode("utf-8")
+
+            class Body:
+                def __init__(self, data):
+                    self._data = data
+
+                def read(self):
+                    return self._data
+
+            return {"Body": Body(payload)}
+
+    payload, status, key = read_provider_last_success_state(
+        "bucket",
+        "jobintel",
+        "openai",
+        "cs",
+        client=FallbackClient(),
+    )
+    assert status == "ok"
+    assert payload == {"run_id": "2026-01-01T00:00:00Z"}
+    assert key.endswith("state/openai/cs/last_success.json")

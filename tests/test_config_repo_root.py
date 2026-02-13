@@ -19,3 +19,18 @@ def test_repo_root_is_independent_of_cwd(tmp_path, monkeypatch):
     assert config.SNAPSHOT_DIR == repo_root / "data" / "openai_snapshots"
     assert config.HISTORY_DIR == repo_root / "state" / "history"
     assert config.RUN_METADATA_DIR == repo_root / "state" / "runs"
+    assert config.candidate_run_metadata_dir("local") == repo_root / "state" / "candidates" / "local" / "runs"
+
+
+def test_candidate_id_sanitizer():
+    config = importlib.reload(config_module)
+
+    assert config.sanitize_candidate_id("local") == "local"
+    assert config.sanitize_candidate_id("abc_123") == "abc_123"
+
+    for bad in ("", "UPPER", "a-b", "../x", "x/y", "a" * 65):
+        try:
+            config.sanitize_candidate_id(bad)
+            raise AssertionError(f"expected ValueError for {bad!r}")
+        except ValueError:
+            pass

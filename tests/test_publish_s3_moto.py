@@ -85,6 +85,7 @@ def test_publish_s3_filters_providers_profiles(tmp_path: Path, monkeypatch) -> N
             run_id=run_id,
             bucket=bucket,
             prefix=prefix,
+            candidate_id="local",
             run_dir=run_dir,
             dry_run=False,
             require_s3=True,
@@ -119,6 +120,7 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
             run_id=run_id,
             bucket=bucket,
             prefix=prefix,
+            candidate_id="local",
             run_dir=run_dir,
             dry_run=False,
             require_s3=True,
@@ -155,6 +157,8 @@ def test_publish_s3_uploads_expected_keys_and_content_types(tmp_path: Path, monk
             f"{prefix}/latest/openai/cs/openai_ranked_families.cs.json",
         ]
         pointer_keys = [
+            f"{prefix}/state/candidates/local/last_success.json",
+            f"{prefix}/state/candidates/local/openai/cs/last_success.json",
             f"{prefix}/state/last_success.json",
             f"{prefix}/state/openai/cs/last_success.json",
         ]
