@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
-from ji_engine.config import DATA_DIR, RUN_METADATA_DIR
+from ji_engine.config import DATA_DIR, DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, sanitize_candidate_id
 from jobintel.aws_runs import build_state_payload, write_last_success_state, write_provider_last_success_state
 
 try:
@@ -62,16 +62,35 @@ def _sanitize_run_id(run_id: str) -> str:
     return run_id.replace(":", "").replace("-", "").replace(".", "")
 
 
-def _run_dir(run_id: str) -> Path:
-    return RUN_METADATA_DIR / _sanitize_run_id(run_id)
+def _candidate_runs_dir(candidate_id: str) -> Path:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    return RUN_METADATA_DIR.parent / "candidates" / safe_candidate / "runs"
 
 
-def _last_run_id() -> Optional[str]:
-    last_run = RUN_METADATA_DIR.parent / "last_run.json"
-    if not last_run.exists():
+def _s3_candidate_prefix(prefix: str, candidate_id: str) -> str:
+    clean = prefix.strip("/")
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return clean
+    return f"{clean}/candidates/{safe_candidate}".strip("/")
+
+
+def _run_dir(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    safe_run_id = _sanitize_run_id(run_id)
+    namespaced = _candidate_runs_dir(safe_candidate) / safe_run_id
+    if namespaced.exists():
+        return namespaced
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return RUN_METADATA_DIR / safe_run_id
+    return namespaced
+
+
+def _read_last_run(path: Path) -> Optional[str]:
+    if not path.exists():
         return None
     try:
-        payload = json.loads(last_run.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return None
     if isinstance(payload, dict):
@@ -79,12 +98,23 @@ def _last_run_id() -> Optional[str]:
     return None
 
 
-def _select_run_id(run_id: Optional[str], latest: bool) -> str:
+def _last_run_id(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Optional[str]:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    namespaced = RUN_METADATA_DIR.parent / "candidates" / safe_candidate / "last_run.json"
+    run_id = _read_last_run(namespaced)
+    if run_id:
+        return run_id
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return _read_last_run(RUN_METADATA_DIR.parent / "last_run.json")
+    return None
+
+
+def _select_run_id(run_id: Optional[str], latest: bool, candidate_id: str = DEFAULT_CANDIDATE_ID) -> str:
     if latest and run_id:
         raise SystemExit("cannot specify --run_id and --latest together")
     if run_id:
         return run_id
-    last = _last_run_id()
+    last = _last_run_id(candidate_id)
     if last:
         return last
     raise SystemExit("no runs recorded yet")
@@ -156,6 +186,7 @@ def _build_upload_plan(
     run_id: str,
     run_dir: Path,
     prefix: str,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     verifiable: Dict[str, Dict[str, str]],
     providers: Iterable[str],
     profiles: Iterable[str],
@@ -164,6 +195,7 @@ def _build_upload_plan(
     runs_uploads: List[UploadItem] = []
     latest_uploads: List[UploadItem] = []
     latest_prefixes: Dict[str, Dict[str, str]] = {}
+    scoped_prefix = _s3_candidate_prefix(prefix, candidate_id)
     provider_filter = {p.strip() for p in providers if p.strip()}
     profile_filter = {p.strip() for p in profiles if p.strip()}
 
@@ -186,9 +218,9 @@ def _build_upload_plan(
         parsed = _parse_logical_key(logical_key)
         if parsed:
             provider, profile, _ = parsed
-            run_key = f"{prefix}/runs/{run_id}/{provider}/{profile}/{path.name}".strip("/")
+            run_key = f"{scoped_prefix}/runs/{run_id}/{provider}/{profile}/{path.name}".strip("/")
         else:
-            run_key = f"{prefix}/runs/{run_id}/{rel_path}".strip("/")
+            run_key = f"{scoped_prefix}/runs/{run_id}/{rel_path}".strip("/")
         runs_uploads.append(
             UploadItem(
                 source=path,
@@ -207,7 +239,7 @@ def _build_upload_plan(
             continue
         if output_key not in LATEST_OUTPUT_ALLOWLIST:
             continue
-        latest_key = f"{prefix}/latest/{provider}/{profile}/{path.name}".strip("/")
+        latest_key = f"{scoped_prefix}/latest/{provider}/{profile}/{path.name}".strip("/")
         latest_uploads.append(
             UploadItem(
                 source=path,
@@ -217,7 +249,7 @@ def _build_upload_plan(
                 scope="latest",
             )
         )
-        latest_prefixes.setdefault(provider, {})[profile] = f"{prefix}/latest/{provider}/{profile}".strip("/")
+        latest_prefixes.setdefault(provider, {})[profile] = f"{scoped_prefix}/latest/{provider}/{profile}".strip("/")
 
     runs_uploads.sort(key=lambda item: item.key)
     latest_uploads.sort(key=lambda item: item.key)
@@ -351,6 +383,7 @@ def publish_run(
     run_id: str,
     bucket: Optional[str],
     prefix: Optional[str],
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     run_dir: Optional[Path] = None,
     dry_run: bool,
     require_s3: bool,
@@ -358,6 +391,7 @@ def publish_run(
     profiles: Optional[List[str]] = None,
     write_last_success: bool = True,
 ) -> Dict[str, Any]:
+    safe_candidate_id = sanitize_candidate_id(candidate_id)
     resolved_bucket, resolved_prefix = _resolve_bucket_prefix(bucket, prefix)
     pointer_write: Dict[str, Any] = {"global": "skipped", "provider_profile": {}, "error": None}
     if not resolved_bucket and not dry_run:
@@ -371,7 +405,7 @@ def publish_run(
             "pointer_write": pointer_write,
         }
 
-    run_dir = run_dir or _run_dir(run_id)
+    run_dir = run_dir or _run_dir(run_id, safe_candidate_id)
     report = _load_run_report(run_dir)
     report_run_id = report.get("run_id")
     if report_run_id and report_run_id != run_id:
@@ -382,6 +416,7 @@ def publish_run(
         run_id=run_id,
         run_dir=run_dir,
         prefix=resolved_prefix,
+        candidate_id=safe_candidate_id,
         verifiable=verifiable,
         providers=providers or [],
         profiles=profiles or [],
@@ -410,7 +445,7 @@ def publish_run(
 
     dashboard_url = os.environ.get("JOBINTEL_DASHBOARD_URL", "").strip().rstrip("/")
     if dashboard_url:
-        dashboard_url = f"{dashboard_url}/runs/{run_id}"
+        dashboard_url = f"{dashboard_url}/runs/{run_id}?candidate_id={safe_candidate_id}"
 
     providers_list, profiles_list = _providers_profiles_from_report(report, verifiable)
     ended_at = None
@@ -419,7 +454,7 @@ def publish_run(
         ended_at = timestamps.get("ended_at")
     if not ended_at:
         ended_at = report.get("ended_at") or report.get("finished_at")
-    run_path = f"{resolved_prefix.strip('/')}/runs/{run_id}".strip("/")
+    run_path = f"{_s3_candidate_prefix(resolved_prefix, safe_candidate_id)}/runs/{run_id}".strip("/")
     state_payload = build_state_payload(
         run_id,
         run_path,
@@ -437,15 +472,23 @@ def publish_run(
     else:
         try:
             logger.info(
-                "writing baseline pointer: s3://%s/%s/state/last_success.json",
+                "writing baseline pointer: s3://%s/%s/state/candidates/%s/last_success.json",
                 resolved_bucket,
                 resolved_prefix,
+                safe_candidate_id,
             )
-            write_last_success_state(resolved_bucket, resolved_prefix, state_payload, client=client)
-            logger.info(
-                "baseline pointer write ok: s3://%s/%s/state/last_success.json",
+            write_last_success_state(
                 resolved_bucket,
                 resolved_prefix,
+                state_payload,
+                candidate_id=safe_candidate_id,
+                client=client,
+            )
+            logger.info(
+                "baseline pointer write ok: s3://%s/%s/state/candidates/%s/last_success.json",
+                resolved_bucket,
+                resolved_prefix,
+                safe_candidate_id,
             )
             pointer_write["global"] = "ok"
         except ClientError as exc:
@@ -458,9 +501,10 @@ def publish_run(
                     key = f"{provider}:{profile}"
                     try:
                         logger.info(
-                            "writing baseline pointer: s3://%s/%s/state/%s/%s/last_success.json",
+                            "writing baseline pointer: s3://%s/%s/state/%s/%s/%s/last_success.json",
                             resolved_bucket,
                             resolved_prefix,
+                            f"candidates/{safe_candidate_id}",
                             provider,
                             profile,
                         )
@@ -470,12 +514,14 @@ def publish_run(
                             provider,
                             profile,
                             state_payload,
+                            candidate_id=safe_candidate_id,
                             client=client,
                         )
                         logger.info(
-                            "baseline pointer write ok: s3://%s/%s/state/%s/%s/last_success.json",
+                            "baseline pointer write ok: s3://%s/%s/state/%s/%s/%s/last_success.json",
                             resolved_bucket,
                             resolved_prefix,
+                            f"candidates/{safe_candidate_id}",
                             provider,
                             profile,
                         )
@@ -497,16 +543,21 @@ def publish_run(
         "status": status,
         "reason": "pointer_write_failed" if status == "error" else None,
         "bucket": resolved_bucket,
-        "prefixes": build_s3_prefixes(resolved_prefix, run_id, latest_prefixes),
+        "prefixes": build_s3_prefixes(resolved_prefix, run_id, latest_prefixes, candidate_id=safe_candidate_id),
         "uploaded_files_count": uploaded,
         "dashboard_url": dashboard_url or None,
         "pointer_write": pointer_write,
     }
 
 
-def build_s3_prefixes(prefix: str, run_id: str, latest: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
-    clean_prefix = prefix.strip("/")
-    runs_prefix = f"{clean_prefix}/runs/{run_id}".strip("/")
+def build_s3_prefixes(
+    prefix: str,
+    run_id: str,
+    latest: Dict[str, Dict[str, str]],
+    *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+) -> Dict[str, Any]:
+    runs_prefix = f"{_s3_candidate_prefix(prefix, candidate_id)}/runs/{run_id}".strip("/")
     return {
         "runs": runs_prefix,
         "latest": latest,
@@ -519,6 +570,13 @@ def main() -> int:
     ap.add_argument("--prefix")
     ap.add_argument("--region")
     ap.add_argument("--run-id", "--run_id", dest="run_id")
+    ap.add_argument(
+        "--candidate-id",
+        "--candidate_id",
+        dest="candidate_id",
+        default=os.getenv("JOBINTEL_CANDIDATE_ID", DEFAULT_CANDIDATE_ID),
+        help="Candidate namespace id (default: local).",
+    )
     ap.add_argument("--run-dir", "--run_dir", dest="run_dir")
     ap.add_argument("--latest", action="store_true")
     ap.add_argument("--dry-run", "--dry_run", dest="dry_run", action="store_true")
@@ -536,6 +594,10 @@ def main() -> int:
         help="Comma-separated profiles to publish latest pointers for (default: all).",
     )
     args = ap.parse_args()
+    try:
+        candidate_id = sanitize_candidate_id(args.candidate_id)
+    except ValueError as exc:
+        _fail_validation(str(exc))
 
     preflight = _run_preflight(
         bucket=args.bucket,
@@ -566,7 +628,7 @@ def main() -> int:
     if args.latest and args.run_dir:
         raise SystemExit("cannot specify --latest and --run-dir together")
     if args.latest:
-        run_id = _select_run_id(None, True)
+        run_id = _select_run_id(None, True, candidate_id)
     elif args.run_id:
         run_id = args.run_id
     elif args.run_dir:
@@ -581,13 +643,14 @@ def main() -> int:
     profiles = [p.strip() for p in args.profiles.split(",") if p.strip()]
     run_dir = Path(args.run_dir) if args.run_dir else None
     if args.plan:
-        plan_run_dir = run_dir or _run_dir(run_id)
+        plan_run_dir = run_dir or _run_dir(run_id, candidate_id)
         report = _load_run_report(plan_run_dir)
         verifiable = _collect_verifiable(report)
         plan, _latest = _build_upload_plan(
             run_id=run_id,
             run_dir=plan_run_dir,
             prefix=_resolve_bucket_prefix(args.bucket, args.prefix)[1],
+            candidate_id=candidate_id,
             verifiable=verifiable,
             providers=providers,
             profiles=profiles,
@@ -616,6 +679,7 @@ def main() -> int:
         run_id=run_id,
         bucket=args.bucket,
         prefix=args.prefix,
+        candidate_id=candidate_id,
         run_dir=run_dir,
         dry_run=args.dry_run,
         require_s3=args.require_s3,

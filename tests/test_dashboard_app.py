@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -95,6 +96,28 @@ def test_dashboard_runs_populated(tmp_path: Path, monkeypatch) -> None:
     artifact = client.get(f"/runs/{run_id}/artifact/{artifact_path.name}")
     assert artifact.status_code == 200
     assert artifact.headers["content-type"].startswith("application/json")
+
+
+def test_dashboard_runs_populated_namespaced_candidate(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.candidate_run_metadata_dir("alice") / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "index.json").write_text(json.dumps({"run_id": run_id, "timestamp": run_id}), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/runs", params={"candidate_id": "alice"})
+    assert resp.status_code == 200
+    assert resp.json() and resp.json()[0]["run_id"] == run_id
 
 
 def test_dashboard_semantic_summary_endpoint(tmp_path: Path, monkeypatch) -> None:
@@ -196,7 +219,11 @@ def test_dashboard_latest_s3(monkeypatch) -> None:
     monkeypatch.setattr(
         dashboard.aws_runs,
         "read_last_success_state",
-        lambda bucket, prefix: ({"run_id": "2026-01-01T00:00:00Z"}, "ok", "state/last_success.json"),
+        lambda bucket, prefix, candidate_id="local": (
+            {"run_id": "2026-01-01T00:00:00Z"},
+            "ok",
+            "state/last_success.json",
+        ),
     )
     monkeypatch.setattr(dashboard, "_s3_list_keys", lambda bucket, prefix: [f"{prefix}key.json"])
     monkeypatch.setattr(dashboard, "_read_s3_json", lambda bucket, key: ({"run_id": "2026-01-01T00:00:00Z"}, "ok"))
@@ -213,3 +240,117 @@ def test_dashboard_latest_s3(monkeypatch) -> None:
     run = client.get("/v1/runs/2026-01-01T00:00:00Z")
     assert run.status_code == 200
     assert run.json()["payload"]["run_id"] == "2026-01-01T00:00:00Z"
+
+
+def test_dashboard_rejects_invalid_candidate_id(monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", "/tmp/does-not-matter")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/runs", params={"candidate_id": "../escape"})
+    assert resp.status_code == 400
+
+
+def test_dashboard_runs_logs_corrupt_index(tmp_path: Path, monkeypatch, caplog) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "index.json").write_text("{invalid", encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    with caplog.at_level(logging.WARNING):
+        resp = client.get("/runs")
+    assert resp.status_code == 200
+    assert resp.json() == []
+    assert "Skipping run index" in caplog.text
+
+
+def test_dashboard_run_detail_oversized_index_returns_413(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    huge_index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "artifacts": {"a.json": "x" * 512},
+    }
+    (run_dir / "index.json").write_text(json.dumps(huge_index), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}")
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "Run index payload too large"
+
+
+def test_dashboard_latest_local_oversized_pointer_returns_413(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    oversized = {"run_id": "x" * 256}
+    config.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    (config.STATE_DIR / "last_success.json").write_text(json.dumps(oversized), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/v1/latest")
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "Local state payload too large"
+
+
+def test_dashboard_semantic_summary_invalid_json_returns_500(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    semantic_dir = run_dir / "semantic"
+    semantic_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "index.json").write_text(json.dumps({"run_id": run_id, "timestamp": run_id}), encoding="utf-8")
+    (semantic_dir / "semantic_summary.json").write_text("{broken", encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/semantic_summary/cs")
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "Semantic summary invalid JSON"
