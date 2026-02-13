@@ -13,7 +13,8 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from ji_engine.config import REPO_ROOT, RUN_METADATA_DIR, STATE_DIR
+from ji_engine.config import DEFAULT_CANDIDATE_ID, REPO_ROOT, RUN_METADATA_DIR, STATE_DIR
+from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.time import utc_now_z
@@ -28,12 +29,12 @@ def _utcnow_iso() -> str:
     return utc_now_z(seconds_precision=True)
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
+def _run_dir(run_id: str, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
+    return _run_repository().resolve_run_dir(run_id, candidate_id=candidate_id)
 
 
-def _run_dir(run_id: str) -> Path:
-    return RUN_METADATA_DIR / _sanitize_run_id(run_id)
+def _run_repository() -> RunRepository:
+    return FileSystemRunRepository(RUN_METADATA_DIR)
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -180,6 +181,7 @@ def generate_job_briefs(
     model_name: str,
     prompt_path: Path = PROMPT_PATH,
     profile_path: Path = Path("data/candidate_profile.json"),
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
 ) -> Tuple[Path, Path, Dict[str, Any]]:
     prompt_text, prompt_sha = _load_prompt(prompt_path)
     prompt_text = prompt_text.strip()
@@ -201,7 +203,7 @@ def generate_job_briefs(
         "total_budget": total_budget,
     }
 
-    run_dir = _run_dir(run_id)
+    run_dir = _run_dir(run_id, candidate_id=candidate_id)
     run_dir.mkdir(parents=True, exist_ok=True)
     json_path = run_dir / f"ai_job_briefs.{profile}.json"
     md_path = run_dir / f"ai_job_briefs.{profile}.md"

@@ -92,6 +92,7 @@ def test_ops_golden_snapshot_contract(tmp_path, monkeypatch):
             run_id=run_id,
             bucket=bucket,
             prefix=prefix,
+            candidate_id="local",
             dry_run=False,
             require_s3=True,
             write_last_success=True,
