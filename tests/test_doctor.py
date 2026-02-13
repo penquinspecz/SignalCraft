@@ -38,6 +38,7 @@ branch refs/heads/main
 
 
 def test_check_worktrees_fails_when_current_detached(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     repo = tmp_path
     raw = f"""worktree {repo}
 HEAD deadbeef
