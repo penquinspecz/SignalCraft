@@ -8,6 +8,7 @@ See LICENSE for permitted use.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 # Base directories
@@ -21,6 +22,8 @@ SNAPSHOT_DIR = DATA_DIR / "openai_snapshots"
 HISTORY_DIR = STATE_DIR / "history"
 RUN_METADATA_DIR = STATE_DIR / "runs"
 USER_STATE_DIR = STATE_DIR / "user_state"
+DEFAULT_CANDIDATE_ID = "local"
+_CANDIDATE_ID_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 
 # Retention defaults (used by scripts/prune_state.py; can be overridden by env vars there).
 DEFAULT_KEEP_RUN_REPORTS = 60
@@ -59,6 +62,34 @@ def state_last_ranked(profile: str) -> Path:
 LOCK_PATH = STATE_DIR / "run_daily.lock"
 
 
+def sanitize_candidate_id(candidate_id: str) -> str:
+    value = (candidate_id or "").strip()
+    if not value:
+        raise ValueError("candidate_id must be non-empty")
+    if value != value.lower():
+        raise ValueError("candidate_id must be lowercase")
+    if not _CANDIDATE_ID_RE.fullmatch(value):
+        raise ValueError("candidate_id must match [a-z0-9_]{1,64}")
+    return value
+
+
+def candidate_state_dir(candidate_id: str) -> Path:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    return STATE_DIR / "candidates" / safe_candidate
+
+
+def candidate_run_metadata_dir(candidate_id: str) -> Path:
+    return candidate_state_dir(candidate_id) / "runs"
+
+
+def candidate_history_dir(candidate_id: str) -> Path:
+    return candidate_state_dir(candidate_id) / "history"
+
+
+def candidate_user_state_dir(candidate_id: str) -> Path:
+    return candidate_state_dir(candidate_id) / "user_state"
+
+
 def ensure_dirs() -> None:
     """
     Ensure key data directories exist. Safe to call repeatedly.
@@ -70,3 +101,7 @@ def ensure_dirs() -> None:
     EMBED_CACHE_JSON.parent.mkdir(parents=True, exist_ok=True)
     HISTORY_DIR.mkdir(parents=True, exist_ok=True)
     RUN_METADATA_DIR.mkdir(parents=True, exist_ok=True)
+    candidate_state_dir(DEFAULT_CANDIDATE_ID).mkdir(parents=True, exist_ok=True)
+    candidate_run_metadata_dir(DEFAULT_CANDIDATE_ID).mkdir(parents=True, exist_ok=True)
+    candidate_history_dir(DEFAULT_CANDIDATE_ID).mkdir(parents=True, exist_ok=True)
+    candidate_user_state_dir(DEFAULT_CANDIDATE_ID).mkdir(parents=True, exist_ok=True)
