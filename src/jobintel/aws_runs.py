@@ -17,6 +17,7 @@ from typing import Optional
 import boto3
 from botocore.exceptions import ClientError
 
+from ji_engine.config import DEFAULT_CANDIDATE_ID, sanitize_candidate_id
 from ji_engine.utils.time import utc_now_z
 
 
@@ -39,13 +40,16 @@ def _get_client(client=None):
     return client or boto3.client("s3")
 
 
-def _runs_prefix(prefix: str) -> str:
+def _runs_prefix(prefix: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> str:
     clean = prefix.strip("/")
-    return f"{clean}/runs/" if clean else "runs/"
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return f"{clean}/runs/" if clean else "runs/"
+    return f"{clean}/candidates/{safe_candidate}/runs/" if clean else f"candidates/{safe_candidate}/runs/"
 
 
-def parse_run_id_from_key(key: str, prefix: str) -> Optional[str]:
-    runs_prefix = _runs_prefix(prefix)
+def parse_run_id_from_key(key: str, prefix: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Optional[str]:
+    runs_prefix = _runs_prefix(prefix, candidate_id)
     if runs_prefix not in key:
         return None
     rest = key.split(runs_prefix, 1)[1]
@@ -58,10 +62,11 @@ def get_most_recent_run_id_before(
     prefix: str,
     current_run_id: str,
     *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     client=None,
 ) -> Optional[str]:
     s3 = _get_client(client)
-    runs_prefix = _runs_prefix(prefix)
+    runs_prefix = _runs_prefix(prefix, candidate_id)
     run_ids: set[str] = set()
     token = None
     while True:
@@ -71,7 +76,7 @@ def get_most_recent_run_id_before(
         resp = s3.list_objects_v2(**kwargs)
         for obj in resp.get("Contents") or []:
             key = obj.get("Key") or ""
-            run_id = parse_run_id_from_key(key, prefix)
+            run_id = parse_run_id_from_key(key, prefix, candidate_id)
             if run_id:
                 run_ids.add(run_id)
         if not resp.get("IsTruncated"):
@@ -94,9 +99,12 @@ def get_most_recent_run_id_before(
     return candidates[-1][1]
 
 
-def _run_report_key(prefix: str, run_id: str) -> str:
+def _run_report_key(prefix: str, run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> str:
     clean = prefix.strip("/")
-    return f"{clean}/runs/{run_id}/run_report.json".strip("/")
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        return f"{clean}/runs/{run_id}/run_report.json".strip("/")
+    return f"{clean}/candidates/{safe_candidate}/runs/{run_id}/run_report.json".strip("/")
 
 
 def _read_json_object(bucket: str, key: str, *, client=None) -> tuple[Optional[dict], str]:
@@ -129,10 +137,11 @@ def get_most_recent_successful_run_id_before(
     prefix: str,
     current_run_id: str,
     *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     client=None,
 ) -> Optional[str]:
     s3 = _get_client(client)
-    runs_prefix = _runs_prefix(prefix)
+    runs_prefix = _runs_prefix(prefix, candidate_id)
     run_ids: set[str] = set()
     token = None
     while True:
@@ -142,7 +151,7 @@ def get_most_recent_successful_run_id_before(
         resp = s3.list_objects_v2(**kwargs)
         for obj in resp.get("Contents") or []:
             key = obj.get("Key") or ""
-            run_id = parse_run_id_from_key(key, prefix)
+            run_id = parse_run_id_from_key(key, prefix, candidate_id)
             if run_id:
                 run_ids.add(run_id)
         if not resp.get("IsTruncated"):
@@ -163,7 +172,7 @@ def get_most_recent_successful_run_id_before(
         return None
     candidates.sort()
     for _, run_id in reversed(candidates):
-        report_key = _run_report_key(prefix, run_id)
+        report_key = _run_report_key(prefix, run_id, candidate_id)
         payload, status = _read_json_object(bucket, report_key, client=client)
         if status != "ok" or not payload:
             continue
@@ -172,17 +181,46 @@ def get_most_recent_successful_run_id_before(
     return None
 
 
-def _state_key(prefix: str) -> str:
+def _state_key(prefix: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> str:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    return f"{prefix.strip('/')}/state/candidates/{safe_candidate}/last_success.json".strip("/")
+
+
+def _legacy_state_key(prefix: str) -> str:
     return f"{prefix.strip('/')}/state/last_success.json".strip("/")
 
 
-def _provider_state_key(prefix: str, provider: str, profile: str) -> str:
+def _provider_state_key(
+    prefix: str,
+    provider: str,
+    profile: str,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+) -> str:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    return f"{prefix.strip('/')}/state/candidates/{safe_candidate}/{provider}/{profile}/last_success.json".strip("/")
+
+
+def _legacy_provider_state_key(prefix: str, provider: str, profile: str) -> str:
     return f"{prefix.strip('/')}/state/{provider}/{profile}/last_success.json".strip("/")
 
 
-def read_last_success_state(bucket: str, prefix: str, *, client=None) -> tuple[Optional[dict], str, str]:
-    key = _state_key(prefix)
+def read_last_success_state(
+    bucket: str,
+    prefix: str,
+    *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+    client=None,
+) -> tuple[Optional[dict], str, str]:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    key = _state_key(prefix, safe_candidate)
     payload, status = _read_json_object(bucket, key, client=client)
+    if status == "ok":
+        return payload, status, key
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        legacy_key = _legacy_state_key(prefix)
+        payload, legacy_status = _read_json_object(bucket, legacy_key, client=client)
+        if legacy_status == "ok":
+            return payload, legacy_status, legacy_key
     return payload, status, key
 
 
@@ -192,15 +230,30 @@ def read_provider_last_success_state(
     provider: str,
     profile: str,
     *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     client=None,
 ) -> tuple[Optional[dict], str, str]:
-    key = _provider_state_key(prefix, provider, profile)
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    key = _provider_state_key(prefix, provider, profile, safe_candidate)
     payload, status = _read_json_object(bucket, key, client=client)
+    if status == "ok":
+        return payload, status, key
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        legacy_key = _legacy_provider_state_key(prefix, provider, profile)
+        payload, legacy_status = _read_json_object(bucket, legacy_key, client=client)
+        if legacy_status == "ok":
+            return payload, legacy_status, legacy_key
     return payload, status, key
 
 
-def get_last_success_state(bucket: str, prefix: str, *, client=None) -> Optional[dict]:
-    payload, status, _ = read_last_success_state(bucket, prefix, client=client)
+def get_last_success_state(
+    bucket: str,
+    prefix: str,
+    *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+    client=None,
+) -> Optional[dict]:
+    payload, status, _ = read_last_success_state(bucket, prefix, candidate_id=candidate_id, client=client)
     if status != "ok":
         return None
     return payload
@@ -212,18 +265,39 @@ def get_provider_last_success_state(
     provider: str,
     profile: str,
     *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     client=None,
 ) -> Optional[dict]:
-    payload, status, _ = read_provider_last_success_state(bucket, prefix, provider, profile, client=client)
+    payload, status, _ = read_provider_last_success_state(
+        bucket,
+        prefix,
+        provider,
+        profile,
+        candidate_id=candidate_id,
+        client=client,
+    )
     if status != "ok":
         return None
     return payload
 
 
-def write_last_success_state(bucket: str, prefix: str, payload: dict, *, client=None) -> None:
+def write_last_success_state(
+    bucket: str,
+    prefix: str,
+    payload: dict,
+    *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+    write_legacy_for_local: bool = True,
+    client=None,
+) -> None:
     s3 = _get_client(client)
-    key = _state_key(prefix)
-    s3.put_object(Bucket=bucket, Key=key, Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    key = _state_key(prefix, safe_candidate)
+    encoded = json.dumps(payload, sort_keys=True).encode("utf-8")
+    s3.put_object(Bucket=bucket, Key=key, Body=encoded)
+    # Compatibility: local candidate keeps the legacy global pointer for existing consumers.
+    if safe_candidate == DEFAULT_CANDIDATE_ID and write_legacy_for_local:
+        s3.put_object(Bucket=bucket, Key=_legacy_state_key(prefix), Body=encoded)
 
 
 def write_provider_last_success_state(
@@ -233,11 +307,17 @@ def write_provider_last_success_state(
     profile: str,
     payload: dict,
     *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
+    write_legacy_for_local: bool = True,
     client=None,
 ) -> None:
     s3 = _get_client(client)
-    key = _provider_state_key(prefix, provider, profile)
-    s3.put_object(Bucket=bucket, Key=key, Body=json.dumps(payload, sort_keys=True).encode("utf-8"))
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    key = _provider_state_key(prefix, provider, profile, safe_candidate)
+    encoded = json.dumps(payload, sort_keys=True).encode("utf-8")
+    s3.put_object(Bucket=bucket, Key=key, Body=encoded)
+    if safe_candidate == DEFAULT_CANDIDATE_ID and write_legacy_for_local:
+        s3.put_object(Bucket=bucket, Key=_legacy_provider_state_key(prefix, provider, profile), Body=encoded)
 
 
 def build_state_payload(
@@ -274,10 +354,18 @@ def download_baseline_ranked(
     profile: str,
     dest_dir: Path,
     *,
+    candidate_id: str = DEFAULT_CANDIDATE_ID,
     client=None,
 ) -> Optional[Path]:
     s3 = _get_client(client)
-    key = f"{prefix.strip('/')}/runs/{run_id}/{provider}/{profile}/{provider}_ranked_jobs.{profile}.json".strip("/")
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    if safe_candidate == DEFAULT_CANDIDATE_ID:
+        key = f"{prefix.strip('/')}/runs/{run_id}/{provider}/{profile}/{provider}_ranked_jobs.{profile}.json".strip("/")
+    else:
+        key = (
+            f"{prefix.strip('/')}/candidates/{safe_candidate}/runs/{run_id}/{provider}/{profile}/"
+            f"{provider}_ranked_jobs.{profile}.json"
+        ).strip("/")
     try:
         resp = s3.get_object(Bucket=bucket, Key=key)
     except Exception:
