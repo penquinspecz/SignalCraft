@@ -48,6 +48,11 @@ def test_job_briefs_disabled_stub(tmp_path: Path, monkeypatch) -> None:
     assert json_path.exists()
     assert payload["status"] == "disabled"
     assert payload["reason"] == "ai_disabled"
+    accounting = (payload.get("metadata") or {}).get("ai_accounting") or {}
+    assert accounting["tokens_in"] == 0
+    assert accounting["tokens_out"] == 0
+    assert accounting["tokens_total"] == 0
+    assert accounting["estimated_cost_usd"] == "0.000000"
 
 
 def test_job_briefs_cache_hit(tmp_path: Path, monkeypatch) -> None:

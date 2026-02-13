@@ -52,6 +52,87 @@
       },
       "additionalProperties": true
     },
+    "ai_accounting": {
+      "type": "object",
+      "required": [
+        "model_usage",
+        "totals"
+      ],
+      "properties": {
+        "model_usage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "model",
+              "calls",
+              "tokens_in",
+              "tokens_out",
+              "tokens_total",
+              "estimated_cost_usd"
+            ],
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "calls": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tokens_in": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tokens_out": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "tokens_total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "estimated_cost_usd": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "totals": {
+          "type": "object",
+          "required": [
+            "calls",
+            "tokens_in",
+            "tokens_out",
+            "tokens_total",
+            "estimated_cost_usd"
+          ],
+          "properties": {
+            "calls": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_in": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_out": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "tokens_total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "estimated_cost_usd": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "scoring_input_selection_by_profile": {
       "type": "object",
       "additionalProperties": {
