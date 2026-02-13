@@ -150,6 +150,8 @@ def test_publish_s3_uploads_runs_and_latest(tmp_path, monkeypatch):
     assert any(ct == "application/json" for ct in content_types)
     assert any(ct == "text/markdown; charset=utf-8" for ct in content_types)
     put_keys = [call[1] for call in client.calls if call[0] == "put"]
+    assert "jobintel/state/candidates/local/last_success.json" in put_keys
+    assert "jobintel/state/candidates/local/openai/cs/last_success.json" in put_keys
     assert "jobintel/state/last_success.json" in put_keys
     assert "jobintel/state/openai/cs/last_success.json" in put_keys
     assert client.calls[-1][0] == "put"
