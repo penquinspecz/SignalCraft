@@ -13,7 +13,7 @@ import sys
 from typing import Any, Dict, List, Tuple
 
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, EndpointConnectionError, MissingDependencyException
 
 DEFAULT_PREFIX = "jobintel"
 
@@ -46,8 +46,12 @@ def _resolve_prefix(explicit: str | None) -> Tuple[str | None, List[str]]:
 def _resolve_credentials(region: str | None) -> Tuple[Dict[str, Any], List[str], List[str]]:
     warnings: List[str] = []
     errors: List[str] = []
-    session = boto3.session.Session()
-    creds = session.get_credentials()
+    try:
+        session = boto3.session.Session()
+        creds = session.get_credentials()
+    except MissingDependencyException as exc:
+        errors.append(f"credentials not detected (missing dependency): {exc}")
+        return {"present": False, "source": "none", "validated": False}, warnings, errors
     if creds is None:
         errors.append("credentials not detected (boto3 session)")
         return {"present": False, "source": "none", "validated": False}, warnings, errors
@@ -58,12 +62,15 @@ def _resolve_credentials(region: str | None) -> Tuple[Dict[str, Any], List[str],
             sts = session.client("sts", region_name=region)
             sts.get_caller_identity()
             validated = True
+        except MissingDependencyException as exc:
+            errors.append(f"credentials not detected (missing dependency): {exc}")
+            return {"present": False, "source": "none", "validated": False}, warnings, errors
+        except EndpointConnectionError as exc:
+            warnings.append(f"credentials present but validation skipped (endpoint unavailable): {exc}")
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "Unknown")
             msg = exc.response.get("Error", {}).get("Message", "Unknown")
             errors.append(f"credentials validation failed ({code}): {msg}")
-        except Exception as exc:  # pragma: no cover - defensive
-            errors.append(f"credentials validation failed: {exc.__class__.__name__}: {exc}")
     else:
         warnings.append("region not resolved; skipping sts.get_caller_identity")
     return {"present": True, "source": source, "validated": validated}, warnings, errors
