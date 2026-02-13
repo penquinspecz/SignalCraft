@@ -25,6 +25,19 @@ CI:
 make gate-ci
 ```
 
+Repo guardrail preflight (fast, local, no network):
+
+```bash
+make doctor
+```
+
+`make doctor` checks:
+- git status cleanliness (warns with remediation guidance if dirty)
+- unexpected additional worktrees holding `main`
+- `.venv` presence and expected Python major/minor
+- offline-safe AWS test defaults contract (`tests/conftest.py`)
+- required determinism contract docs (`docs/DETERMINISM_CONTRACT.md`, `docs/RUN_REPORT.md`)
+
 CI smoke gate contract and failure-mode diagnostics:
 - `docs/CI_SMOKE_GATE.md`
 
