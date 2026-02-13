@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from ji_engine.ai.accounting import estimate_cost_usd, estimate_tokens, resolve_model_rates
 from ji_engine.config import DEFAULT_CANDIDATE_ID, REPO_ROOT, RUN_METADATA_DIR, STATE_DIR
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from ji_engine.utils.content_fingerprint import content_fingerprint
@@ -82,7 +83,7 @@ def _jd_hash(job: Dict[str, Any]) -> str:
 
 
 def _token_estimate(text: str) -> int:
-    return max(1, len(text) // 4)
+    return estimate_tokens(text)
 
 
 def _brief_cache_dir(profile: str) -> Path:
@@ -202,6 +203,7 @@ def generate_job_briefs(
         "max_tokens_per_job": max_tokens_per_job,
         "total_budget": total_budget,
     }
+    rates = resolve_model_rates(model_name)
 
     run_dir = _run_dir(run_id, candidate_id=candidate_id)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -243,6 +245,23 @@ def generate_job_briefs(
         used_tokens += estimated_tokens
 
     status = "ok" if ai_enabled else "disabled"
+    tokens_in = used_tokens if ai_enabled else 0
+    rendered = json.dumps(briefs, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    tokens_out = estimate_tokens(rendered) if ai_enabled else 0
+    ai_accounting = {
+        "model": model_name,
+        "tokens_in": tokens_in,
+        "tokens_out": tokens_out,
+        "tokens_total": tokens_in + tokens_out,
+        "input_per_1k_usd": rates["input_per_1k"],
+        "output_per_1k_usd": rates["output_per_1k"],
+        "estimated_cost_usd": estimate_cost_usd(
+            tokens_in,
+            tokens_out,
+            input_per_1k=rates["input_per_1k"],
+            output_per_1k=rates["output_per_1k"],
+        ),
+    }
     payload = {
         "status": status,
         "reason": "" if ai_enabled else ai_reason,
@@ -254,6 +273,7 @@ def generate_job_briefs(
             "cache_hits": cache_hits,
             "estimated_tokens_used": used_tokens,
             "skipped_due_to_budget": skipped_budget,
+            "ai_accounting": ai_accounting,
         },
     }
 
