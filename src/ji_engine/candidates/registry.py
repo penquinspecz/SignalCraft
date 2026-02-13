@@ -11,8 +11,10 @@ from ji_engine.config import (
     DEFAULT_CANDIDATE_ID,
     STATE_DIR,
     candidate_history_dir,
+    candidate_profile_path,
     candidate_run_metadata_dir,
     candidate_state_dir,
+    candidate_state_paths,
     candidate_user_state_dir,
     sanitize_candidate_id,
 )
@@ -104,6 +106,10 @@ def _registry_path() -> Path:
 
 
 def _profile_path(candidate_id: str) -> Path:
+    return candidate_profile_path(candidate_id)
+
+
+def _legacy_profile_path(candidate_id: str) -> Path:
     return candidate_state_dir(candidate_id) / CANDIDATE_PROFILE_FILENAME
 
 
@@ -230,7 +236,11 @@ def load_candidate_profile(candidate_id: str) -> CandidateProfile:
     safe_id = sanitize_candidate_id(candidate_id)
     path = _profile_path(safe_id)
     if not path.exists():
-        raise CandidateValidationError(f"candidate profile missing: {path}")
+        legacy_path = _legacy_profile_path(safe_id)
+        if legacy_path.exists():
+            path = legacy_path
+        else:
+            raise CandidateValidationError(f"candidate profile missing: {path}")
     try:
         payload = _load_json(path)
         profile = CandidateProfile.model_validate(payload)
@@ -273,7 +283,9 @@ def add_candidate(candidate_id: str, display_name: str | None = None) -> Dict[st
     candidate_run_metadata_dir(safe_id).mkdir(parents=True, exist_ok=True)
     candidate_history_dir(safe_id).mkdir(parents=True, exist_ok=True)
     candidate_user_state_dir(safe_id).mkdir(parents=True, exist_ok=True)
-    _profile_inputs_dir(safe_id).mkdir(parents=True, exist_ok=True)
+    paths = candidate_state_paths(safe_id)
+    paths.user_inputs.mkdir(parents=True, exist_ok=True)
+    paths.system_state.mkdir(parents=True, exist_ok=True)
     _profile_artifacts_dir(safe_id).mkdir(parents=True, exist_ok=True)
 
     profile = _profile_skeleton(safe_id, display_name)
