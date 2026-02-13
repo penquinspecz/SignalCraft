@@ -1,5 +1,7 @@
 import json
 
+from botocore.exceptions import MissingDependencyException
+
 import scripts.aws_env_check as aws_env_check
 
 
@@ -118,3 +120,21 @@ def test_aws_env_check_prefix_empty_warn(monkeypatch, capsys):
     assert payload["ok"] is True
     assert payload["resolved"]["prefix"] is None
     assert any("prefix resolved to empty" in warning for warning in payload["warnings"])
+
+
+def test_aws_env_check_missing_crt_dependency_treated_as_no_creds(monkeypatch, capsys):
+    _clear_aws_env(monkeypatch)
+    monkeypatch.setenv("JOBINTEL_S3_BUCKET", "bucket")
+    monkeypatch.setenv("AWS_REGION", "us-west-1")
+
+    class _MissingCrtSession:
+        def get_credentials(self):
+            raise MissingDependencyException(msg="awscrt is required")
+
+    monkeypatch.setattr(aws_env_check.boto3.session, "Session", _MissingCrtSession)
+    code = aws_env_check.main(["--json"])
+    payload = _load_json_output(capsys)
+    assert code == 2
+    assert payload["ok"] is False
+    assert payload["resolved"]["credentials"]["present"] is False
+    assert any("credentials not detected (missing dependency)" in err for err in payload["errors"])
