@@ -171,8 +171,20 @@ def test_run_daily_writes_cost_artifact(tmp_path: Path, monkeypatch) -> None:
         "embeddings_count",
         "embeddings_estimated_tokens",
         "ai_calls",
+        "ai_tokens_in",
+        "ai_tokens_out",
         "ai_estimated_tokens",
+        "ai_estimated_cost_usd",
         "total_estimated_tokens",
+        "ai_accounting",
     }
     assert costs["ai_calls"] >= 1
     assert costs["total_estimated_tokens"] == costs["embeddings_estimated_tokens"] + costs["ai_estimated_tokens"]
+    totals = costs["ai_accounting"]["totals"]
+    assert totals["tokens_total"] == costs["ai_estimated_tokens"]
+    assert totals["tokens_in"] == costs["ai_tokens_in"]
+    assert totals["tokens_out"] == costs["ai_tokens_out"]
+    daily_rollup = state_dir / "candidates" / "local" / "ai_accounting_daily.json"
+    weekly_rollup = state_dir / "candidates" / "local" / "ai_accounting_weekly.json"
+    assert daily_rollup.exists()
+    assert weekly_rollup.exists()

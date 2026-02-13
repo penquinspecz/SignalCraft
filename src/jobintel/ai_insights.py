@@ -12,6 +12,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+from ji_engine.ai.accounting import estimate_cost_usd, estimate_tokens, resolve_model_rates
 from ji_engine.ai.insights_input import build_weekly_insights_input
 from ji_engine.config import DEFAULT_CANDIDATE_ID, REPO_ROOT, RUN_METADATA_DIR
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
@@ -231,6 +232,7 @@ def generate_insights(
         "structured_input_hash": structured_input_hash,
         "cache_key": cache_key,
     }
+    rates = resolve_model_rates(model_name)
 
     run_dir = _run_dir(run_id, candidate_id=candidate_id)
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -247,13 +249,22 @@ def generate_insights(
             return md_path, json_path, existing
 
     if not ai_enabled:
+        ai_accounting = {
+            "model": model_name,
+            "tokens_in": 0,
+            "tokens_out": 0,
+            "tokens_total": 0,
+            "input_per_1k_usd": rates["input_per_1k"],
+            "output_per_1k_usd": rates["output_per_1k"],
+            "estimated_cost_usd": "0.000000",
+        }
         payload = _build_insights_payload(
             insights_input_payload,
             provider=provider,
             profile=profile,
             status="disabled",
             reason=ai_reason,
-            metadata=metadata,
+            metadata={**metadata, "ai_accounting": ai_accounting},
         )
     else:
         payload = _build_insights_payload(
@@ -264,6 +275,37 @@ def generate_insights(
             reason="",
             metadata=metadata,
         )
+        tokens_in = estimate_tokens(
+            json.dumps(insights_input_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        )
+        tokens_out = estimate_tokens(
+            json.dumps(
+                {
+                    "themes": payload.get("themes") or [],
+                    "recommended_actions": payload.get("recommended_actions") or [],
+                    "top_roles": payload.get("top_roles") or [],
+                    "risks": payload.get("risks") or [],
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+        )
+        ai_accounting = {
+            "model": model_name,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "tokens_total": tokens_in + tokens_out,
+            "input_per_1k_usd": rates["input_per_1k"],
+            "output_per_1k_usd": rates["output_per_1k"],
+            "estimated_cost_usd": estimate_cost_usd(
+                tokens_in,
+                tokens_out,
+                input_per_1k=rates["input_per_1k"],
+                output_per_1k=rates["output_per_1k"],
+            ),
+        }
+        payload["metadata"] = {**metadata, "ai_accounting": ai_accounting}
 
     json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(_render_markdown(payload), encoding="utf-8")

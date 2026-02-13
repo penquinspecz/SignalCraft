@@ -50,6 +50,7 @@ from ji_engine.config import (
     SNAPSHOT_DIR,
     STATE_DIR,
     USER_STATE_DIR,
+    candidate_run_metadata_dir,
     ensure_dirs,
     ranked_families_json,
     ranked_jobs_csv,
@@ -1127,6 +1128,7 @@ def _persist_run_metadata(
     logs: Optional[Dict[str, Any]] = None,
     log_retention: Optional[Dict[str, Any]] = None,
     semantic_contract: Optional[Dict[str, Any]] = None,
+    ai_accounting: Optional[Dict[str, Any]] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -1210,6 +1212,17 @@ def _persist_run_metadata(
         "scoring_input_selection_by_provider": provider_scoring_selection,
         "outputs_by_provider": provider_outputs,
         "verifiable_artifacts": verifiable_artifacts,
+        "ai_accounting": ai_accounting
+        or {
+            "model_usage": [],
+            "totals": {
+                "calls": 0,
+                "tokens_in": 0,
+                "tokens_out": 0,
+                "tokens_total": 0,
+                "estimated_cost_usd": "0.000000",
+            },
+        },
         "config_fingerprint": config_fingerprint_value,
         "environment_fingerprint": environment_fingerprint_value,
         "git_sha": _best_effort_git_sha(),
@@ -2728,12 +2741,16 @@ def _collect_run_costs(
     profiles: List[str],
     semantic_summary: Dict[str, Any],
     embedding_token_estimate_per_item: int = 128,
-) -> Dict[str, int]:
+) -> Dict[str, Any]:
     run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
     embeddings_count = int((semantic_summary.get("embedded_job_count") or 0) or 0)
     embeddings_estimated_tokens = max(0, embeddings_count) * max(1, int(embedding_token_estimate_per_item))
     ai_calls = 0
     ai_estimated_tokens = 0
+    ai_tokens_in = 0
+    ai_tokens_out = 0
+    ai_estimated_cost_usd = 0.0
+    model_usage: Dict[str, Dict[str, Any]] = {}
 
     for profile in profiles:
         insights_path = run_dir / f"ai_insights.{profile}.json"
@@ -2744,10 +2761,39 @@ def _collect_run_costs(
                 insights_payload = None
             if isinstance(insights_payload, dict) and str(insights_payload.get("status") or "") == "ok":
                 ai_calls += 1
-                structured_input = insights_payload.get("structured_input") or {}
-                ai_estimated_tokens += _estimate_tokens_from_text(
-                    json.dumps(structured_input, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-                )
+                meta = insights_payload.get("metadata") if isinstance(insights_payload.get("metadata"), dict) else {}
+                accounting = meta.get("ai_accounting") if isinstance(meta, dict) else {}
+                if isinstance(accounting, dict):
+                    model = str(accounting.get("model") or "unknown")
+                    tokens_in = int(accounting.get("tokens_in", 0) or 0)
+                    tokens_out = int(accounting.get("tokens_out", 0) or 0)
+                    tokens_total = int(accounting.get("tokens_total", tokens_in + tokens_out) or 0)
+                    cost_usd = float(accounting.get("estimated_cost_usd", 0) or 0)
+                    ai_tokens_in += tokens_in
+                    ai_tokens_out += tokens_out
+                    ai_estimated_tokens += tokens_total
+                    ai_estimated_cost_usd += cost_usd
+                    entry = model_usage.setdefault(
+                        model,
+                        {
+                            "model": model,
+                            "calls": 0,
+                            "tokens_in": 0,
+                            "tokens_out": 0,
+                            "tokens_total": 0,
+                            "cost_usd": 0.0,
+                        },
+                    )
+                    entry["calls"] += 1
+                    entry["tokens_in"] += tokens_in
+                    entry["tokens_out"] += tokens_out
+                    entry["tokens_total"] += tokens_total
+                    entry["cost_usd"] += cost_usd
+                else:
+                    structured_input = insights_payload.get("structured_input") or {}
+                    ai_estimated_tokens += _estimate_tokens_from_text(
+                        json.dumps(structured_input, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+                    )
 
         briefs_path = run_dir / f"ai_job_briefs.{profile}.json"
         if briefs_path.exists():
@@ -2759,23 +2805,183 @@ def _collect_run_costs(
                 briefs = briefs_payload.get("briefs") or []
                 ai_calls += len(briefs) if isinstance(briefs, list) else 0
                 meta = briefs_payload.get("metadata") if isinstance(briefs_payload.get("metadata"), dict) else {}
-                ai_estimated_tokens += int((meta or {}).get("estimated_tokens_used", 0) or 0)
+                accounting = (meta or {}).get("ai_accounting") if isinstance(meta, dict) else {}
+                if isinstance(accounting, dict):
+                    model = str(accounting.get("model") or "unknown")
+                    tokens_in = int(accounting.get("tokens_in", 0) or 0)
+                    tokens_out = int(accounting.get("tokens_out", 0) or 0)
+                    tokens_total = int(accounting.get("tokens_total", tokens_in + tokens_out) or 0)
+                    cost_usd = float(accounting.get("estimated_cost_usd", 0) or 0)
+                    ai_tokens_in += tokens_in
+                    ai_tokens_out += tokens_out
+                    ai_estimated_tokens += tokens_total
+                    ai_estimated_cost_usd += cost_usd
+                    entry = model_usage.setdefault(
+                        model,
+                        {
+                            "model": model,
+                            "calls": 0,
+                            "tokens_in": 0,
+                            "tokens_out": 0,
+                            "tokens_total": 0,
+                            "cost_usd": 0.0,
+                        },
+                    )
+                    entry["calls"] += len(briefs) if isinstance(briefs, list) else 0
+                    entry["tokens_in"] += tokens_in
+                    entry["tokens_out"] += tokens_out
+                    entry["tokens_total"] += tokens_total
+                    entry["cost_usd"] += cost_usd
+                else:
+                    ai_estimated_tokens += int((meta or {}).get("estimated_tokens_used", 0) or 0)
+
+    model_usage_list: List[Dict[str, Any]] = []
+    for model in sorted(model_usage):
+        entry = model_usage[model]
+        model_usage_list.append(
+            {
+                "model": model,
+                "calls": int(entry["calls"]),
+                "tokens_in": int(entry["tokens_in"]),
+                "tokens_out": int(entry["tokens_out"]),
+                "tokens_total": int(entry["tokens_total"]),
+                "estimated_cost_usd": f"{float(entry['cost_usd']):.6f}",
+            }
+        )
 
     return {
         "embeddings_count": embeddings_count,
         "embeddings_estimated_tokens": embeddings_estimated_tokens,
         "ai_calls": ai_calls,
+        "ai_tokens_in": ai_tokens_in,
+        "ai_tokens_out": ai_tokens_out,
         "ai_estimated_tokens": ai_estimated_tokens,
+        "ai_estimated_cost_usd": f"{ai_estimated_cost_usd:.6f}",
         "total_estimated_tokens": embeddings_estimated_tokens + ai_estimated_tokens,
+        "ai_accounting": {
+            "model_usage": model_usage_list,
+            "totals": {
+                "calls": ai_calls,
+                "tokens_in": ai_tokens_in,
+                "tokens_out": ai_tokens_out,
+                "tokens_total": ai_estimated_tokens,
+                "estimated_cost_usd": f"{ai_estimated_cost_usd:.6f}",
+            },
+        },
     }
 
 
-def _write_costs_artifact(run_id: str, payload: Dict[str, int]) -> Path:
+def _write_costs_artifact(run_id: str, payload: Dict[str, Any]) -> Path:
     run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id)
     path = run_dir / "costs.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     _write_canonical_json(path, payload)
     return path
+
+
+def _rollup_periods_from_run_id(run_id: str) -> Tuple[Optional[str], Optional[str]]:
+    try:
+        dt = datetime.fromisoformat(run_id.replace("Z", "+00:00"))
+    except Exception:
+        return None, None
+    iso = dt.isocalendar()
+    return dt.date().isoformat(), f"{iso.year}-W{iso.week:02d}"
+
+
+def _write_ai_accounting_rollups(candidate_id: str) -> Dict[str, str]:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    run_root = (
+        RUN_METADATA_DIR if safe_candidate == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(safe_candidate)
+    )
+    daily: Dict[str, Dict[str, Any]] = {}
+    weekly: Dict[str, Dict[str, Any]] = {}
+    if run_root.exists():
+        for run_dir in sorted(path for path in run_root.iterdir() if path.is_dir()):
+            report_path = run_dir / "run_report.json"
+            costs_path = run_dir / "costs.json"
+            if not report_path.exists() or not costs_path.exists():
+                continue
+            try:
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                costs = json.loads(costs_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            run_id = report.get("run_id") if isinstance(report, dict) else None
+            if not isinstance(run_id, str) or not run_id:
+                continue
+            day_key, week_key = _rollup_periods_from_run_id(run_id)
+            if not day_key or not week_key:
+                continue
+            totals = (costs.get("ai_accounting") or {}).get("totals") if isinstance(costs, dict) else {}
+            if not isinstance(totals, dict):
+                continue
+            calls = int(totals.get("calls", 0) or 0)
+            tokens_in = int(totals.get("tokens_in", 0) or 0)
+            tokens_out = int(totals.get("tokens_out", 0) or 0)
+            tokens_total = int(totals.get("tokens_total", 0) or 0)
+            cost = float(totals.get("estimated_cost_usd", 0) or 0)
+
+            for bucket, key in ((daily, day_key), (weekly, week_key)):
+                entry = bucket.setdefault(
+                    key,
+                    {
+                        "period": key,
+                        "runs": 0,
+                        "calls": 0,
+                        "tokens_in": 0,
+                        "tokens_out": 0,
+                        "tokens_total": 0,
+                        "cost": 0.0,
+                    },
+                )
+                entry["runs"] += 1
+                entry["calls"] += calls
+                entry["tokens_in"] += tokens_in
+                entry["tokens_out"] += tokens_out
+                entry["tokens_total"] += tokens_total
+                entry["cost"] += cost
+
+    candidate_root = STATE_DIR / "candidates" / safe_candidate
+    candidate_root.mkdir(parents=True, exist_ok=True)
+    daily_path = candidate_root / "ai_accounting_daily.json"
+    weekly_path = candidate_root / "ai_accounting_weekly.json"
+    daily_payload = {
+        "schema_version": 1,
+        "candidate_id": safe_candidate,
+        "period": "daily",
+        "entries": [
+            {
+                "period": key,
+                "runs": value["runs"],
+                "ai_calls": value["calls"],
+                "tokens_in": value["tokens_in"],
+                "tokens_out": value["tokens_out"],
+                "tokens_total": value["tokens_total"],
+                "estimated_cost_usd": f"{float(value['cost']):.6f}",
+            }
+            for key, value in sorted(daily.items())
+        ],
+    }
+    weekly_payload = {
+        "schema_version": 1,
+        "candidate_id": safe_candidate,
+        "period": "weekly",
+        "entries": [
+            {
+                "period": key,
+                "runs": value["runs"],
+                "ai_calls": value["calls"],
+                "tokens_in": value["tokens_in"],
+                "tokens_out": value["tokens_out"],
+                "tokens_total": value["tokens_total"],
+                "estimated_cost_usd": f"{float(value['cost']):.6f}",
+            }
+            for key, value in sorted(weekly.items())
+        ],
+    }
+    _write_canonical_json(daily_path, daily_payload)
+    _write_canonical_json(weekly_path, weekly_payload)
+    return {"daily_path": str(daily_path), "weekly_path": str(weekly_path)}
 
 
 def _all_providers_unavailable(provenance_by_provider: Dict[str, Dict[str, Any]], providers: List[str]) -> bool:
@@ -3180,9 +3386,11 @@ def main() -> int:
             semantic_summary=semantic_summary,
         )
         costs_path = _write_costs_artifact(run_id, costs_payload)
+        ai_rollups = _write_ai_accounting_rollups(CANDIDATE_ID)
         telemetry["costs"] = {
             **costs_payload,
             "path": str(costs_path),
+            "rollups": ai_rollups,
         }
 
         max_ai_tokens_per_run = _safe_int_env("MAX_AI_TOKENS_PER_RUN", 0)
@@ -3238,6 +3446,7 @@ def main() -> int:
                 "semantic_max_boost": float(semantic_settings["max_boost"]),
                 "embedding_backend_version": EMBEDDING_BACKEND_VERSION,
             },
+            ai_accounting=costs_payload.get("ai_accounting"),
         )
         if telemetry.get("success", False):
             try:
