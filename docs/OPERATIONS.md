@@ -59,6 +59,22 @@ make dashboard
 
 If `fastapi`/`uvicorn` are missing, dashboard startup fails closed with a clear install command.
 
+Candidate setup and registry (Milestone 24 scaffold):
+- See `docs/CANDIDATES.md` for storage layout and safety constraints.
+- CLI commands:
+
+```bash
+python scripts/candidates.py list --json
+python scripts/candidates.py add alice --display-name "Alice Example" --json
+python scripts/candidates.py validate --json
+```
+
+State root override for candidate operations:
+
+```bash
+python scripts/candidates.py --state-dir /path/to/state add alice --json
+```
+
 Provider registry (Milestone 5 foundation):
 
 - Canonical file: `config/providers.json` (schema: `schemas/providers.schema.v1.json`)
