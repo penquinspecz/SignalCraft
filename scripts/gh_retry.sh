@@ -28,17 +28,18 @@ attempt=1
 while [[ "$attempt" -le "$max_attempts" ]]; do
   tmp_out="$(mktemp)"
   tmp_err="$(mktemp)"
-  if gh "$@" >"$tmp_out" 2>"$tmp_err"; then
-    cat "$tmp_out"
-    cat "$tmp_err" >&2
-    rm -f "$tmp_out" "$tmp_err"
-    exit 0
-  fi
+  set +e
+  gh "$@" >"$tmp_out" 2>"$tmp_err"
   exit_code=$?
+  set -e
   cat "$tmp_out"
   cat "$tmp_err" >&2
   err_text="$(cat "$tmp_err" || true)"
   rm -f "$tmp_out" "$tmp_err"
+
+  if [[ "$exit_code" -eq 0 ]]; then
+    exit 0
+  fi
 
   if [[ "$attempt" -ge "$max_attempts" ]]; then
     echo "gh_retry: giving up after ${attempt}/${max_attempts} attempts (exit=${exit_code})" >&2
