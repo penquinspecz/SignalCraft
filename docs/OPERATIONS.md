@@ -119,6 +119,29 @@ Corrupt index behavior:
 - Runtime read path attempts rebuild first.
 - If rebuild/read still fails, repository falls back to deterministic filesystem scan and logs warning.
 
+AI accounting (deterministic per run + candidate rollups):
+- Per-run artifact: `state/runs/<run_id>/costs.json`
+- Run report field: `ai_accounting`
+- Candidate rollups:
+  - `state/candidates/<candidate_id>/ai_accounting_daily.json`
+  - `state/candidates/<candidate_id>/ai_accounting_weekly.json`
+
+Per-run accounting fields include:
+- `ai_tokens_in`
+- `ai_tokens_out`
+- `ai_estimated_tokens`
+- `ai_estimated_cost_usd`
+- `ai_accounting.model_usage[]` with model-specific totals
+
+Pricing configuration (USD per 1K tokens):
+- Global defaults:
+  - `AI_COST_INPUT_PER_1K`
+  - `AI_COST_OUTPUT_PER_1K`
+- Optional model-specific overrides:
+  - `AI_COST_INPUT_PER_1K_<MODEL_KEY>`
+  - `AI_COST_OUTPUT_PER_1K_<MODEL_KEY>`
+  where `<MODEL_KEY>` is uppercase model name with non-alphanumeric chars replaced by `_`.
+
 Provider registry (Milestone 5 foundation):
 
 - Canonical file: `config/providers.json` (schema: `schemas/providers.schema.v1.json`)

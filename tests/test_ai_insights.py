@@ -29,6 +29,11 @@ def test_ai_insights_stub_when_disabled(tmp_path: Path, monkeypatch) -> None:
     assert md_path.exists()
     assert payload["status"] == "disabled"
     assert payload["reason"] == "ai_disabled"
+    accounting = (payload.get("metadata") or {}).get("ai_accounting") or {}
+    assert accounting["tokens_in"] == 0
+    assert accounting["tokens_out"] == 0
+    assert accounting["tokens_total"] == 0
+    assert accounting["estimated_cost_usd"] == "0.000000"
 
 
 def test_ai_insights_metadata_hashes(tmp_path: Path, monkeypatch) -> None:
