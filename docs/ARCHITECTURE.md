@@ -202,6 +202,7 @@ These guarantees are non-negotiable.
 ---
 
 # Runtime Topology (Simplified)
+```
 [Provider Registry + Policy]
         |
         v
@@ -212,7 +213,7 @@ These guarantees are non-negotiable.
                                    +--> [AI Insights Sidecar]
                                    |
                                    +--> [Delivery: API + Object Store]
-
+```
 ---
 
 # Multi-User Evolution Path
