@@ -5,7 +5,7 @@ from pathlib import Path
 
 import boto3
 import pytest
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, MissingDependencyException
 
 import scripts.publish_s3 as publish_s3
 
@@ -273,6 +273,32 @@ def test_publish_s3_missing_creds_fails_without_dry_run(monkeypatch, tmp_path, c
         publish_s3.main()
     assert exc.value.code == 2
     assert "credentials not detected" in caplog.text
+
+
+def test_publish_s3_preflight_missing_crt_dependency_fail_open_for_dry_run(monkeypatch) -> None:
+    class _MissingCrtSession:
+        def get_credentials(self):
+            raise MissingDependencyException(msg="awscrt is required")
+
+    monkeypatch.setattr(publish_s3.aws_env_check.boto3.session, "Session", _MissingCrtSession)
+    report_dry = publish_s3._run_preflight(
+        bucket="bucket",
+        region="us-east-1",
+        prefix="jobintel",
+        dry_run=True,
+    )
+    assert report_dry["ok"] is True
+    assert report_dry["errors"] == []
+    assert any("credentials not detected (missing dependency)" in item for item in report_dry["warnings"])
+
+    report_strict = publish_s3._run_preflight(
+        bucket="bucket",
+        region="us-east-1",
+        prefix="jobintel",
+        dry_run=False,
+    )
+    assert report_strict["ok"] is False
+    assert any("credentials not detected (missing dependency)" in item for item in report_strict["errors"])
 
 
 def test_resolve_bucket_prefix_prefers_jobintel(monkeypatch) -> None:
