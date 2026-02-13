@@ -83,3 +83,17 @@ We welcome good-faith security research intended to improve SignalCraft security
 - On-prem hardened overlays should include ingress rate limiting, secure headers, and a baseline `NetworkPolicy`.
 - Dashboard artifact serving must remain constrained to indexed run artifacts (no arbitrary filesystem reads).
 - Keep ops/manifests hardening and dashboard application hardening independently testable and receipted.
+
+## Edge Auth Posture (Cloudflare Access)
+
+SignalCraft currently does not add application-layer auth for dashboard endpoints.
+For friends/on-prem exposure, authentication and policy enforcement are expected at the edge:
+
+- Cloudflare Access is the preferred human-auth control plane.
+- Access policies should be explicit-allow only (identity/group allowlist), MFA-on, and short-session.
+- Keep dashboard/API origin private behind Cloudflare Tunnel; avoid direct public ingress.
+
+Boundary reminders:
+- Edge auth is not a substitute for outbound safety controls.
+- SSRF/egress risk is minimized by avoiding user-supplied URL ingestion paths for now (for example resume/LinkedIn URLs).
+- Provider fetches remain policy-bound and configuration-driven rather than arbitrary user-provided URLs.
