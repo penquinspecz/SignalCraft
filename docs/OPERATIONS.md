@@ -197,6 +197,7 @@ Pricing configuration (USD per 1K tokens):
 Provider registry (Milestone 5 foundation):
 
 - Canonical file: `config/providers.json` (schema: `schemas/providers.schema.v1.json`)
+- Authoring workflow: `docs/PROVIDERS.md`
 - Registry loader: `src/ji_engine/providers/registry.py`
 - Schema validation is enforced at load time (unknown keys fail closed).
 - Provider selection resolver used by both:
@@ -228,6 +229,9 @@ How to add a provider (deterministic path):
      - `llm_fallback.temperature=0` (enforced)
 2. Add/update snapshot fixture under `data/<provider_id>_snapshots/`.
    - CI enforces snapshot fixture existence for enabled snapshot providers.
+   - If snapshot bytes changed intentionally, run:
+     `make provider-manifest-update provider=<provider_id>`
+   - PR body must state: `snapshot manifest update required: yes|no` when `config/providers.json` changes.
    - To retire a provider without deleting history, set `enabled=false` and populate
      `tombstone` metadata (`tombstone.reason` required; `ticket`, `replaced_by`,
      `removed_at` optional).
