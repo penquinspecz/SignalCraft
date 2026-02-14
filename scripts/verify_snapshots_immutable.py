@@ -69,6 +69,12 @@ def main() -> int:
     if mismatches:
         print("\nPinned snapshot bytes changed.")
         print("Restore snapshots to HEAD or re-run the snapshot refresh workflow intentionally.")
+        print(
+            "For an intentional single-provider baseline update, run:\n"
+            "  PYTHONPATH=src .venv/bin/python scripts/provider_authoring.py "
+            "update-snapshot-manifest --provider <provider_id>"
+        )
+        print("If config/providers.json changed, include `snapshot manifest update required: yes|no` in PR body.")
         print("\n" + "\n\n".join(mismatches))
         return 2
 
