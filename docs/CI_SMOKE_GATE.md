@@ -8,7 +8,8 @@ It describes exactly what CI runs, what each step proves, and how to debug failu
 1. `actions/checkout@v4`
 2. `actions/setup-python@v5` (`python-version: 3.14.3`, pip cache keyed by `requirements.txt`, `requirements-dev.txt`, `pyproject.toml`)
 3. **Restore `.venv` cache**
-   - key: `venv-${runner.os}-py3.14.3-${hashFiles(requirements.txt,requirements-dev.txt,pyproject.toml)}`
+   - gate key: `venv-v2-gate-${runner.os}-py3.14.3-${hashFiles(requirements.txt,requirements-dev.txt,pyproject.toml)}`
+   - lint key: `venv-v2-lint-${runner.os}-py3.14.3-${hashFiles(requirements.txt,requirements-dev.txt,pyproject.toml)}`
 4. **Install deps (cache miss only)**
    - `python -m venv .venv`
    - `.venv/bin/python -m pip install --upgrade pip==25.0.1 setuptools wheel pip-tools==7.4.1`
@@ -39,6 +40,7 @@ Sources:
   - CI rebuilds `.venv` from pinned lockfiles and then runs the full gate.
 - Cache invalidation:
   - any change to `requirements.txt`, `requirements-dev.txt`, or `pyproject.toml` rotates the cache key.
+  - key prefix bumps (for example `v2`) intentionally force a clean rebuild after cache-shape changes.
 
 ## Gate Contracts
 

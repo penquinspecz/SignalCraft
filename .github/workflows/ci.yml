@@ -49,7 +49,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-${{ runner.os }}-py3.14.3-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'pyproject.toml') }}
+          key: venv-v2-gate-${{ runner.os }}-py3.14.3-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'pyproject.toml') }}
       - name: Python/platform fingerprint
         run: |
           python --version
