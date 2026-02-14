@@ -1,0 +1,307 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "run_summary schema v1",
+  "type": "object",
+  "required": [
+    "run_summary_schema_version",
+    "run_id",
+    "candidate_id",
+    "status",
+    "git_sha",
+    "created_at_utc",
+    "run_health",
+    "run_report",
+    "ranked_outputs",
+    "costs",
+    "scoring_config",
+    "snapshot_manifest",
+    "quicklinks"
+  ],
+  "properties": {
+    "run_summary_schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "git_sha": {
+      "type": "string"
+    },
+    "created_at_utc": {
+      "type": "string"
+    },
+    "run_health": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256",
+        "status"
+      ],
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "run_report": {
+      "$ref": "#/$defs/file_pointer"
+    },
+    "ranked_outputs": {
+      "type": "object",
+      "required": [
+        "ranked_json",
+        "ranked_csv",
+        "ranked_families_json",
+        "shortlist_md"
+      ],
+      "properties": {
+        "ranked_json": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ranked_pointer"
+          }
+        },
+        "ranked_csv": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ranked_pointer"
+          }
+        },
+        "ranked_families_json": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ranked_pointer"
+          }
+        },
+        "shortlist_md": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ranked_pointer"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "costs": {
+      "$ref": "#/$defs/file_pointer"
+    },
+    "scoring_config": {
+      "type": "object",
+      "required": [
+        "source",
+        "config_sha256",
+        "path",
+        "provider",
+        "profile"
+      ],
+      "properties": {
+        "source": {
+          "type": "string"
+        },
+        "config_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "snapshot_manifest": {
+      "type": "object",
+      "required": [
+        "applicable",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "applicable": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "quicklinks": {
+      "type": "object",
+      "required": [
+        "run_dir",
+        "run_report",
+        "run_health",
+        "costs",
+        "ranked_json",
+        "ranked_csv",
+        "ranked_families_json",
+        "shortlist_md"
+      ],
+      "properties": {
+        "run_dir": {
+          "type": "string"
+        },
+        "run_report": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "run_health": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "costs": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ranked_json": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ranked_csv": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "ranked_families_json": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "shortlist_md": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "file_pointer": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "ranked_pointer": {
+      "type": "object",
+      "required": [
+        "provider",
+        "profile",
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "profile": {
+          "type": "string"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
