@@ -155,6 +155,7 @@ logger = logging.getLogger(__name__)
 USE_SUBPROCESS = True
 RUN_REPORT_SCHEMA_VERSION = 1
 RUN_HEALTH_SCHEMA_VERSION = 1
+RUN_SUMMARY_SCHEMA_VERSION = 1
 PROOF_RECEIPT_SCHEMA_VERSION = 1
 try:
     CANDIDATE_ID = sanitize_candidate_id(os.environ.get("JOBINTEL_CANDIDATE_ID", DEFAULT_CANDIDATE_ID))
@@ -187,6 +188,7 @@ RUN_HEALTH_FAILURE_CODES = (
     "UNEXPECTED_FAILURE",
 )
 _RUN_HEALTH_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 
 def _flush_logging() -> None:
@@ -808,6 +810,276 @@ def _run_health_schema() -> Dict[str, Any]:
         schema_path = resolve_named_schema_path("run_health", RUN_HEALTH_SCHEMA_VERSION)
         _RUN_HEALTH_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
     return _RUN_HEALTH_SCHEMA_CACHE
+
+
+def _run_summary_path(run_id: str) -> Path:
+    return _run_registry_dir(run_id) / "run_summary.v1.json"
+
+
+def _run_summary_schema() -> Dict[str, Any]:
+    global _RUN_SUMMARY_SCHEMA_CACHE
+    if _RUN_SUMMARY_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("run_summary", RUN_SUMMARY_SCHEMA_VERSION)
+        _RUN_SUMMARY_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _RUN_SUMMARY_SCHEMA_CACHE
+
+
+def _summary_path_text(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _resolve_summary_path(path_value: str) -> Path:
+    candidate = Path(path_value)
+    if candidate.is_absolute():
+        return candidate
+    return (REPO_ROOT / candidate).resolve()
+
+
+def _artifact_pointer(path: Optional[Path], *, sha_hint: Optional[str] = None) -> Dict[str, Any]:
+    if path is None:
+        return {"path": None, "sha256": sha_hint, "bytes": None}
+    sha = _hash_file(path)
+    if sha is None:
+        sha = sha_hint
+    size: Optional[int] = None
+    if path.exists():
+        try:
+            size = path.stat().st_size
+        except OSError:
+            size = None
+    return {"path": _summary_path_text(path), "sha256": sha, "bytes": size}
+
+
+def _run_report_pointer(run_id: str) -> Dict[str, Any]:
+    canonical_path = _run_registry_dir(run_id) / "run_report.json"
+    legacy_path = _run_metadata_path(run_id)
+    if canonical_path.exists():
+        return _artifact_pointer(canonical_path)
+    if legacy_path.exists():
+        return _artifact_pointer(legacy_path)
+    return _artifact_pointer(canonical_path)
+
+
+def _ranked_output_pointers(run_report_payload: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    buckets: Dict[str, List[Dict[str, Any]]] = {
+        "ranked_json": [],
+        "ranked_csv": [],
+        "ranked_families_json": [],
+        "shortlist_md": [],
+    }
+    outputs_by_provider = run_report_payload.get("outputs_by_provider")
+    if not isinstance(outputs_by_provider, dict):
+        return buckets
+
+    for provider in sorted(outputs_by_provider):
+        profiles = outputs_by_provider.get(provider)
+        if not isinstance(profiles, dict):
+            continue
+        for profile in sorted(profiles):
+            outputs = profiles.get(profile)
+            if not isinstance(outputs, dict):
+                continue
+            for output_key in ("ranked_json", "ranked_csv", "ranked_families_json", "shortlist_md"):
+                pointer = outputs.get(output_key)
+                if not isinstance(pointer, dict):
+                    continue
+                pointer_path = pointer.get("path")
+                if not isinstance(pointer_path, str) or not pointer_path.strip():
+                    continue
+                resolved = _resolve_summary_path(pointer_path)
+                entry = {
+                    "provider": provider,
+                    "profile": profile,
+                    **_artifact_pointer(
+                        resolved, sha_hint=pointer.get("sha256") if isinstance(pointer.get("sha256"), str) else None
+                    ),
+                }
+                buckets[output_key].append(entry)
+    return buckets
+
+
+def _extract_scoring_config_reference(run_report_payload: Dict[str, Any]) -> Dict[str, Any]:
+    scoring_model = run_report_payload.get("scoring_model")
+    scoring_model_sha = None
+    if isinstance(scoring_model, dict):
+        candidate_sha = scoring_model.get("config_sha256")
+        if isinstance(candidate_sha, str) and candidate_sha:
+            scoring_model_sha = candidate_sha
+
+    archived = run_report_payload.get("archived_inputs_by_provider_profile")
+    if isinstance(archived, dict):
+        for provider in sorted(archived):
+            profile_map = archived.get(provider)
+            if not isinstance(profile_map, dict):
+                continue
+            for profile in sorted(profile_map):
+                payload = profile_map.get(profile)
+                if not isinstance(payload, dict):
+                    continue
+                scoring_cfg = payload.get("scoring_config")
+                if not isinstance(scoring_cfg, dict):
+                    continue
+                archived_path = scoring_cfg.get("archived_path")
+                if not isinstance(archived_path, str) or not archived_path:
+                    continue
+                resolved = _resolve_summary_path(archived_path)
+                archived_sha = _hash_file(resolved)
+                if archived_sha is None:
+                    candidate_sha = scoring_cfg.get("sha256")
+                    if isinstance(candidate_sha, str) and candidate_sha:
+                        archived_sha = candidate_sha
+                return {
+                    "source": "archived_scoring_config",
+                    "config_sha256": archived_sha or scoring_model_sha,
+                    "path": _summary_path_text(resolved),
+                    "provider": provider,
+                    "profile": profile,
+                }
+    return {
+        "source": "scoring_model",
+        "config_sha256": scoring_model_sha,
+        "path": None,
+        "provider": None,
+        "profile": None,
+    }
+
+
+def _snapshot_manifest_reference(run_report_payload: Dict[str, Any]) -> Dict[str, Any]:
+    manifest_path = REPO_ROOT / "tests" / "fixtures" / "golden" / "snapshot_bytes.manifest.json"
+    providers = run_report_payload.get("providers")
+    provenance = run_report_payload.get("provenance_by_provider")
+    applicable = False
+    if isinstance(providers, list) and isinstance(provenance, dict):
+        for provider in providers:
+            meta = provenance.get(provider) if isinstance(provider, str) else None
+            if not isinstance(meta, dict):
+                continue
+            scrape_mode = str(meta.get("scrape_mode") or "").strip().lower()
+            if scrape_mode in {"snapshot", "auto"} or bool(meta.get("snapshot_used")):
+                applicable = True
+                break
+    sha = _hash_file(manifest_path) if applicable and manifest_path.exists() else None
+    return {
+        "applicable": applicable,
+        "path": _summary_path_text(manifest_path),
+        "sha256": sha,
+    }
+
+
+def _build_run_summary_payload(
+    *,
+    run_id: str,
+    created_at_utc: str,
+    final_status: str,
+    run_report_payload: Optional[Dict[str, Any]],
+    run_report_pointer: Dict[str, Any],
+    run_health_pointer: Dict[str, Any],
+    costs_pointer: Dict[str, Any],
+) -> Dict[str, Any]:
+    report_payload = run_report_payload or {}
+    ranked_outputs = _ranked_output_pointers(report_payload)
+    quicklinks = {
+        "run_dir": _summary_path_text(_run_registry_dir(run_id)),
+        "run_report": run_report_pointer.get("path"),
+        "run_health": run_health_pointer.get("path"),
+        "costs": costs_pointer.get("path"),
+        "ranked_json": [entry["path"] for entry in ranked_outputs["ranked_json"] if entry.get("path")],
+        "ranked_csv": [entry["path"] for entry in ranked_outputs["ranked_csv"] if entry.get("path")],
+        "ranked_families_json": [
+            entry["path"] for entry in ranked_outputs["ranked_families_json"] if entry.get("path")
+        ],
+        "shortlist_md": [entry["path"] for entry in ranked_outputs["shortlist_md"] if entry.get("path")],
+    }
+
+    git_sha = _best_effort_git_sha()
+    build = (
+        report_payload.get("provenance", {}).get("build")
+        if isinstance(report_payload.get("provenance"), dict)
+        else None
+    )
+    if isinstance(build, dict):
+        value = build.get("git_sha")
+        if isinstance(value, str) and value:
+            git_sha = value
+
+    return {
+        "run_summary_schema_version": RUN_SUMMARY_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": CANDIDATE_ID,
+        "status": str(run_health_pointer.get("status") or final_status),
+        "git_sha": git_sha,
+        "created_at_utc": created_at_utc,
+        "run_health": {
+            "path": run_health_pointer.get("path"),
+            "sha256": run_health_pointer.get("sha256"),
+            "status": run_health_pointer.get("status"),
+        },
+        "run_report": run_report_pointer,
+        "ranked_outputs": ranked_outputs,
+        "costs": costs_pointer,
+        "scoring_config": _extract_scoring_config_reference(report_payload),
+        "snapshot_manifest": _snapshot_manifest_reference(report_payload),
+        "quicklinks": quicklinks,
+    }
+
+
+def _write_run_summary_artifact(
+    *,
+    run_id: str,
+    final_status: str,
+    run_health_path: Optional[Path],
+) -> Optional[Path]:
+    run_report_path = _run_registry_dir(run_id) / "run_report.json"
+    if not run_report_path.exists():
+        run_report_path = _run_metadata_path(run_id)
+    run_report_payload: Optional[Dict[str, Any]] = None
+    if run_report_path.exists():
+        try:
+            maybe = json.loads(run_report_path.read_text(encoding="utf-8"))
+            if isinstance(maybe, dict):
+                run_report_payload = maybe
+        except Exception:
+            run_report_payload = None
+
+    health_payload: Dict[str, Any] = {}
+    if run_health_path and run_health_path.exists():
+        try:
+            maybe = json.loads(run_health_path.read_text(encoding="utf-8"))
+            if isinstance(maybe, dict):
+                health_payload = maybe
+        except Exception:
+            health_payload = {}
+
+    costs_path = _run_registry_dir(run_id) / "costs.json"
+    if not costs_path.exists():
+        legacy_costs_path = RUN_METADATA_DIR / _sanitize_run_id(run_id) / "costs.json"
+        if legacy_costs_path.exists():
+            costs_path = legacy_costs_path
+
+    run_health_pointer = (
+        _artifact_pointer(run_health_path) if run_health_path else _artifact_pointer(_run_health_path(run_id))
+    )
+    run_health_pointer["status"] = health_payload.get("status")
+    payload = _build_run_summary_payload(
+        run_id=run_id,
+        created_at_utc=_utcnow_iso(),
+        final_status=final_status,
+        run_report_payload=run_report_payload,
+        run_report_pointer=_run_report_pointer(run_id),
+        run_health_pointer=run_health_pointer,
+        costs_pointer=_artifact_pointer(costs_path),
+    )
+    errors = validate_payload(payload, _run_summary_schema())
+    if errors:
+        logger.error("run_summary schema validation failed for run_id=%s: %s", run_id, "; ".join(errors))
+        return None
+    path = _run_summary_path(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _write_canonical_json(path, payload)
+    return path
 
 
 def _phase_for_stage(stage_name: str) -> Optional[str]:
@@ -4154,7 +4426,7 @@ def main() -> int:
             json.dumps(discord_status_by_provider, sort_keys=True) if discord_status_by_provider else None,
             json.dumps(provider_availability, sort_keys=True),
         )
-        _write_run_health_artifact(
+        run_health_path = _write_run_health_artifact(
             run_id=run_id,
             telemetry=telemetry,
             final_status=final_status,
@@ -4162,6 +4434,14 @@ def main() -> int:
             logs=run_log_pointers,
             proof_bundle_path=proof_receipt_path,
         )
+        try:
+            _write_run_summary_artifact(
+                run_id=run_id,
+                final_status=final_status,
+                run_health_path=run_health_path,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write run summary artifact: %r", exc)
         if s3_failed:
             raise SystemExit(s3_exit_code or 2)
         return final_status
