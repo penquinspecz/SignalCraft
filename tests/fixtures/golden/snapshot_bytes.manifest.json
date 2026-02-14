@@ -30,9 +30,5 @@
   "data/scaleai_snapshots/index.html": {
     "bytes": 924,
     "sha256": "a3cef755cd17abd623be630eaf863b0a2b1c83ee3bf391b80a33e619f152f88a"
-  },
-  "data/xai_snapshots/index.html": {
-    "bytes": 1923,
-    "sha256": "86fe77ef6e1f1d43e2c72bbc12166b0dba12affc597706b3ef942b555f79d6e2"
   }
 }
