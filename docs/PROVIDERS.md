@@ -1,58 +1,45 @@
-# Providers
+# Provider Authoring
 
-Provider expansion must stay deterministic and offline-reproducible.
+SignalCraft provider additions must stay snapshot-first, deterministic, and offline-reproducible in tests.
 
-## Add A Provider In 10 Minutes
+## Snapshot Baseline Updates
 
-1. Scaffold snapshot fixture directory first (no network in tests):
-
-```bash
-make provider-scaffold provider=<provider_id>
-```
-
-2. Generate a schema-valid template entry:
+Use `update-snapshot-manifest` only when a provider snapshot fixture was intentionally changed.
 
 ```bash
-make provider-template provider=<provider_id>
+PYTHONPATH=src .venv/bin/python scripts/provider_authoring.py update-snapshot-manifest --provider <provider_id>
 ```
 
-3. Add the rendered entry to `config/providers.json` with these defaults:
-- `mode: "snapshot"` first
-- `live_enabled: false` first
-- `allowed_domains` explicitly set
-- `snapshot_path` and `snapshot_dir` under `data/<provider_id>_snapshots`
-
-4. Replace placeholder snapshot with captured fixture before enabling live mode:
+Equivalent make target:
 
 ```bash
-PYTHONPATH=src .venv/bin/python scripts/update_snapshots.py \
-  --provider <provider_id> \
-  --out_dir data/<provider_id>_snapshots \
-  --apply
+make provider-manifest-update provider=<provider_id>
 ```
 
-5. Update pinned snapshot manifest for all enabled snapshot providers:
+What this command does:
+- Loads `config/providers.json` and resolves exactly one provider.
+- Reads that provider's configured `snapshot_path`.
+- Computes pinned `bytes` and `sha256` for that file.
+- Updates only that provider's key in `tests/fixtures/golden/snapshot_bytes.manifest.json`.
 
-```bash
-PYTHONPATH=src .venv/bin/python scripts/verify_snapshots_immutable.py
-```
+What this command does not do:
+- It does not fetch from network.
+- It does not auto-enable providers.
+- It does not rewrite other providers' manifest entries.
 
-If the script reports missing manifest entries for your provider, add the provider fixture hash/bytes to
-`tests/fixtures/golden/snapshot_bytes.manifest.json`.
+## When You Must Run `update-snapshot-manifest`
 
-6. Run deterministic local gates:
+Run it when all of these are true:
+- You intentionally changed bytes in `data/<provider>_snapshots/...`.
+- The provider remains snapshot-backed for deterministic runs.
+- You want CI immutability checks to pin the new baseline.
 
-```bash
-make lint
-make gate
-```
+Do not run it for unrelated code-only changes.
 
-## Guardrails
+## PR Hygiene Note
 
-- Tests must remain no-network.
-- Snapshot fixtures are required for enabled snapshot providers.
-- Snapshot bytes must be pinned in `tests/fixtures/golden/snapshot_bytes.manifest.json`.
-- `make gate` enforces:
-  - unit tests
-  - snapshot immutability
-  - replay smoke determinism
+If `config/providers.json` changes in a PR, include one explicit line in the PR body:
+- `snapshot manifest update required: yes` or
+- `snapshot manifest update required: no`
+
+If `yes`, include the exact command used and provider id(s).
