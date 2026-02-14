@@ -4,6 +4,7 @@ Run reports are written to `state/runs/<run_id>.json` and copied to
 `state/runs/<run_id>/run_report.json`. They include metadata for reproducibility,
 debugging, and audit trails. They are versioned with `run_report_schema_version`.
 Run health snapshots are also written to `state/runs/<run_id>/run_health.v1.json`.
+A canonical run index artifact is written to `state/runs/<run_id>/run_summary.v1.json`.
 
 ## Schema version
 `run_report_schema_version`: integer. Current version: **1**.
@@ -104,6 +105,17 @@ All run report timestamps use UTC ISO 8601 with trailing `Z` and seconds precisi
 `run_health.v1.json` is best-effort on failed runs: the runner attempts to write it before exit without mutating
 scoring outputs.
 
+## Run summary artifact (`run_summary.v1.json`)
+- One canonical, pointer-only output index for downstream UX and ops.
+- Includes:
+  - run identity (`run_id`, `candidate_id`, `git_sha`, `created_at_utc`)
+  - pointers + hashes for `run_report`, `run_health`, ranked outputs, and `costs.json`
+  - scoring config hash reference (archived scoring config when available)
+  - snapshot manifest hash reference (when snapshot mode is applicable)
+  - deterministic `quicklinks` paths for common artifacts
+- It intentionally excludes raw candidate text (resume/linkedin/summary bodies).
+- Schema: `schemas/run_summary.schema.v1.json`.
+
 ### Provider provenance additions
 Each provider entry in `provenance_by_provider` may include:
 - `live_error_type`: one of `success`, `transient_error`, `unavailable`, `invalid_response` (when live was attempted).
@@ -141,6 +153,7 @@ Use these paths to inspect artifacts:
 - Run registry:
   - `state/runs/<run_id>/index.json`
   - `state/runs/<run_id>/run_health.v1.json`
+  - `state/runs/<run_id>/run_summary.v1.json`
 - Ranked outputs:
   - `data/<provider>_ranked_jobs.<profile>.json`
   - `data/<provider>_ranked_jobs.<profile>.csv`
