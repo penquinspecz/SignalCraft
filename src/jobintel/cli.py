@@ -8,6 +8,7 @@ See LICENSE for permitted use.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import subprocess
@@ -15,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ji_engine.config import DEFAULT_CANDIDATE_ID, sanitize_candidate_id
+from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, candidate_run_metadata_dir, sanitize_candidate_id
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
 
@@ -195,8 +196,47 @@ def _run_daily(args: argparse.Namespace) -> int:
         env["CAREERS_MODE"] = "SNAPSHOT"
 
     logging.info("Running: %s", " ".join(cmd))
-    result = subprocess.run(cmd, env=env, check=False)
+    result = subprocess.run(cmd, env=env, check=False, text=True, capture_output=True)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    _print_run_summary_path_if_available(safe_candidate_id, result.stdout or "")
     return result.returncode
+
+
+def _sanitize_run_id_for_path(run_id: str) -> str:
+    return run_id.replace(":", "").replace("-", "").replace(".", "")
+
+
+def _run_summary_path(candidate_id: str, run_id: str) -> Path:
+    run_root = RUN_METADATA_DIR if candidate_id == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(candidate_id)
+    return run_root / _sanitize_run_id_for_path(run_id) / "run_summary.v1.json"
+
+
+def _extract_run_id(stdout: str) -> Optional[str]:
+    for line in stdout.splitlines():
+        if line.startswith("JOBINTEL_RUN_ID="):
+            run_id = line.split("=", 1)[1].strip()
+            if run_id:
+                return run_id
+    return None
+
+
+def _print_run_summary_path_if_available(candidate_id: str, stdout: str) -> None:
+    run_id = _extract_run_id(stdout)
+    if not run_id:
+        return
+    path = _run_summary_path(candidate_id, run_id)
+    if not path.exists():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    status = payload.get("status") if isinstance(payload, dict) else None
+    if status in {"success", "partial"}:
+        print(f"RUN_SUMMARY_PATH={path}")
 
 
 def _validate_candidate_for_run(candidate_id: str) -> str:
