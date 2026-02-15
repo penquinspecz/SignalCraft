@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, List
 from urllib.parse import urlparse
 
+from ji_engine.utils.verification import compute_sha256_bytes
+
 SUPPORTED_EXTRACTION_MODES = {"ashby", "jsonld", "snapshot_json", "html_list"}
 _EXTRACTION_MODE_ALIASES = {
     "ashby_api": "ashby",
@@ -516,3 +518,16 @@ def resolve_provider_ids(
         disabled_list = ", ".join(disabled)
         raise ValueError(f"Provider(s) disabled in config: {disabled_list}")
     return out
+
+
+def provider_registry_provenance(path: Path) -> Dict[str, Any]:
+    providers = load_providers_config(path)
+    canonical_payload = {
+        "schema_version": 1,
+        "providers": providers,
+    }
+    canonical_json = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return {
+        "provider_registry_schema_version": 1,
+        "provider_registry_sha256": compute_sha256_bytes(canonical_json.encode("utf-8")),
+    }
