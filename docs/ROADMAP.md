@@ -73,7 +73,7 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-15 on commit `72892a3b71dc10e809a53acd09c75c89e554fb07` (local verification; see git + CI receipts)
+Last verified: 2026-02-15 on commit `e3761c0d8d926a20c73e55dbd3ab0f870bbdc7f5` (local verification; see git + CI receipts)
 Latest release: v0.1.0
 
 Foundation exists:
@@ -101,6 +101,7 @@ Foundation exists:
 - Provider default selection decoupled from hardcoded OpenAI (CLI/env/defaults/fallback precedence)
 - Provider enablement workflow now fails closed when fixtures/manifest/metadata are missing
 - Run receipt UX for one-command output discovery (`run_summary`, `run_health`, primary artifacts)
+- Network Shield v1 + unified egress policy gates are enforced across provider/snapshot/pipeline fetch paths (fail-closed, redirect revalidation, bounded reads)
 
 Phase 1 is real.
 
