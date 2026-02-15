@@ -301,14 +301,14 @@ Receipts Required
 ## Milestone 17 — Dashboard Plumbing v2 (Backend-First UI Readiness) ◐
 
 Goal: Backend is UI-ready without becoming UI-first.
-Status: ◐ Candidate-aware run endpoints and bounded read-time validation exist; `/version` and broader API contract polish remain open.
-Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/proof/dashboard-artifact-serve-hardening-2026-02-13.md`.
+Status: ◐ `/version` endpoint and API contract documented; artifact index endpoints already stable.
+Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/DASHBOARD_API.md`, `scripts/dev/curl_dashboard_proof.sh`, `docs/proof/m17-api-boring-pack-2026-02-15.md`.
 
 Definition of Done
-- [ ] `/version` endpoint
+- [x] `/version` endpoint
 - [x] `/runs/latest` endpoint is candidate-aware (implemented as `/v1/latest?candidate_id=...`)
-- [ ] Artifact index endpoint(s) are stable and documented
-- [ ] API contract documented
+- [x] Artifact index endpoint(s) are stable and documented
+- [x] API contract documented
 - [ ] Optional deps isolated cleanly
 - [x] Read-time validation is fail-closed and bounded
 
