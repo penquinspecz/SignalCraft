@@ -64,6 +64,7 @@ from ji_engine.pipeline.stages import (
     build_score_command,
     build_scrape_command,
 )
+from ji_engine.providers.registry import provider_tombstone_provenance
 from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
@@ -1909,6 +1910,7 @@ def _persist_run_metadata(
     ai_accounting: Optional[Dict[str, Any]] = None,
     candidate_input_provenance: Optional[Dict[str, Any]] = None,
     scoring_model: Optional[Dict[str, Any]] = None,
+    providers_config: Optional[str] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -1959,6 +1961,10 @@ def _persist_run_metadata(
             primary_provider = provider_list[0]
             if primary_provider in classified_by_provider:
                 selection["classified_job_count"] = classified_by_provider[primary_provider]
+    providers_config_path = Path(providers_config) if providers_config else Path("config") / "providers.json"
+    tombstones = provider_tombstone_provenance(providers_config_path)
+    if tombstones:
+        selection["provider_tombstones"] = tombstones
 
     build_provenance = {
         "git_sha": os.environ.get("JOBINTEL_GIT_SHA", "unknown"),
@@ -1966,6 +1972,7 @@ def _persist_run_metadata(
         "taskdef": os.environ.get("JOBINTEL_TASKDEF", "unknown"),
         "ecs_task_arn": _resolve_ecs_task_arn(),
     }
+    build_provenance["provider_tombstones"] = tombstones
     if candidate_input_provenance is None:
         candidate_input_provenance = _candidate_input_provenance(CANDIDATE_ID)
 
@@ -4339,6 +4346,7 @@ def main() -> int:
             },
             ai_accounting=costs_payload.get("ai_accounting"),
             scoring_model=scoring_model_metadata,
+            providers_config=args.providers_config,
         )
         if telemetry.get("success", False):
             try:
