@@ -33,7 +33,7 @@ from bs4 import BeautifulSoup
 from ji_engine.config import ASHBY_CACHE_DIR, ENRICHED_JOBS_JSON, LABELED_JOBS_JSON, SNAPSHOT_DIR
 from ji_engine.integrations.ashby_graphql import fetch_job_posting
 from ji_engine.integrations.html_to_text import html_to_text
-from ji_engine.providers.retry import ProviderFetchError, classify_failure_type
+from ji_engine.providers.retry import ProviderFetchError, classify_failure_type, evaluate_allowlist_policy
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.job_id import extract_job_id_from_url
 from ji_engine.utils.time import utc_now_naive
@@ -66,6 +66,11 @@ def _derive_fallback_url(apply_url: str) -> str:
 
 
 def _fetch_html_fallback(url: str) -> Optional[str]:
+    preflight = evaluate_allowlist_policy(url, provider_id=ORG)
+    if not preflight.get("final_allowed"):
+        logger.info(f" ⚠️ HTML fallback egress blocked: {preflight.get('reason')}")
+        return None
+
     headers = {
         "User-Agent": ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:146.0) Gecko/20100101 Firefox/146.0"),
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -73,6 +78,11 @@ def _fetch_html_fallback(url: str) -> Optional[str]:
     }
     try:
         resp = requests.get(url, headers=headers, timeout=20)
+        final_url = str(getattr(resp, "url", url) or url)
+        final_policy = evaluate_allowlist_policy(final_url, provider_id=ORG)
+        if not final_policy.get("final_allowed"):
+            logger.info(f" ⚠️ HTML fallback redirect blocked: {final_policy.get('reason')}")
+            return None
         resp.raise_for_status()
         html = resp.text
         html_lower = html.lower()

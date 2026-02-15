@@ -73,6 +73,8 @@ def _write_if_missing(path: Path, text: str) -> None:
     _write_text(path, text)
 
 
+# These are static evidence template lines only (not subprocess-executed by this
+# script), kept for operators to run manually during on-prem validation.
 _EVIDENCE_TEMPLATE_COMMANDS = {
     "timedatectl status",
     "chronyc tracking || true",
