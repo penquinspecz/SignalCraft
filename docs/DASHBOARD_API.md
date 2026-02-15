@@ -112,6 +112,39 @@ Run receipt (proof bundle) for a run.
 
 ---
 
+### GET /v1/runs/{run_id}/artifacts?candidate_id=...
+
+Stable artifact index for a run. Bounded: no raw artifact bodies.
+
+**Query params**:
+- `candidate_id` (optional): default `local`
+
+**Response** (200):
+```json
+{
+  "run_id": "<run_id>",
+  "candidate_id": "<candidate_id>",
+  "artifacts": [
+    {
+      "key": "run_summary.v1.json",
+      "path": "run_summary.v1.json",
+      "content_type": "application/json",
+      "schema_version": 1,
+      "size_bytes": 1234
+    }
+  ]
+}
+```
+
+- `schema_version`: present only for known schema artifacts (run_summary, run_health, provider_availability, run_report)
+- `size_bytes`: present only when file exists
+
+**Failure modes**:
+- 400: Invalid `run_id` or `candidate_id`
+- 404: Run not found
+
+---
+
 ### GET /v1/artifacts/latest/{provider}/{profile}?candidate_id=...
 
 Artifact index for latest run by provider/profile.
@@ -143,5 +176,5 @@ Artifact index for latest run by provider/profile.
 
 ## See Also
 
-- `docs/proof/m17-api-boring-pack-*.md` — proof receipt with curl examples
+- `docs/proof/m17-artifact-index-endpoint-2026-02-14.md` — artifact index endpoint proof
 - `src/ji_engine/dashboard/app.py` — implementation
