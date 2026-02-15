@@ -197,6 +197,7 @@ RUN_HEALTH_FAILURE_CODES = (
     "SNAPSHOT_FETCH_FAILED",
     "SNAPSHOT_MISSING",
     "UNEXPECTED_FAILURE",
+    "FORCED_FAILURE",
 )
 _RUN_HEALTH_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
@@ -1543,6 +1544,8 @@ def _failure_code_for_context(
         codes.append("AI_STAGE_FAILED")
     if failed == "startup" and "already running" in err:
         codes.append("LOCK_HELD")
+    if "forced failure" in err or "jobintel_force_fail" in err:
+        codes.append("FORCED_FAILURE")
     if not ai_requested:
         codes.append("AI_DISABLED")
 
@@ -4980,6 +4983,9 @@ def main() -> int:
     stage_results: Dict[str, StageResult] = {}
 
     def record_stage(name: str, fn: Callable[[], Any]) -> Any:
+        force_fail = os.environ.get("JOBINTEL_FORCE_FAIL_STAGE", "").strip()
+        if force_fail and force_fail == name:
+            raise SystemExit(f"Forced failure at stage {name} (JOBINTEL_FORCE_FAIL_STAGE)")
         t0 = time.time()
         try:
             result = fn()
