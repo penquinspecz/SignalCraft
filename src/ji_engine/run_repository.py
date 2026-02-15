@@ -28,6 +28,15 @@ from ji_engine.config import (
 logger = logging.getLogger(__name__)
 
 
+def _profiles_from_run_payload(payload: Dict[str, Any]) -> List[str]:
+    """Extract profile names from run index payload (index.json structure)."""
+    profiles: set[str] = set()
+    for prov_data in (payload.get("providers") or {}).values():
+        if isinstance(prov_data, dict) and "profiles" in prov_data:
+            profiles.update((prov_data.get("profiles") or {}).keys())
+    return sorted(profiles)
+
+
 class RunRepository(Protocol):
     def list_run_dirs(self, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> List[Path]: ...
 
@@ -36,6 +45,14 @@ class RunRepository(Protocol):
     def list_run_metadata_paths(self, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> List[Path]: ...
 
     def resolve_run_metadata_path(self, run_id: str, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path: ...
+
+    def list_runs_for_profile(
+        self,
+        *,
+        candidate_id: str = DEFAULT_CANDIDATE_ID,
+        profile: str,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]: ...
 
     def resolve_run_artifact_path(
         self,
@@ -354,6 +371,29 @@ class FileSystemRunRepository(RunRepository):
     def latest_run(self, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Optional[Dict[str, Any]]:
         rows = self.list_runs(candidate_id=candidate_id, limit=1)
         return rows[0] if rows else None
+
+    def list_runs_for_profile(
+        self,
+        *,
+        candidate_id: str = DEFAULT_CANDIDATE_ID,
+        profile: str,
+        limit: int = 200,
+    ) -> List[Dict[str, Any]]:
+        """List runs that include the given profile, using index-backed selection."""
+        safe_candidate = sanitize_candidate_id(candidate_id)
+        bounded_limit = max(1, min(limit, 1000))
+        runs = self.list_runs(candidate_id=safe_candidate, limit=bounded_limit)
+        result: List[Dict[str, Any]] = []
+        for payload in runs:
+            profiles = _profiles_from_run_payload(payload)
+            if profile in profiles:
+                result.append(
+                    {
+                        "run_id": payload.get("run_id"),
+                        "profiles": profiles,
+                    }
+                )
+        return result
 
     def get_run(self, run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Optional[Dict[str, Any]]:
         safe_candidate = sanitize_candidate_id(candidate_id)
