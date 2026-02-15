@@ -67,7 +67,7 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
-from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
+from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.scoring import (
     ScoringConfig,
     ScoringConfigError,
@@ -1368,9 +1368,13 @@ def _write_run_health_artifact(
 
 
 def _resolve_providers(args: argparse.Namespace) -> List[str]:
-    providers_cfg = load_providers_config(Path(args.providers_config))
     try:
-        return resolve_provider_ids(args.providers, providers_cfg, default_provider="openai")
+        return select_provider_ids(
+            providers_arg=args.providers,
+            providers_config_path=Path(args.providers_config),
+            defaults_path=REPO_ROOT / DEFAULTS_CONFIG_PATH,
+            env=os.environ,
+        )
     except ValueError as exc:
         logger.error(str(exc))
         raise SystemExit(2) from exc
@@ -3777,8 +3781,14 @@ def main() -> int:
     )
     ap.add_argument(
         "--providers",
-        default="openai",
-        help="Comma-separated provider ids to run (default: openai).",
+        "--provider",
+        dest="providers",
+        default="",
+        help=(
+            "Comma-separated provider ids to run. Selection precedence: "
+            "--provider/--providers, JOBINTEL_PROVIDER_ID, config/defaults.json, "
+            "then first enabled provider (deterministic order)."
+        ),
     )
     ap.add_argument(
         "--providers-config",
