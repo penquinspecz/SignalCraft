@@ -181,8 +181,25 @@ def _load_index(run_id: str, candidate_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Run index has invalid shape") from exc
 
 
-def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
-    for path in sorted(run_dir.glob("ai_insights.*.json"), key=lambda p: p.name):
+def _load_first_ai_prompt_version(run_id: str, candidate_id: str, index: Dict[str, Any]) -> Optional[str]:
+    """Index-backed: resolve ai_insights.*.json from index.artifacts, no directory scan."""
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), dict) else {}
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    for key in sorted(artifacts.keys()):
+        if not (key.startswith("ai_insights.") and key.endswith(".json")):
+            continue
+        rel = artifacts.get(key)
+        if not isinstance(rel, str) or not rel.strip():
+            continue
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            continue
+        try:
+            path = RUN_REPOSITORY.resolve_run_artifact_path(run_id, rel_path.as_posix(), candidate_id=safe_candidate)
+        except ValueError:
+            continue
+        if not path.exists() or not path.is_file():
+            continue
         payload = _load_optional_json_object(path, context="AI insights payload", schema=_AiInsightsSchema)
         if not payload:
             continue
@@ -413,7 +430,7 @@ def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[st
         _load_optional_json_object(run_dir / "run_report.json", context="run report", schema=_RunReportSchema) or {}
     )
     costs = _load_optional_json_object(run_dir / "costs.json", context="run costs")
-    prompt_version = _load_first_ai_prompt_version(run_dir)
+    prompt_version = _load_first_ai_prompt_version(run_id, candidate_id, index)
     enriched = dict(index)
     enriched["semantic_enabled"] = bool(run_report.get("semantic_enabled", False))
     enriched["semantic_mode"] = run_report.get("semantic_mode")
@@ -484,12 +501,47 @@ def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_I
     return Response(body, media_type=_content_type(path))
 
 
+def _provider_profile_pairs_for_semantic(index: Dict[str, Any], run_dir: Path, profile: str) -> List[Tuple[str, str]]:
+    """Index-backed: derive (provider, profile) pairs from index.providers, run_report, or index.artifacts."""
+    pairs: List[Tuple[str, str]] = []
+    providers = index.get("providers") if isinstance(index.get("providers"), dict) else {}
+    for prov, prov_data in providers.items():
+        if isinstance(prov_data, dict):
+            profiles_dict = prov_data.get("profiles") or {}
+            if isinstance(profiles_dict, dict) and profile in profiles_dict:
+                pairs.append((prov, profile))
+    if pairs:
+        return sorted(pairs)
+    run_report = (
+        _load_optional_json_object(run_dir / "run_report.json", context="run report", schema=_RunReportSchema) or {}
+    )
+    outputs = run_report.get("outputs_by_provider") or {}
+    for prov, prov_data in outputs.items():
+        if isinstance(prov_data, dict) and profile in prov_data:
+            pairs.append((prov, profile))
+    if pairs:
+        return sorted(pairs)
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), dict) else {}
+    prefix, suffix = "semantic/scores_", f"_{profile}.json"
+    for key in artifacts:
+        if key.startswith(prefix) and key.endswith(suffix) and len(key) > len(prefix) + len(suffix):
+            prov = key[len(prefix) : -len(suffix)]
+            if prov and "/" not in prov and ".." not in prov:
+                pairs.append((prov, profile))
+    return sorted(pairs)
+
+
 @app.get("/runs/{run_id}/semantic_summary/{profile}")
 def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
     _sanitize_run_id(run_id)
+    index = _load_index(run_id, candidate_id)
     run_dir = _run_dir(run_id, candidate_id)
-    semantic_dir = run_dir / "semantic"
-    summary_path = semantic_dir / "semantic_summary.json"
+    summary_rel = "semantic/semantic_summary.json"
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    try:
+        summary_path = RUN_REPOSITORY.resolve_run_artifact_path(run_id, summary_rel, candidate_id=safe_candidate)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Semantic summary not found") from None
     if not summary_path.exists():
         raise HTTPException(status_code=404, detail="Semantic summary not found")
     try:
@@ -503,7 +555,14 @@ def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_
         raise HTTPException(status_code=500, detail="Semantic summary has invalid shape") from exc
 
     entries: List[Dict[str, Any]] = []
-    for path in sorted(semantic_dir.glob(f"scores_*_{profile}.json"), key=lambda p: p.name):
+    for prov, prof in _provider_profile_pairs_for_semantic(index, run_dir, profile):
+        scores_rel = f"semantic/scores_{prov}_{prof}.json"
+        try:
+            path = RUN_REPOSITORY.resolve_run_artifact_path(run_id, scores_rel, candidate_id=safe_candidate)
+        except ValueError:
+            continue
+        if not path.exists() or not path.is_file():
+            continue
         payload = _load_optional_json_object(path, context="semantic scores payload")
         if not payload:
             continue
