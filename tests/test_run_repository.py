@@ -132,19 +132,68 @@ def test_corrupt_index_triggers_safe_rebuild(tmp_path: Path, monkeypatch) -> Non
     assert Path(meta["db_path"]).read_bytes().startswith(b"SQLite format 3")
 
 
-def test_rebuild_run_index_cli(tmp_path: Path, monkeypatch, capsys) -> None:
-    state_dir = tmp_path / "rebuild_cli_state"
-    state_dir.mkdir()
+def test_list_runs_uses_index_without_filesystem_scan(tmp_path: Path, monkeypatch) -> None:
+    """Prove list_runs uses SQLite index when available; no per-run index.json scan."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 
     import importlib
 
     import ji_engine.config as config
     import ji_engine.run_repository as run_repository
-    from scripts import rebuild_run_index
 
-    monkeypatch.setattr(config, "STATE_DIR", state_dir)
-    monkeypatch.setattr(config, "RUN_METADATA_DIR", state_dir / "runs")
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_id = "2026-01-02T00:00:00Z"
+    _write_index(config.RUN_METADATA_DIR / _sanitize(run_id), run_id, run_id)
+
+    repo = run_repository.FileSystemRunRepository()
+    repo.rebuild_index("local")
+
+    monkeypatch.setattr(
+        repo,
+        "_scan_runs_from_filesystem",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("filesystem scan called")),
+    )
+    runs = repo.list_runs("local")
+    assert runs and runs[0]["run_id"] == run_id
+
+
+def test_list_runs_ordering_deterministic(tmp_path: Path, monkeypatch) -> None:
+    """Prove list_runs returns timestamp DESC, run_id DESC (newest first)."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_a = "2026-01-02T00:00:00Z"
+    run_b = "2026-01-03T00:00:00Z"
+    _write_index(config.RUN_METADATA_DIR / _sanitize(run_a), run_a, run_a)
+    _write_index(config.RUN_METADATA_DIR / _sanitize(run_b), run_b, run_b)
+
+    repo = run_repository.FileSystemRunRepository()
+    runs = repo.list_runs("local", limit=10)
+    assert [r["run_id"] for r in runs] == [run_b, run_a]
+
+
+def test_rebuild_run_index_cli(tmp_path: Path, monkeypatch, capsys) -> None:
+    """Rebuild index CLI smoke."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+    import scripts.rebuild_run_index as rebuild_run_index
+
+    importlib.reload(config)
     importlib.reload(run_repository)
+    importlib.reload(rebuild_run_index)
 
     run_id = "2026-01-02T00:00:00Z"
     runs_dir = config.RUN_METADATA_DIR
