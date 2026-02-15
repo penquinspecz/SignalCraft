@@ -238,6 +238,21 @@ def _content_type(path: Path) -> str:
     return "text/plain"
 
 
+def _schema_version_for_artifact_key(key: str) -> Optional[int]:
+    """Derive schema version from artifact key where known. Returns None if unknown."""
+    if not key:
+        return None
+    if key == "run_summary.v1.json":
+        return 1
+    if key == "run_health.v1.json":
+        return 1
+    if key == "provider_availability_v1.json":
+        return 1
+    if key == "run_report.json":
+        return 1
+    return None
+
+
 def _s3_bucket() -> str:
     return os.environ.get("JOBINTEL_S3_BUCKET", "").strip()
 
@@ -548,6 +563,54 @@ def run_receipt(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[s
     local_path = _local_proof_path(run_id, safe_candidate)
     payload = _read_local_json(local_path)
     return {"source": "local", "path": str(local_path), "payload": payload}
+
+
+@app.get("/v1/runs/{run_id}/artifacts")
+def run_artifact_index(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    """
+    Stable artifact index for a run. Bounded: no raw artifact bodies.
+    Returns { run_id, candidate_id, artifacts: [{key, schema_version, path, content_type, size_bytes?}] }
+    """
+    _sanitize_run_id(run_id)
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    index = _load_index(run_id, candidate_id)
+    artifacts_map = index.get("artifacts")
+    if not isinstance(artifacts_map, dict):
+        artifacts_map = {}
+    entries: List[Dict[str, Any]] = []
+    for key, rel in sorted(artifacts_map.items()):
+        if not isinstance(rel, str) or not rel.strip():
+            continue
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            continue
+        try:
+            full_path = RUN_REPOSITORY.resolve_run_artifact_path(
+                run_id, rel_path.as_posix(), candidate_id=safe_candidate
+            )
+        except ValueError:
+            continue
+        content_type = _content_type(full_path)
+        schema_version = _schema_version_for_artifact_key(key)
+        entry: Dict[str, Any] = {
+            "key": key,
+            "path": rel,
+            "content_type": content_type,
+        }
+        if schema_version is not None:
+            entry["schema_version"] = schema_version
+        if full_path.exists() and full_path.is_file():
+            try:
+                size = full_path.stat().st_size
+                entry["size_bytes"] = size
+            except OSError:
+                pass
+        entries.append(entry)
+    return {
+        "run_id": run_id,
+        "candidate_id": safe_candidate,
+        "artifacts": entries,
+    }
 
 
 @app.get("/v1/artifacts/latest/{provider}/{profile}")
