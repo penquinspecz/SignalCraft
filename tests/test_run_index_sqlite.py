@@ -105,3 +105,35 @@ def test_run_index_no_sensitive_columns(tmp_path: Path, monkeypatch) -> None:
         "summary_path",
         "health_path",
     ]
+
+
+def test_run_index_get_run_is_candidate_aware(tmp_path: Path, monkeypatch) -> None:
+    run_index = _reload_run_index(tmp_path, monkeypatch)
+    run_index.append_run_record(
+        run_id="2026-02-14T14:00:00Z",
+        candidate_id="local",
+        git_sha="sha-local",
+        status="success",
+        created_at="2026-02-14T14:00:00Z",
+        summary_path="state/runs/20260214T140000Z/run_summary.v1.json",
+        health_path="state/runs/20260214T140000Z/run_health.v1.json",
+    )
+    run_index.append_run_record(
+        run_id="2026-02-14T14:00:00Z",
+        candidate_id="alice",
+        git_sha="sha-alice",
+        status="failed",
+        created_at="2026-02-14T14:00:00Z",
+        summary_path="state/candidates/alice/runs/20260214T140000Z/run_summary.v1.json",
+        health_path="state/candidates/alice/runs/20260214T140000Z/run_health.v1.json",
+    )
+
+    local = run_index.get_run_as_dict(run_id="2026-02-14T14:00:00Z", candidate_id="local")
+    alice = run_index.get_run_as_dict(run_id="2026-02-14T14:00:00Z", candidate_id="alice")
+
+    assert local is not None
+    assert alice is not None
+    assert local["git_sha"] == "sha-local"
+    assert local["candidate_id"] == "local"
+    assert alice["git_sha"] == "sha-alice"
+    assert alice["candidate_id"] == "alice"

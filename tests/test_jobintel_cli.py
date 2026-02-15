@@ -250,3 +250,183 @@ def test_cli_runs_list_prints_stable_table(monkeypatch, capsys):
     assert lines[2].startswith("2026-02-14T16:55:02Z")
     assert lines[3].startswith("2026-02-14T16:55:01Z")
     assert lines[-1] == "ROWS=2"
+
+
+def test_cli_runs_show_prints_deterministic_receipt(tmp_path, monkeypatch, capsys):
+    state_dir = tmp_path / "state"
+    run_id = "2026-02-14T16:55:01Z"
+    run_dir = state_dir / "runs" / "20260214T165501Z"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run_summary_path = run_dir / "run_summary.v1.json"
+    run_health_path = run_dir / "run_health.v1.json"
+    run_summary_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": "success",
+                "git_sha": "abc123",
+                "created_at_utc": run_id,
+                "primary_artifacts": [
+                    {"artifact_key": "ranked_json", "path": "state/runs/20260214T165501Z/openai/cs/a.json"},
+                    {"artifact_key": "ranked_csv", "path": "state/runs/20260214T165501Z/openai/cs/a.csv"},
+                    {"artifact_key": "shortlist_md", "path": "state/runs/20260214T165501Z/openai/cs/a.md"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    run_health_path.write_text(json.dumps({"status": "success"}), encoding="utf-8")
+
+    monkeypatch.setattr(cli, "RUN_METADATA_DIR", state_dir / "runs")
+    monkeypatch.setattr(cli, "candidate_run_metadata_dir", lambda _: state_dir / "candidates" / "local" / "runs")
+    monkeypatch.setattr(
+        cli,
+        "get_run_as_dict",
+        lambda run_id, candidate_id: {
+            "run_id": run_id,
+            "candidate_id": candidate_id,
+            "status": "success",
+            "created_at": "2026-02-14T16:55:01Z",
+            "git_sha": "abc123",
+            "summary_path": str(run_summary_path),
+            "health_path": str(run_health_path),
+        },
+    )
+
+    rc = cli.main(["runs", "show", run_id, "--candidate-id", "local"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line]
+    assert lines[0] == "RUN_SHOW_BEGIN"
+    assert lines[1] == f"run_id={run_id}"
+    assert lines[2] == "candidate_id=local"
+    assert lines[3] == f"run_dir={run_dir}"
+    assert lines[4] == "status=success"
+    assert lines[5] == "created_at=2026-02-14T16:55:01Z"
+    assert lines[6] == "git_sha=abc123"
+    assert lines[7] == f"run_summary={run_summary_path}"
+    assert lines[8] == f"run_health={run_health_path}"
+    assert lines[9].startswith("primary_artifact_1=")
+    assert lines[10].startswith("primary_artifact_2=")
+    assert lines[11].startswith("primary_artifact_3=")
+    assert lines[12] == "RUN_SHOW_END"
+
+
+def test_cli_runs_show_does_not_print_raw_candidate_text(tmp_path, monkeypatch, capsys):
+    state_dir = tmp_path / "state"
+    run_id = "2026-02-14T16:55:01Z"
+    run_dir = state_dir / "runs" / "20260214T165501Z"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run_summary_path = run_dir / "run_summary.v1.json"
+    run_summary_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": "success",
+                "resume_text": "SECRET_DO_NOT_PRINT",
+                "primary_artifacts": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "RUN_METADATA_DIR", state_dir / "runs")
+    monkeypatch.setattr(cli, "candidate_run_metadata_dir", lambda _: state_dir / "candidates" / "local" / "runs")
+    monkeypatch.setattr(
+        cli,
+        "get_run_as_dict",
+        lambda run_id, candidate_id: {
+            "run_id": run_id,
+            "candidate_id": candidate_id,
+            "status": "success",
+            "created_at": "2026-02-14T16:55:01Z",
+            "git_sha": "abc123",
+            "summary_path": str(run_summary_path),
+            "health_path": None,
+        },
+    )
+
+    rc = cli.main(["runs", "show", run_id, "--candidate-id", "local"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "SECRET_DO_NOT_PRINT" not in out
+    assert "RUN_SHOW_BEGIN" in out
+    assert "RUN_SHOW_END" in out
+
+
+def test_cli_runs_artifacts_prints_primary_table(tmp_path, monkeypatch, capsys):
+    state_dir = tmp_path / "state"
+    run_id = "2026-02-14T16:55:01Z"
+    run_dir = state_dir / "runs" / "20260214T165501Z"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    run_summary_path = run_dir / "run_summary.v1.json"
+    run_summary_path.write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "status": "success",
+                "primary_artifacts": [
+                    {
+                        "artifact_key": "shortlist_md",
+                        "provider": "openai",
+                        "profile": "cs",
+                        "path": "state/runs/20260214T165501Z/openai/cs/openai_shortlist.cs.md",
+                        "sha256": "zzz",
+                        "bytes": 3,
+                    },
+                    {
+                        "artifact_key": "ranked_json",
+                        "provider": "openai",
+                        "profile": "cs",
+                        "path": "state/runs/20260214T165501Z/openai/cs/openai_ranked_jobs.cs.json",
+                        "sha256": "aaa",
+                        "bytes": 1,
+                    },
+                    {
+                        "artifact_key": "ranked_csv",
+                        "provider": "openai",
+                        "profile": "cs",
+                        "path": "state/runs/20260214T165501Z/openai/cs/openai_ranked_jobs.cs.csv",
+                        "sha256": "bbb",
+                        "bytes": 2,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(cli, "RUN_METADATA_DIR", state_dir / "runs")
+    monkeypatch.setattr(cli, "candidate_run_metadata_dir", lambda _: state_dir / "candidates" / "local" / "runs")
+    monkeypatch.setattr(
+        cli,
+        "get_run_as_dict",
+        lambda run_id, candidate_id: {
+            "run_id": run_id,
+            "candidate_id": candidate_id,
+            "summary_path": str(run_summary_path),
+            "health_path": None,
+            "status": "success",
+            "created_at": run_id,
+            "git_sha": "abc123",
+        },
+    )
+
+    rc = cli.main(["runs", "artifacts", run_id, "--candidate-id", "local"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line]
+    assert lines[0].startswith("ARTIFACT_KEY")
+    assert lines[2].lstrip().startswith("ranked_json")
+    assert lines[3].lstrip().startswith("ranked_csv")
+    assert lines[4].lstrip().startswith("shortlist_md")
+    assert lines[-1] == "ROWS=3"
+
+
+def test_cli_runs_artifacts_requires_summary(tmp_path, monkeypatch):
+    state_dir = tmp_path / "state"
+    monkeypatch.setattr(cli, "RUN_METADATA_DIR", state_dir / "runs")
+    monkeypatch.setattr(cli, "candidate_run_metadata_dir", lambda _: state_dir / "candidates" / "local" / "runs")
+    monkeypatch.setattr(cli, "get_run_as_dict", lambda run_id, candidate_id: None)
+    with pytest.raises(SystemExit, match="run_summary not found"):
+        cli.main(["runs", "artifacts", "2026-02-14T16:55:01Z", "--candidate-id", "local"])
