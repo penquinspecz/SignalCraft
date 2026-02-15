@@ -168,16 +168,16 @@ Receipts Required
 ## Milestone 11 — Artifact Model v2 (Legal + UI-Safe by Design) ◐
 
 Goal: Legality + replayability enforced by shape.
-Status: ◐ Versioned run health/summary artifacts and redaction guardrails exist; full UI-safe vs replay-safe split is still incomplete.
-Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `tests/test_run_summary_artifact.py`, `tests/test_redaction_guard.py`, `tests/test_redaction_scan.py`.
+Status: ◐ UI-safe and replay-safe schema contracts scaffolded; pipeline emission of v2 artifacts is deferred.
+Evidence: `schemas/ui_safe_artifact.schema.v1.json`, `schemas/replay_safe_artifact.schema.v1.json`, `docs/ARTIFACT_MODEL.md`, `tests/test_artifact_model_v2.py`, `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `tests/test_redaction_guard.py`, `tests/test_redaction_scan.py`.
 
 Definition of Done
-- [ ] UI-safe artifact schema versioned
-- [ ] Replay-safe artifact schema versioned
+- [x] UI-safe artifact schema versioned
+- [x] Replay-safe artifact schema versioned
 - [x] UI-safe artifacts contain no raw JD text in run summary pointers
 - [x] Redaction boundaries enforced by tests (stdout/logs included)
 - [x] Retention policy documented (what is stored, for how long, why)
-- [ ] Artifact backward compatibility defined (and tested)
+- [x] Artifact backward compatibility defined (and tested)
 - [x] Artifact provenance includes provider policy decision + canonical URL (run report provenance by provider)
 
 Receipts Required
