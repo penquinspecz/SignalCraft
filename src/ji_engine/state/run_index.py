@@ -213,3 +213,82 @@ def list_runs_as_dicts(
         }
         for row in rows
     ]
+
+
+def get_run(
+    *,
+    run_id: str,
+    candidate_id: Optional[str] = DEFAULT_CANDIDATE_ID,
+    db_path: Optional[Path] = None,
+) -> Optional[RunIndexRow]:
+    path = ensure_schema(db_path)
+    conn = _connect(path)
+    try:
+        if candidate_id is None:
+            row = conn.execute(
+                """
+                SELECT run_id, candidate_id, git_sha, status, created_at, summary_path, health_path
+                FROM run_index_v1
+                WHERE run_id = ?
+                ORDER BY created_at DESC, run_id DESC
+                LIMIT 1
+                """,
+                (run_id,),
+            ).fetchone()
+        else:
+            candidate_db = _candidate_to_db_value(candidate_id)
+            if candidate_db is None:
+                row = conn.execute(
+                    """
+                    SELECT run_id, candidate_id, git_sha, status, created_at, summary_path, health_path
+                    FROM run_index_v1
+                    WHERE run_id = ? AND candidate_id IS NULL
+                    LIMIT 1
+                    """,
+                    (run_id,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    """
+                    SELECT run_id, candidate_id, git_sha, status, created_at, summary_path, health_path
+                    FROM run_index_v1
+                    WHERE run_id = ? AND candidate_id = ?
+                    LIMIT 1
+                    """,
+                    (run_id, candidate_db),
+                ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+
+    return RunIndexRow(
+        run_id=row["run_id"],
+        candidate_id=_candidate_from_db_value(row["candidate_id"]),
+        git_sha=row["git_sha"],
+        status=row["status"],
+        created_at=row["created_at"],
+        summary_path=row["summary_path"],
+        health_path=row["health_path"],
+    )
+
+
+def get_run_as_dict(
+    *,
+    run_id: str,
+    candidate_id: Optional[str] = DEFAULT_CANDIDATE_ID,
+    db_path: Optional[Path] = None,
+) -> Optional[Dict[str, Optional[str]]]:
+    row = get_run(run_id=run_id, candidate_id=candidate_id, db_path=db_path)
+    if row is None:
+        return None
+    return {
+        "run_id": row.run_id,
+        "candidate_id": row.candidate_id,
+        "git_sha": row.git_sha,
+        "status": row.status,
+        "created_at": row.created_at,
+        "summary_path": row.summary_path,
+        "health_path": row.health_path,
+    }
