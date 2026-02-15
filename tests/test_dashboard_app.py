@@ -657,3 +657,111 @@ def test_dashboard_semantic_summary_invalid_json_returns_500(tmp_path: Path, mon
     resp = client.get(f"/runs/{run_id}/semantic_summary/cs")
     assert resp.status_code == 500
     assert resp.json()["detail"] == "Semantic summary invalid JSON"
+
+
+def test_dashboard_v1_artifact_index_shape_and_schema_versions(tmp_path: Path, monkeypatch) -> None:
+    """GET /v1/runs/{run_id}/artifacts returns stable shape with schema_version where applicable."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "run_summary.v1.json").write_text('{"run_summary_schema_version":1}', encoding="utf-8")
+    (run_dir / "run_health.v1.json").write_text('{"run_health_schema_version":1}', encoding="utf-8")
+    (run_dir / "openai_ranked_jobs.cs.json").write_text("[]", encoding="utf-8")
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "artifacts": {
+            "run_summary.v1.json": "run_summary.v1.json",
+            "run_health.v1.json": "run_health.v1.json",
+            "openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json",
+        },
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/v1/runs/{run_id}/artifacts?candidate_id=local")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["run_id"] == run_id
+    assert payload["candidate_id"] == "local"
+    assert "artifacts" in payload
+    artifacts = payload["artifacts"]
+    assert isinstance(artifacts, list)
+    assert len(artifacts) == 3
+
+    keys = {a["key"] for a in artifacts}
+    assert keys == {"openai_ranked_jobs.cs.json", "run_health.v1.json", "run_summary.v1.json"}
+
+    for a in artifacts:
+        assert "key" in a
+        assert "path" in a
+        assert "content_type" in a
+        assert a["content_type"] in ("application/json", "text/csv", "text/markdown", "text/plain")
+        if a["key"] in ("run_summary.v1.json", "run_health.v1.json"):
+            assert a.get("schema_version") == 1
+        if a["key"] == "openai_ranked_jobs.cs.json":
+            assert "size_bytes" in a
+            assert a["size_bytes"] == 2
+
+
+def test_dashboard_v1_artifact_index_unknown_run_returns_404(tmp_path: Path, monkeypatch) -> None:
+    """GET /v1/runs/{run_id}/artifacts returns 404 for unknown run_id."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state" / "runs").mkdir(parents=True, exist_ok=True)
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/v1/runs/2026-99-99T99:99:99Z/artifacts?candidate_id=local")
+    assert resp.status_code == 404
+    assert "not found" in str(resp.json().get("detail", "")).lower()
+
+
+def test_dashboard_v1_artifact_index_bounded_no_huge_reads(tmp_path: Path, monkeypatch) -> None:
+    """Artifact index does not read artifact bodies; only metadata (path, size via stat)."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    large_content = "x" * 500_000
+    (run_dir / "big_artifact.json").write_text(json.dumps({"data": large_content}), encoding="utf-8")
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "artifacts": {"big_artifact.json": "big_artifact.json"},
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/v1/runs/{run_id}/artifacts?candidate_id=local")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert len(payload["artifacts"]) == 1
+    assert payload["artifacts"][0]["key"] == "big_artifact.json"
+    assert "size_bytes" in payload["artifacts"][0]
+    assert payload["artifacts"][0]["size_bytes"] > 500_000
+    assert "data" not in str(payload)
+    assert large_content[:100] not in str(payload)

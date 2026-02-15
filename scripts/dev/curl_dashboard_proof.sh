@@ -26,4 +26,8 @@ echo "--- GET /runs?candidate_id=local ---"
 curl -sS "${BASE_URL}/runs?candidate_id=local" | python3 -m json.tool 2>/dev/null || echo "(404 or error)"
 echo ""
 
+echo "--- GET /v1/runs/{run_id}/artifacts?candidate_id=local ---"
+curl -sS "${BASE_URL}/v1/runs/2026-01-22T00:00:00Z/artifacts?candidate_id=local" | python3 -m json.tool 2>/dev/null || echo "(404 - expected when run not found)"
+echo ""
+
 echo "=== Done ==="
