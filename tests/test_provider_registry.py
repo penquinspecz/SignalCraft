@@ -375,6 +375,69 @@ def test_resolve_provider_ids_rejects_disabled_provider(tmp_path: Path) -> None:
         resolve_provider_ids("alpha", providers)
 
 
+def test_resolve_provider_ids_rejects_tombstoned_provider_with_reason(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.json"
+    config_path.write_text(
+        """
+{
+  "schema_version": 1,
+  "providers": [
+    {
+      "provider_id": "alpha",
+      "display_name": "Alpha",
+      "enabled": true,
+      "live_enabled": true,
+      "careers_urls": ["https://alpha.example/jobs"],
+      "extraction_mode": "jsonld",
+      "tombstone": {
+        "enabled": true,
+        "reason": "tombstoned_by_policy",
+        "date": "2026-02-15"
+      }
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    providers = load_providers_config(config_path)
+    with pytest.raises(ValueError, match="tombstoned by policy"):
+        resolve_provider_ids("alpha", providers)
+    with pytest.raises(ValueError, match="No enabled providers configured"):
+        resolve_provider_ids("all", providers)
+
+
+def test_tombstoned_provider_is_forced_disabled_in_normalized_registry(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.json"
+    config_path.write_text(
+        """
+{
+  "schema_version": 1,
+  "providers": [
+    {
+      "provider_id": "alpha",
+      "display_name": "Alpha",
+      "enabled": true,
+      "live_enabled": true,
+      "careers_urls": ["https://alpha.example/jobs"],
+      "extraction_mode": "jsonld",
+      "tombstone": {
+        "enabled": true,
+        "reason": "legal_takedown"
+      }
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    providers = load_providers_config(config_path)
+    assert providers[0]["enabled"] is False
+    assert providers[0]["live_enabled"] is False
+    assert providers[0]["tombstone"]["enabled"] is True
+    assert providers[0]["tombstone"]["reason"] == "legal_takedown"
+
+
 def test_load_providers_config_rejects_llm_fallback_mode_without_enabled_fallback(tmp_path: Path) -> None:
     config_path = tmp_path / "providers.json"
     config_path.write_text(

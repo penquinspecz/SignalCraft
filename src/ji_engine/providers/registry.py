@@ -99,6 +99,8 @@ def _validate_provider_entry_schema(entry: Dict[str, Any], schema: Dict[str, Any
         raise ValueError("snapshot_enabled must be a boolean when provided")
     if "llm_fallback" in entry and not isinstance(entry.get("llm_fallback"), dict):
         raise ValueError("llm_fallback must be an object when provided")
+    if "tombstone" in entry and not isinstance(entry.get("tombstone"), dict):
+        raise ValueError("tombstone must be an object when provided")
 
 
 def _coerce_extraction_mode(raw_mode: Any, raw_type: Any) -> str:
@@ -219,6 +221,31 @@ def _normalize_llm_fallback(entry: Dict[str, Any]) -> Dict[str, Any]:
         "enabled": enabled,
         "cache_dir": cache_dir,
         "temperature": 0.0,
+    }
+
+
+def _normalize_tombstone(entry: Dict[str, Any]) -> Dict[str, Any]:
+    raw = entry.get("tombstone")
+    if raw is None:
+        return {"enabled": False, "reason": "", "date": None}
+    if not isinstance(raw, dict):
+        raise ValueError("tombstone must be an object when provided")
+    unknown = sorted(set(raw.keys()) - {"enabled", "reason", "date"})
+    if unknown:
+        raise ValueError(f"unsupported tombstone keys: {', '.join(unknown)}")
+    enabled = bool(raw.get("enabled", False))
+    reason = str(raw.get("reason") or "").strip()
+    date = raw.get("date")
+    if date is not None:
+        date = str(date).strip()
+        if not date:
+            raise ValueError("tombstone.date must be non-empty when provided")
+    if enabled and not reason:
+        raise ValueError("tombstone.reason is required when tombstone.enabled=true")
+    return {
+        "enabled": enabled,
+        "reason": reason,
+        "date": date,
     }
 
 
@@ -428,14 +455,20 @@ def _normalize_provider_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
     if not display_name:
         raise ValueError("provider entry display_name/name must be non-empty")
     llm_fallback = _normalize_llm_fallback(entry)
+    tombstone = _normalize_tombstone(entry)
     if raw_extraction_mode == "llm_fallback" and not llm_fallback.get("enabled"):
         raise ValueError("extraction_mode 'llm_fallback' requires llm_fallback.enabled=true")
+    enabled = bool(entry.get("enabled", True))
+    live_enabled = bool(entry.get("live_enabled", True))
+    if tombstone["enabled"]:
+        enabled = False
+        live_enabled = False
     normalized: Dict[str, Any] = {
         "provider_id": provider_id,
         "display_name": display_name,
         "name": display_name,  # back-compat for existing callers
         "schema_version": 1,
-        "enabled": bool(entry.get("enabled", True)),
+        "enabled": enabled,
         "careers_urls": urls,
         "careers_url": urls[0],
         "board_url": urls[0],  # back-compat for existing callers
@@ -443,11 +476,12 @@ def _normalize_provider_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
         "extraction_mode": extraction_mode,
         "type": extraction_mode,  # back-compat
         "mode": mode,
-        "live_enabled": bool(entry.get("live_enabled", True)),
+        "live_enabled": live_enabled,
         "snapshot_enabled": bool(entry.get("snapshot_enabled", True)),
         "snapshot_path": snapshot_path,
         "snapshot_dir": str(Path(snapshot_path).parent),
         "llm_fallback": llm_fallback,
+        "tombstone": tombstone,
         "update_cadence": update_cadence,
         "politeness": _normalize_politeness(entry),
     }
@@ -491,9 +525,18 @@ def resolve_provider_ids(
     default_provider: str = "openai",
 ) -> List[str]:
     enabled_map = {entry["provider_id"]: bool(entry.get("enabled", True)) for entry in providers_cfg}
+    tombstone_map = {
+        entry["provider_id"]: entry.get("tombstone")
+        for entry in providers_cfg
+        if isinstance(entry.get("tombstone"), dict) and bool(entry.get("tombstone", {}).get("enabled", False))
+    }
     requested = (providers_arg or "").strip()
     if requested.lower() == "all":
-        providers = [entry["provider_id"] for entry in providers_cfg if enabled_map.get(entry["provider_id"], True)]
+        providers = [
+            entry["provider_id"]
+            for entry in providers_cfg
+            if enabled_map.get(entry["provider_id"], True) and entry["provider_id"] not in tombstone_map
+        ]
     else:
         providers = [p.strip() for p in requested.split(",") if p.strip()]
     if requested.lower() == "all" and not providers:
@@ -513,6 +556,13 @@ def resolve_provider_ids(
     if unknown:
         unknown_list = ", ".join(unknown)
         raise ValueError(f"Unknown provider_id(s): {unknown_list}")
+    tombstoned = [provider for provider in out if provider in tombstone_map]
+    if tombstoned:
+        details = ", ".join(
+            f"{provider} ({str((tombstone_map.get(provider) or {}).get('reason') or 'tombstoned_by_policy')})"
+            for provider in tombstoned
+        )
+        raise ValueError(f"Provider(s) tombstoned by policy: {details}")
     disabled = [provider for provider in out if not enabled_map.get(provider, True)]
     if disabled:
         disabled_list = ", ".join(disabled)
@@ -531,3 +581,16 @@ def provider_registry_provenance(path: Path) -> Dict[str, Any]:
         "provider_registry_schema_version": 1,
         "provider_registry_sha256": compute_sha256_bytes(canonical_json.encode("utf-8")),
     }
+
+
+def provider_tombstone_provenance(path: Path) -> Dict[str, Dict[str, Any]]:
+    providers = load_providers_config(path)
+    tombstoned = {
+        entry["provider_id"]: {
+            "reason": str((entry.get("tombstone") or {}).get("reason") or "tombstoned_by_policy"),
+            "date": (entry.get("tombstone") or {}).get("date"),
+        }
+        for entry in providers
+        if isinstance(entry.get("tombstone"), dict) and bool((entry.get("tombstone") or {}).get("enabled", False))
+    }
+    return {provider_id: tombstoned[provider_id] for provider_id in sorted(tombstoned)}
