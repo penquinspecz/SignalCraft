@@ -18,7 +18,8 @@ from typing import Dict, List, Optional
 
 from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, candidate_run_metadata_dir, sanitize_candidate_id
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
-from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
+from ji_engine.providers.registry import load_providers_config
+from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.state.run_index import list_runs_as_dicts
 
 from .safety.diff import build_safety_diff_report, load_jobs_from_path, render_summary, write_report
@@ -114,11 +115,16 @@ def _validate_snapshots(args: argparse.Namespace) -> int:
     if args.all:
         provider_ids: List[str] = []
     else:
-        provider_arg = (args.provider or "openai").lower().strip()
+        provider_arg = (args.provider or "").lower().strip()
         if provider_arg == "all":
             raise SystemExit("Use --all to validate discovered snapshots.")
         try:
-            provider_ids = resolve_provider_ids(provider_arg, providers_cfg, default_provider="openai")
+            provider_ids = select_provider_ids(
+                providers_arg=provider_arg,
+                providers_config_path=providers_config,
+                defaults_path=REPO_ROOT / DEFAULTS_CONFIG_PATH,
+                env=os.environ,
+            )
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
 
@@ -331,7 +337,7 @@ def _validate_candidate_for_run(candidate_id: str) -> str:
 def _add_run_daily_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--role", help="Profile role name (e.g. cs).")
     parser.add_argument("--profiles", help="Comma-separated profiles (e.g. cs or cs,tam,se).")
-    parser.add_argument("--providers", help="Comma-separated provider ids.")
+    parser.add_argument("--providers", "--provider", dest="providers", help="Comma-separated provider ids.")
     parser.add_argument("--offline", action="store_true", help="Force snapshot mode (no live scraping).")
     parser.add_argument("--no_post", "--no-post", dest="no_post", action="store_true")
     parser.add_argument("--no_enrich", "--no-enrich", dest="no_enrich", action="store_true")
@@ -432,7 +438,13 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.set_defaults(func=_refresh_snapshots)
 
     validate_cmd = snapshots_sub.add_parser("validate", help="Validate provider snapshots")
-    validate_cmd.add_argument("--provider", help="Provider id to validate (default: openai).")
+    validate_cmd.add_argument(
+        "--provider",
+        help=(
+            "Provider id(s) to validate. If omitted, selection precedence is "
+            "--provider, JOBINTEL_PROVIDER_ID, config/defaults.json, then first enabled provider."
+        ),
+    )
     validate_cmd.add_argument("--all", action="store_true", help="Validate all known providers.")
     validate_cmd.add_argument("--data-dir", help="Base data directory (default: JOBINTEL_DATA_DIR or data).")
     validate_cmd.add_argument(

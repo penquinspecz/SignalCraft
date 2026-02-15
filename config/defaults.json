@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "default_provider_id": "openai",
+  "allow_first_enabled_fallback": true
+}
