@@ -101,7 +101,8 @@
           "SCORING_STAGE_FAILED",
           "SNAPSHOT_FETCH_FAILED",
           "SNAPSHOT_MISSING",
-          "UNEXPECTED_FAILURE"
+          "UNEXPECTED_FAILURE",
+          "FORCED_FAILURE"
         ]
       }
     },
@@ -157,7 +158,8 @@
                   "SCORING_STAGE_FAILED",
                   "SNAPSHOT_FETCH_FAILED",
                   "SNAPSHOT_MISSING",
-                  "UNEXPECTED_FAILURE"
+                  "UNEXPECTED_FAILURE",
+                  "FORCED_FAILURE"
                 ]
               }
             }
@@ -206,7 +208,8 @@
                   "SCORING_STAGE_FAILED",
                   "SNAPSHOT_FETCH_FAILED",
                   "SNAPSHOT_MISSING",
-                  "UNEXPECTED_FAILURE"
+                  "UNEXPECTED_FAILURE",
+                  "FORCED_FAILURE"
                 ]
               }
             }
@@ -255,7 +258,8 @@
                   "SCORING_STAGE_FAILED",
                   "SNAPSHOT_FETCH_FAILED",
                   "SNAPSHOT_MISSING",
-                  "UNEXPECTED_FAILURE"
+                  "UNEXPECTED_FAILURE",
+                  "FORCED_FAILURE"
                 ]
               }
             }
@@ -304,7 +308,8 @@
                   "SCORING_STAGE_FAILED",
                   "SNAPSHOT_FETCH_FAILED",
                   "SNAPSHOT_MISSING",
-                  "UNEXPECTED_FAILURE"
+                  "UNEXPECTED_FAILURE",
+                  "FORCED_FAILURE"
                 ]
               }
             }
@@ -353,7 +358,8 @@
                   "SCORING_STAGE_FAILED",
                   "SNAPSHOT_FETCH_FAILED",
                   "SNAPSHOT_MISSING",
-                  "UNEXPECTED_FAILURE"
+                  "UNEXPECTED_FAILURE",
+                  "FORCED_FAILURE"
                 ]
               }
             }
