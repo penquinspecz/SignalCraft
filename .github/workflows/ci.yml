@@ -64,8 +64,19 @@ jobs:
     env:
       DOCKER_BUILDKIT: "1"
     steps:
+      - name: Timing init
+        run: |
+          echo "CI_TIMER_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
+      - name: Timing checkpoint (checkout)
+        run: |
+          set -euo pipefail
+          now=$(date +%s)
+          prev=${CI_TIMER_EPOCH:-$now}
+          echo "::notice title=ci-timing::checkout_sec=$((now-prev))"
+          echo "CI_TIMER_EPOCH=$now" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
+        id: setup-python
         with:
           python-version: "3.14.3"
           cache: "pip"
@@ -73,12 +84,38 @@ jobs:
             requirements.txt
             requirements-dev.txt
             pyproject.toml
+      - name: Timing checkpoint (setup-python + pip cache)
+        run: |
+          set -euo pipefail
+          now=$(date +%s)
+          prev=${CI_TIMER_EPOCH:-$now}
+          echo "::notice title=ci-timing::setup_python_and_pip_cache_sec=$((now-prev))"
+          echo "CI_TIMER_EPOCH=$now" >> "$GITHUB_ENV"
       - name: Restore venv cache
         id: venv-cache
         uses: actions/cache@v4
         with:
           path: .venv
           key: venv-v2-gate-${{ runner.os }}-py3.14.3-${{ hashFiles('requirements.txt', 'requirements-dev.txt', 'pyproject.toml') }}
+      - name: Cache diagnostics
+        run: |
+          set -euo pipefail
+          now=$(date +%s)
+          prev=${CI_TIMER_EPOCH:-$now}
+          echo "::notice title=ci-timing::venv_cache_restore_sec=$((now-prev))"
+          echo "CI_TIMER_EPOCH=$now" >> "$GITHUB_ENV"
+          echo "::group::cache diagnostics"
+          echo "setup-python pip cache-hit=${{ steps.setup-python.outputs.cache-hit }}"
+          echo "venv cache-hit=${{ steps.venv-cache.outputs.cache-hit }}"
+          echo "::endgroup::"
+          echo "::group::pip cache diagnostics"
+          python -m pip cache dir
+          python -m pip cache info || true
+          du -sh ~/.cache/pip 2>/dev/null || true
+          echo "::endgroup::"
+          echo "::group::venv diagnostics"
+          du -sh .venv 2>/dev/null || true
+          echo "::endgroup::"
       - name: Python/platform fingerprint
         run: |
           python --version
@@ -92,15 +129,38 @@ jobs:
       - name: Install deps
         if: steps.venv-cache.outputs.cache-hit != 'true'
         run: |
+          set -euo pipefail
+          start=$(date +%s)
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip==25.0.1 setuptools wheel pip-tools==7.4.1
           .venv/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
           .venv/bin/python -m pip install -e .
-      - name: Gate (pytest offline harness defaults)
+          end=$(date +%s)
+          echo "::notice title=ci-timing::install_deps_sec=$((end-start))"
+          echo "::group::pip cache diagnostics (post-install)"
+          .venv/bin/python -m pip cache info || true
+          du -sh ~/.cache/pip 2>/dev/null || true
+          echo "::endgroup::"
+      - name: Gate timings (pytest + snapshot + replay + docker truth)
         run: |
-          # AWS-safe test defaults live in tests/conftest.py.
-          # Keep CI aligned with local pytest behavior; avoid inline AWS_* exports.
-          make gate-ci
+          set -euo pipefail
+          timed() {
+            local label="$1"
+            shift
+            local start end
+            start=$(date +%s)
+            echo "::group::${label}"
+            "$@"
+            end=$(date +%s)
+            echo "::notice title=ci-timing::${label}_sec=$((end-start))"
+            echo "::endgroup::"
+          }
+          # Keep behavior equivalent to `make gate-ci`:
+          # pytest + snapshot immutability + replay smoke + gate-truth docker build.
+          timed pytest .venv/bin/python -m pytest -q
+          timed verify_snapshots_immutable env PYTHONPATH=src .venv/bin/python scripts/verify_snapshots_immutable.py
+          timed replay_smoke env CAREERS_MODE=SNAPSHOT PYTHONPATH=src .venv/bin/python scripts/replay_smoke_fixture.py
+          timed gate_truth_docker_build docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
       - name: Determinism contract checks
         run: |
           set -euo pipefail
