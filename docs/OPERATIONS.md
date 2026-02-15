@@ -155,6 +155,18 @@ List runs quickly from CLI:
 python -m jobintel.cli runs list --candidate-id local --limit 20
 ```
 
+Show canonical pointers for one run:
+
+```bash
+python -m jobintel.cli runs show 2026-02-14T16:55:01Z --candidate-id local
+```
+
+List primary artifacts for one run:
+
+```bash
+python -m jobintel.cli runs artifacts 2026-02-14T16:55:01Z --candidate-id local
+```
+
 Reset local run index (safe; artifacts remain source of truth):
 
 ```bash
