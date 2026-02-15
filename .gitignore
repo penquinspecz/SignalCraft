@@ -102,6 +102,9 @@ ops/aws/infra/eks/local.auto.tfvars.json
 ops/proof/
 !ops/proof/PROOF_STORAGE.md
 
+# Generated Codex review queue (run scripts/dev/generate_codex_review_queue.sh)
+docs/proof/from-composer-codex-review-queue-*.md
+
 # Local Python venvs
 .venv*/
 data/xai_snapshots/
