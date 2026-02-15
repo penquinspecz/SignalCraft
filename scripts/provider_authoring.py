@@ -263,6 +263,12 @@ def validate_provider(
     except Exception as exc:
         checks.append(ValidationCheck("provider_exists", False, str(exc)))
         return ProviderValidationResult(provider_id=target_id, checks=tuple(checks))
+    tombstone_raw = raw_entry.get("tombstone")
+    if isinstance(tombstone_raw, dict) and bool(tombstone_raw.get("enabled", False)):
+        reason = str(tombstone_raw.get("reason") or "tombstoned_by_policy")
+        checks.append(ValidationCheck("provider_not_tombstoned", False, f"provider tombstoned: {reason}"))
+    else:
+        checks.append(ValidationCheck("provider_not_tombstoned", True, "provider is not tombstoned"))
 
     careers_urls = raw_entry.get("careers_urls")
     if isinstance(careers_urls, list) and any(str(url).strip() for url in careers_urls):
@@ -555,6 +561,10 @@ def _write_payload(path: Path, payload: dict[str, Any] | list[Any]) -> None:
 
 def _enable_provider_in_config(provider_id: str, providers_config_path: Path) -> bool:
     payload, providers, raw_entry = _resolve_provider_entry_raw(provider_id, providers_config_path)
+    tombstone_raw = raw_entry.get("tombstone")
+    if isinstance(tombstone_raw, dict) and bool(tombstone_raw.get("enabled", False)):
+        reason = str(tombstone_raw.get("reason") or "tombstoned_by_policy")
+        raise ValueError(f"provider '{provider_id}' is tombstoned: {reason}")
     if bool(raw_entry.get("enabled", True)):
         return False
     raw_entry["enabled"] = True
@@ -566,6 +576,39 @@ def _enable_provider_in_config(provider_id: str, providers_config_path: Path) ->
 
     _write_payload(providers_config_path, payload)
     return True
+
+
+def _set_provider_tombstone(
+    *,
+    provider_id: str,
+    providers_config_path: Path,
+    enabled: bool,
+    reason: str,
+    date: str | None,
+) -> bool:
+    payload, _, raw_entry = _resolve_provider_entry_raw(provider_id, providers_config_path)
+    existing = raw_entry.get("tombstone")
+    if enabled:
+        if not reason.strip():
+            raise ValueError("--reason is required when enabling tombstone")
+        tombstone: dict[str, Any] = {
+            "enabled": True,
+            "reason": reason.strip(),
+        }
+        if date and date.strip():
+            tombstone["date"] = date.strip()
+        raw_entry["tombstone"] = tombstone
+        raw_entry["enabled"] = False
+        raw_entry["live_enabled"] = False
+    else:
+        raw_entry["tombstone"] = {"enabled": False}
+    changed = existing != raw_entry.get("tombstone")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", encoding="utf-8", delete=True) as handle:
+        handle.write(_json_dump(payload))
+        handle.flush()
+        load_providers_config(Path(handle.name))
+    _write_payload(providers_config_path, payload)
+    return changed
 
 
 def update_snapshot_manifest_for_provider(
@@ -656,6 +699,16 @@ def main(argv: Optional[list[str]] = None) -> int:
     append_parser.add_argument("--allowed-domain", action="append", dest="allowed_domains")
     append_parser.add_argument("--extraction-mode", default="jsonld")
     append_parser.add_argument("--i-mean-it", action="store_true")
+    tombstone_parser = sub.add_parser(
+        "tombstone",
+        help="Enable/clear provider tombstone policy marker",
+    )
+    tombstone_parser.add_argument("--provider", required=True)
+    tombstone_parser.add_argument("--providers-config", default=str(_DEFAULT_PROVIDERS_CONFIG))
+    tombstone_parser.add_argument("--reason", default="")
+    tombstone_parser.add_argument("--date", default="")
+    tombstone_parser.add_argument("--clear", action="store_true", help="Clear tombstone marker")
+    tombstone_parser.add_argument("--i-mean-it", action="store_true")
 
     args = parser.parse_args(argv)
     if args.command == "template":
@@ -769,6 +822,28 @@ def main(argv: Optional[list[str]] = None) -> int:
 
         print(f"appended disabled provider '{provider_id}' to {config_path} providers_count={total_count}")
         print(f"entry_enabled={new_entry.get('enabled')}")
+        return 0
+
+    if args.command == "tombstone":
+        provider_id = args.provider.strip().lower()
+        if not args.i_mean_it:
+            print("refusing to edit providers config without --i-mean-it")
+            return 2
+        try:
+            changed = _set_provider_tombstone(
+                provider_id=provider_id,
+                providers_config_path=Path(args.providers_config),
+                enabled=not bool(args.clear),
+                reason=str(args.reason),
+                date=str(args.date) if args.date else None,
+            )
+        except Exception as exc:
+            print(f"refusing tombstone update: {exc}")
+            return 1
+        action = "cleared" if args.clear else "enabled"
+        detail = "no config changes made" if not changed else f"{action} tombstone"
+        print(f"provider={provider_id}")
+        print(f"result={detail}")
         return 0
 
     raise SystemExit(f"unknown command: {args.command}")
