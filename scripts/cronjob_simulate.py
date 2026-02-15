@@ -78,7 +78,7 @@ def main() -> int:
 
     importlib.reload(config)
     if run_daily.__name__ in sys.modules:
-        importlib.reload(run_daily)
+        run_daily = importlib.reload(sys.modules[run_daily.__name__])
     replay_run.DATA_DIR = config.DATA_DIR
 
     run_daily._utcnow_iso = lambda: run_id  # type: ignore[assignment]
