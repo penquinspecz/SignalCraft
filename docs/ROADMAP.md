@@ -142,6 +142,10 @@ Evidence: `schemas/providers.schema.v1.json`, `scripts/provider_authoring.py`, `
 
 Definition of Done
 - [x] Versioned provider registry schema exists
+- [ ] **Network Shield v1 (SSRF/Egress hardening) is required before any provider may set `live_enabled=true`**, including:
+  - denylist coverage for `localhost`/`127.0.0.1`, RFC1918 ranges, and link-local metadata endpoints (for example `169.254.169.254`)
+  - redirect revalidation on every hop
+  - max-bytes streamed download cap enforcement
 - [ ] Registry hash recorded in provenance
 - [x] Provider config validated in CI (schema + invariants)
 - [x] Snapshot fixtures enforced per provider (enabled snapshot providers)
@@ -153,6 +157,10 @@ Definition of Done
 Receipts Required
 - Deterministic ordering tests
 - Snapshot completeness enforcement tests
+- Network Shield receipts/tests:
+  - denylist tests for localhost/loopback, RFC1918, and `169.254.169.254`
+  - redirect revalidation tests
+  - streamed download max-bytes cap tests
 - Proof doc in `docs/proof/`
 
 ---
@@ -220,11 +228,13 @@ Definition of Done
 - [x] Index is append-only and derived from artifacts (rebuildable)
 - [x] Dashboard endpoints do not require directory scans for the common case
 - [x] Index rebuild tool exists (deterministic)
+- [ ] At least one real read path (`history`, `diff`, or `retention`) is migrated to SQLite-backed lookup instead of walking JSON files
 
 Receipts Required
 - Index rebuild proof
 - Determinism proof: index rebuild yields identical results
 - Dashboard performance sanity proof (basic benchmark notes)
+- Read-path migration proof showing SQLite-backed resolution for at least one of: history/diff/retention
 
 ---
 
@@ -406,6 +416,8 @@ Definition of Done
 - [ ] Threat model document created (multi-tenant aware)
 - [ ] Attack surface review performed
 - [x] Secrets handling reviewed + redaction tests enforced
+  - Clarification: regex redaction is best-effort only, and is not the primary security control
+  - Primary control: no secrets are written to artifacts/log bundles by construction
 - [ ] Dependency audit completed
 - [ ] Least-privilege IAM documented (AWS + on-prem)
 - [x] Static analysis tool integrated
@@ -416,6 +428,7 @@ Receipts Required
 - Threat model artifact
 - Dependency audit report
 - IAM review checklist
+- Tests proving secrets are never serialized into run artifacts/log bundles
 
 ---
 
