@@ -28,9 +28,16 @@ def _write_ranked(runner: Any, run_id: str, provider: str, profile: str) -> Path
 
 
 def _legacy_scan_expected(runner: Any, provider: str, profile: str, current_run_id: str) -> Path | None:
+    run_root = (
+        runner.RUN_METADATA_DIR
+        if runner.CANDIDATE_ID == runner.DEFAULT_CANDIDATE_ID
+        else runner.candidate_run_metadata_dir(runner.CANDIDATE_ID)
+    )
+    if not run_root.exists():
+        return None
     current_name = runner._sanitize_run_id(current_run_id)
     candidates: list[tuple[float, str, Path]] = []
-    for run_dir in runner.RUN_REPOSITORY.list_run_dirs(candidate_id=runner.CANDIDATE_ID):
+    for run_dir in run_root.iterdir():
         if not run_dir.is_dir() or run_dir.name == current_name:
             continue
         ranked = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
