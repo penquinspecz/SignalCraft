@@ -14,6 +14,64 @@ def _sanitize(run_id: str) -> str:
     return run_id.replace(":", "").replace("-", "").replace(".", "")
 
 
+def test_dashboard_version_shape_and_stability(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/version")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["service"] == "SignalCraft"
+    assert "git_sha" in payload
+    assert isinstance(payload["git_sha"], str)
+    assert "schema_versions" in payload
+    schemas = payload["schema_versions"]
+    assert isinstance(schemas, dict)
+    assert schemas.get("run_summary") == 1
+    assert schemas.get("run_health") == 1
+    # build_timestamp is optional
+    if "build_timestamp" in payload:
+        assert isinstance(payload["build_timestamp"], str)
+
+
+def test_dashboard_version_git_sha_from_env(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_GIT_SHA", "abc123def")
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/version")
+    assert resp.status_code == 200
+    assert resp.json()["git_sha"] == "abc123def"
+
+
+def test_dashboard_version_build_timestamp_optional(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_BUILD_TIMESTAMP", "2026-02-15T12:00:00Z")
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/version")
+    assert resp.status_code == 200
+    assert resp.json().get("build_timestamp") == "2026-02-15T12:00:00Z"
+
+
 def test_dashboard_runs_empty(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 
