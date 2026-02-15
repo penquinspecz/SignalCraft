@@ -1,6 +1,23 @@
 """
-SignalCraft
-Copyright (c) 2026 Chris Menendez.
-All Rights Reserved.
-See LICENSE for permitted use.
+SignalCraft pipeline package.
 """
+
+from ji_engine.pipeline.runner import (
+    PipelineStageError,
+    StageContext,
+    StageResult,
+    StageStatus,
+    WorkspacePaths,
+    main,
+    resolve_stage_order,
+)
+
+__all__ = [
+    "PipelineStageError",
+    "StageContext",
+    "StageResult",
+    "StageStatus",
+    "WorkspacePaths",
+    "main",
+    "resolve_stage_order",
+]
