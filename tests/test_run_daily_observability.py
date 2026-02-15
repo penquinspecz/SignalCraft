@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import scripts.run_daily as run_daily
+from ji_engine.run_repository import FileSystemRunRepository
 
 
 def test_collect_run_log_pointers_is_stable(monkeypatch) -> None:
@@ -50,16 +52,23 @@ def test_enforce_run_log_retention_prunes_logs_only(tmp_path: Path) -> None:
     runs_dir = tmp_path / "runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
 
+    run_ids = ("2026-02-07T01:00:00Z", "2026-02-07T02:00:00Z", "2026-02-07T03:00:00Z")
     run_dirs = []
-    for suffix in ("20260207T010000Z", "20260207T020000Z", "20260207T030000Z"):
-        run_dir = runs_dir / suffix
+    for run_id in run_ids:
+        sanitized = run_id.replace(":", "").replace("-", "").replace(".", "")
+        run_dir = runs_dir / sanitized
         run_dir.mkdir(parents=True, exist_ok=True)
         (run_dir / "logs").mkdir(parents=True, exist_ok=True)
         (run_dir / "logs" / "run.log.jsonl").write_text('{"msg":"x"}\n', encoding="utf-8")
         (run_dir / "run_report.json").write_text("{}", encoding="utf-8")
+        (run_dir / "index.json").write_text(
+            json.dumps({"run_id": run_id, "timestamp": run_id}),
+            encoding="utf-8",
+        )
         run_dirs.append(run_dir)
 
-    summary = run_daily._enforce_run_log_retention(runs_dir=runs_dir, keep_runs=2)
+    repo = FileSystemRunRepository(runs_dir)
+    summary = run_daily._enforce_run_log_retention(run_repository=repo, candidate_id="local", keep_runs=2)
     assert summary["schema_version"] == 1
     assert summary["runs_seen"] == 3
     assert summary["runs_kept"] == 2
