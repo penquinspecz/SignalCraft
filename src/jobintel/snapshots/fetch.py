@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Literal, Optional, Tuple
 
+from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.utils.network_shield import NetworkShieldError, safe_get_text, validate_url_destination
 from ji_engine.utils.time import utc_now_z
 
@@ -58,6 +59,12 @@ def fetch_html(
     if headers:
         base_headers.update(headers)
 
+    preflight = evaluate_allowlist_policy(url)
+    if not preflight.get("final_allowed"):
+        meta["error"] = f"egress_blocked:{preflight.get('reason')}"
+        meta["final_url"] = _clip(url, limit=_META_TEXT_LIMIT)
+        return "", meta
+
     if method == "requests":
         try:
             result = safe_get_text(
@@ -96,17 +103,26 @@ def fetch_html(
                 if headers:
                     context.set_extra_http_headers(headers)
                 page = context.new_page()
-                # Network Shield v1 limitation:
-                # Playwright can internally follow redirects without exposing each hop in this
-                # code path. We pre-validate the input URL and validate the final URL post-goto.
+                # Playwright does not expose each redirect hop deterministically in this
+                # call path, so we enforce a strict preflight and final URL policy check.
                 response = page.goto(url, wait_until="networkidle", timeout=int(timeout_s * 1000))
                 html = page.content() or ""
                 html_bytes = html.encode("utf-8")
                 if len(html_bytes) > _FETCH_MAX_BYTES:
                     raise RuntimeError(f"response exceeds max_bytes={_FETCH_MAX_BYTES}")
-                validate_url_destination(page.url, allow_schemes=("http", "https"))
+                final_url = page.url
+                validate_url_destination(final_url, allow_schemes=("http", "https"))
+                final_policy = evaluate_allowlist_policy(str(final_url or url))
+                if not final_policy.get("final_allowed"):
+                    meta["error"] = _clip(
+                        f"playwright error: final_url_{final_policy.get('reason')}",
+                        limit=_META_ERROR_LIMIT,
+                    )
+                    context.close()
+                    browser.close()
+                    return "", meta
                 meta["status_code"] = getattr(response, "status", None) if response else None
-                meta["final_url"] = _clip(page.url, limit=_META_TEXT_LIMIT)
+                meta["final_url"] = _clip(final_url, limit=_META_TEXT_LIMIT)
                 meta["bytes_len"] = len(html_bytes)
                 context.close()
                 browser.close()

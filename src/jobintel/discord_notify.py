@@ -15,6 +15,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.utils.time import utc_now_z
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,10 @@ def post_discord(webhook_url: str, message: str) -> bool:
     if "discord.com/api/webhooks/" not in webhook_url:
         logger.warning("⚠️ DISCORD_WEBHOOK_URL missing or doesn't look like a Discord webhook URL. Skipping post.")
         return False
+    preflight = evaluate_allowlist_policy(webhook_url, provider_id="discord")
+    if not preflight.get("final_allowed"):
+        logger.warning("⚠️ Discord webhook blocked by egress policy: %s", preflight.get("reason"))
+        return False
 
     payload = json.dumps({"content": message}).encode("utf-8")
     req = urllib.request.Request(
@@ -150,6 +155,12 @@ def post_discord(webhook_url: str, message: str) -> bool:
     )
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
+            final_url_getter = getattr(resp, "geturl", None)
+            final_url = str(final_url_getter() if callable(final_url_getter) else webhook_url)
+            final_policy = evaluate_allowlist_policy(final_url, provider_id="discord")
+            if not final_policy.get("final_allowed"):
+                logger.warning("⚠️ Discord redirect blocked by egress policy: %s", final_policy.get("reason"))
+                return False
             return 200 <= resp.status < 300
     except urllib.error.HTTPError as e:
         logger.error("Discord webhook POST failed: %s", e.code)

@@ -14,6 +14,7 @@ import urllib.request
 from typing import List
 
 from ji_engine.embeddings.simple import hash_embed
+from ji_engine.providers.retry import evaluate_allowlist_policy
 
 
 class EmbeddingProvider:
@@ -63,12 +64,20 @@ class OpenAIEmbeddingProvider(EmbeddingProvider):
             "Content-Type": "application/json",
         }
         url = "https://api.openai.com/v1/embeddings"
+        preflight = evaluate_allowlist_policy(url, provider_id="openai")
+        if not preflight.get("final_allowed"):
+            raise RuntimeError(f"Egress blocked for embeddings endpoint: {preflight.get('reason')}")
 
         for attempt in range(self.max_retries):
             self._throttle()
             req = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    final_url_getter = getattr(resp, "geturl", None)
+                    final_url = str(final_url_getter() if callable(final_url_getter) else url)
+                    final_policy = evaluate_allowlist_policy(final_url, provider_id="openai")
+                    if not final_policy.get("final_allowed"):
+                        raise RuntimeError(f"Egress blocked after redirect: {final_policy.get('reason')}")
                     data = json.loads(resp.read().decode("utf-8"))
                     emb = data.get("data", [{}])[0].get("embedding")
                     if isinstance(emb, list):

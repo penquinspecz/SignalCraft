@@ -64,6 +64,7 @@ from ji_engine.pipeline.stages import (
     build_score_command,
     build_scrape_command,
 )
+from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from ji_engine.scoring import (
@@ -861,12 +862,21 @@ def _evaluate_provider_policy(
 
 
 def _ecs_task_arn_from_metadata() -> Optional[str]:
+    allowed_metadata_prefixes = (
+        "http://169.254.170.2/",
+        "http://169.254.170.23/",
+        "http://127.0.0.1:51678/",
+        "http://localhost:51678/",
+    )
     metadata_env = ("ECS_CONTAINER_METADATA_URI_V4", "ECS_CONTAINER_METADATA_URI")
     for key in metadata_env:
         base_uri = os.environ.get(key)
         if not base_uri:
             continue
         task_uri = f"{base_uri.rstrip('/')}/task"
+        if not any(task_uri.startswith(prefix) for prefix in allowed_metadata_prefixes):
+            logger.warning("Skipping ECS metadata URI outside allowed endpoints: %s", task_uri)
+            continue
         try:
             with urllib.request.urlopen(task_uri, timeout=2) as response:
                 payload = json.loads(response.read().decode("utf-8"))
@@ -3432,6 +3442,10 @@ def _post_discord(webhook_url: str, message: str) -> bool:
     if not webhook_url or "discord.com/api/webhooks/" not in webhook_url:
         logger.warning("⚠️ DISCORD_WEBHOOK_URL missing or doesn't look like a Discord webhook URL. Skipping post.")
         return False
+    preflight = evaluate_allowlist_policy(webhook_url, provider_id="discord")
+    if not preflight.get("final_allowed"):
+        logger.warning("⚠️ Discord webhook blocked by egress policy: %s", preflight.get("reason"))
+        return False
 
     payload = {"content": message}
     data = json.dumps(payload).encode("utf-8")
@@ -3449,6 +3463,12 @@ def _post_discord(webhook_url: str, message: str) -> bool:
 
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
+            final_url_getter = getattr(resp, "geturl", None)
+            final_url = str(final_url_getter() if callable(final_url_getter) else webhook_url)
+            final_policy = evaluate_allowlist_policy(final_url, provider_id="discord")
+            if not final_policy.get("final_allowed"):
+                logger.warning("⚠️ Discord redirect blocked by egress policy: %s", final_policy.get("reason"))
+                return False
             resp.read()
         return True
     except urllib.error.HTTPError as e:
