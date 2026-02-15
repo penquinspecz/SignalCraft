@@ -11,6 +11,7 @@ from typing import Literal, Optional, Tuple
 
 import requests
 
+from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.utils.time import utc_now_z
 
 FetchMethod = Literal["requests", "playwright"]
@@ -47,12 +48,22 @@ def fetch_html(
     if headers:
         base_headers.update(headers)
 
+    preflight = evaluate_allowlist_policy(url)
+    if not preflight.get("final_allowed"):
+        meta["error"] = f"egress_blocked:{preflight.get('reason')}"
+        meta["final_url"] = url
+        return "", meta
+
     if method == "requests":
         try:
             resp = requests.get(url, headers=base_headers, timeout=timeout_s)
             html = resp.text or ""
             meta["status_code"] = resp.status_code
             meta["final_url"] = str(getattr(resp, "url", url))
+            final_policy = evaluate_allowlist_policy(str(meta["final_url"] or url))
+            if not final_policy.get("final_allowed"):
+                meta["error"] = f"egress_blocked:final_url_{final_policy.get('reason')}"
+                return "", meta
             meta["bytes_len"] = len(html.encode("utf-8"))
             return html, meta
         except requests.RequestException as exc:
@@ -74,10 +85,18 @@ def fetch_html(
                 if headers:
                     context.set_extra_http_headers(headers)
                 page = context.new_page()
+                # Playwright does not expose each redirect hop deterministically in this
+                # call path, so we enforce a strict preflight and final URL policy check.
                 response = page.goto(url, wait_until="networkidle", timeout=int(timeout_s * 1000))
                 html = page.content() or ""
                 meta["status_code"] = getattr(response, "status", None) if response else None
                 meta["final_url"] = page.url
+                final_policy = evaluate_allowlist_policy(str(meta["final_url"] or url))
+                if not final_policy.get("final_allowed"):
+                    meta["error"] = f"egress_blocked:final_url_{final_policy.get('reason')}"
+                    context.close()
+                    browser.close()
+                    return "", meta
                 meta["bytes_len"] = len(html.encode("utf-8"))
                 context.close()
                 browser.close()
