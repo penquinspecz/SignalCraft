@@ -355,6 +355,30 @@ def _s3_list_keys(bucket: str, prefix: str) -> List[str]:
     return keys
 
 
+def _version_payload() -> Dict[str, Any]:
+    """Build /version response. Stable shape for UI readiness."""
+    git_sha = (os.environ.get("JOBINTEL_GIT_SHA") or os.environ.get("GIT_SHA") or "unknown").strip() or "unknown"
+    build_ts = (os.environ.get("JOBINTEL_BUILD_TIMESTAMP") or os.environ.get("BUILD_TIMESTAMP") or "").strip()
+    schema_versions: Dict[str, int] = {
+        "run_summary": 1,
+        "run_health": 1,
+    }
+    out: Dict[str, Any] = {
+        "service": "SignalCraft",
+        "git_sha": git_sha,
+        "schema_versions": schema_versions,
+    }
+    if build_ts:
+        out["build_timestamp"] = build_ts
+    return out
+
+
+@app.get("/version")
+def version() -> Dict[str, Any]:
+    """Return service identity and schema versions for UI readiness."""
+    return _version_payload()
+
+
 @app.get("/healthz")
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
