@@ -23,9 +23,7 @@ def _sanitize(run_id: str) -> str:
     return run_id.replace(":", "").replace("-", "").replace(".", "")
 
 
-def test_dashboard_run_detail_and_semantic_summary_use_index_not_glob(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
+def test_dashboard_run_detail_and_semantic_summary_use_index_not_glob(tmp_path: Path, monkeypatch: Any) -> None:
     """run_detail and run_semantic_summary must use index-backed resolution; run_dir.glob would raise."""
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 
@@ -77,9 +75,7 @@ def test_dashboard_run_detail_and_semantic_summary_use_index_not_glob(
         except OSError:
             return original_glob(self, pattern)
         if run_metadata_resolved in resolved.parents or resolved == run_metadata_resolved:
-            raise AssertionError(
-                "Direct glob forbidden on run dir: use RunRepository/index-backed resolution"
-            )
+            raise AssertionError("Direct glob forbidden on run dir: use RunRepository/index-backed resolution")
         return original_glob(self, pattern)
 
     monkeypatch.setattr(Path, "glob", _patched_glob)
