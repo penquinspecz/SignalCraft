@@ -64,6 +64,7 @@ from ji_engine.pipeline.stages import (
     build_score_command,
     build_scrape_command,
 )
+from ji_engine.providers.registry import provider_registry_provenance
 from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
@@ -1909,6 +1910,7 @@ def _persist_run_metadata(
     ai_accounting: Optional[Dict[str, Any]] = None,
     candidate_input_provenance: Optional[Dict[str, Any]] = None,
     scoring_model: Optional[Dict[str, Any]] = None,
+    providers_config: Optional[str] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -1966,6 +1968,8 @@ def _persist_run_metadata(
         "taskdef": os.environ.get("JOBINTEL_TASKDEF", "unknown"),
         "ecs_task_arn": _resolve_ecs_task_arn(),
     }
+    providers_config_path = Path(providers_config) if providers_config else Path("config") / "providers.json"
+    build_provenance.update(provider_registry_provenance(providers_config_path))
     if candidate_input_provenance is None:
         candidate_input_provenance = _candidate_input_provenance(CANDIDATE_ID)
 
@@ -4339,6 +4343,7 @@ def main() -> int:
             },
             ai_accounting=costs_payload.get("ai_accounting"),
             scoring_model=scoring_model_metadata,
+            providers_config=args.providers_config,
         )
         if telemetry.get("success", False):
             try:

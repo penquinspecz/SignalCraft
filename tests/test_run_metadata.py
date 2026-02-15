@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import scripts.run_daily as run_daily
+from ji_engine.providers.registry import provider_registry_provenance
 from scripts.schema_validate import resolve_schema_path, validate_report
 
 
@@ -276,6 +277,12 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert data["provenance"]["build"]["image"] == "unknown"
     assert data["provenance"]["build"]["taskdef"] == "unknown"
     assert data["provenance"]["build"]["ecs_task_arn"] == "unknown"
+    expected_registry = provider_registry_provenance(Path("config/providers.json"))
+    assert (
+        data["provenance"]["build"]["provider_registry_schema_version"]
+        == expected_registry["provider_registry_schema_version"]
+    )
+    assert data["provenance"]["build"]["provider_registry_sha256"] == expected_registry["provider_registry_sha256"]
     assert data["ai_accounting"]["totals"]["calls"] == 0
     assert data["ai_accounting"]["totals"]["tokens_total"] == 0
     assert data["ai_accounting"]["totals"]["estimated_cost_usd"] == "0.000000"
