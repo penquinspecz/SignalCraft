@@ -189,20 +189,9 @@ def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
 
 
 def _list_runs(candidate_id: str) -> List[Dict[str, Any]]:
-    runs: List[Dict[str, Any]] = []
+    """List runs via RunRepository (index-first, fallback to filesystem scan)."""
     safe_candidate = _sanitize_candidate_id(candidate_id)
-    for path in RUN_REPOSITORY.list_run_dirs(candidate_id=safe_candidate):
-        index_path = path / "index.json"
-        if not index_path.exists():
-            continue
-        try:
-            data = _read_local_json_object(index_path, schema=_RunIndexSchema)
-        except _DashboardJsonError as exc:
-            logger.warning("Skipping run index at %s (%s)", index_path, exc.code)
-            continue
-        runs.append(data)
-    runs.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
-    return runs
+    return RUN_REPOSITORY.list_runs(candidate_id=safe_candidate, limit=200)
 
 
 def _resolve_artifact_path(run_id: str, candidate_id: str, index: Dict[str, Any], name: str) -> Path:
