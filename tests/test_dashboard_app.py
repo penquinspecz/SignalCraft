@@ -447,6 +447,136 @@ def test_dashboard_latest_local_oversized_pointer_returns_413(tmp_path: Path, mo
     assert resp.json()["detail"] == "Local state payload too large"
 
 
+def test_dashboard_artifact_model_v2_categorized_artifacts_serve(tmp_path: Path, monkeypatch) -> None:
+    """Happy path: categorized artifacts (run_summary, run_health, ranked_jobs) validate and serve."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    run_summary = {
+        "run_summary_schema_version": 1,
+        "run_id": run_id,
+        "candidate_id": "local",
+        "status": "success",
+        "git_sha": "abc123",
+        "created_at_utc": "2026-01-22T00:00:00Z",
+        "run_health": {"path": "run_health.v1.json", "sha256": "x", "status": "success"},
+        "run_report": {"path": "run_report.json", "sha256": "y"},
+        "ranked_outputs": {},
+        "primary_artifacts": {},
+        "costs": {},
+        "scoring_config": {},
+        "snapshot_manifest": {},
+        "quicklinks": {},
+    }
+    (run_dir / "run_summary.v1.json").write_text(json.dumps(run_summary), encoding="utf-8")
+    run_health = {
+        "run_health_schema_version": 1,
+        "run_id": run_id,
+        "candidate_id": "local",
+        "status": "success",
+        "timestamps": {"started_at": "2026-01-22T00:00:00Z", "ended_at": "2026-01-22T00:01:00Z"},
+        "durations": {},
+        "failed_stage": None,
+        "failure_codes": [],
+        "phases": {},
+        "logs": {},
+        "proof_bundle_path": "",
+    }
+    (run_dir / "run_health.v1.json").write_text(json.dumps(run_health), encoding="utf-8")
+    (run_dir / "openai_ranked_jobs.cs.json").write_text("[]", encoding="utf-8")
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "artifacts": {
+            "run_summary.v1.json": "run_summary.v1.json",
+            "run_health.v1.json": "run_health.v1.json",
+            "openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json",
+        },
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    for name in ["run_summary.v1.json", "run_health.v1.json", "openai_ranked_jobs.cs.json"]:
+        resp = client.get(f"/runs/{run_id}/artifact/{name}")
+        assert resp.status_code == 200, (
+            f"artifact {name}: {resp.status_code} {resp.json() if resp.status_code != 200 else ''}"
+        )
+
+
+def test_dashboard_artifact_model_v2_uncategorized_fails_closed(tmp_path: Path, monkeypatch) -> None:
+    """Fail-closed: uncategorized artifact key returns 503 with structured error."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "unknown_artifact.json").write_text('{"foo": "bar"}', encoding="utf-8")
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "artifacts": {"unknown_artifact.json": "unknown_artifact.json"},
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/artifact/unknown_artifact.json")
+    assert resp.status_code == 503
+    detail = resp.json()["detail"]
+    assert detail["error"] == "artifact_uncategorized"
+    assert detail["artifact_key"] == "unknown_artifact.json"
+    assert detail["run_id"] == run_id
+
+
+def test_dashboard_artifact_model_v2_ui_safe_prohibition_rejects_jd_text(tmp_path: Path, monkeypatch) -> None:
+    """UI-safe prohibition: payload with jd_text fails validation."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    ai_insights = {"metadata": {"prompt_version": "v1"}, "jobs": [{"job_id": "j1", "jd_text": "forbidden"}]}
+    (run_dir / "ai_insights.cs.json").write_text(json.dumps(ai_insights), encoding="utf-8")
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "artifacts": {"ai_insights.cs.json": "ai_insights.cs.json"},
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/artifact/ai_insights.cs.json")
+    assert resp.status_code == 500
+    detail = resp.json()["detail"]
+    assert "ui_safe" in str(detail).lower() or "jd_text" in str(detail).lower() or "prohibited" in str(detail).lower()
+
+
 def test_dashboard_semantic_summary_invalid_json_returns_500(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 
