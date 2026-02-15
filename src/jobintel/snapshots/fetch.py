@@ -9,15 +9,26 @@ from __future__ import annotations
 
 from typing import Literal, Optional, Tuple
 
-import requests
-
+from ji_engine.utils.network_shield import NetworkShieldError, safe_get_text, validate_url_destination
 from ji_engine.utils.time import utc_now_z
 
 FetchMethod = Literal["requests", "playwright"]
+_FETCH_MAX_BYTES = 2_000_000
+_FETCH_MAX_REDIRECTS = 5
+_META_TEXT_LIMIT = 2048
+_META_ERROR_LIMIT = 512
 
 
 def _utcnow_iso() -> str:
     return utc_now_z(seconds_precision=True)
+
+
+def _clip(value: Optional[str], *, limit: int) -> Optional[str]:
+    if value is None:
+        return None
+    if len(value) <= limit:
+        return value
+    return value[: limit - 3] + "..."
 
 
 def fetch_html(
@@ -30,7 +41,7 @@ def fetch_html(
 ) -> Tuple[str, dict]:
     meta = {
         "method": method,
-        "url": url,
+        "url": _clip(url, limit=_META_TEXT_LIMIT),
         "final_url": None,
         "status_code": None,
         "fetched_at": _utcnow_iso(),
@@ -49,17 +60,28 @@ def fetch_html(
 
     if method == "requests":
         try:
-            resp = requests.get(url, headers=base_headers, timeout=timeout_s)
-            html = resp.text or ""
-            meta["status_code"] = resp.status_code
-            meta["final_url"] = str(getattr(resp, "url", url))
-            meta["bytes_len"] = len(html.encode("utf-8"))
-            return html, meta
-        except requests.RequestException as exc:
-            meta["error"] = f"requests error: {exc}"
+            result = safe_get_text(
+                url,
+                headers=base_headers,
+                timeout_s=timeout_s,
+                max_bytes=_FETCH_MAX_BYTES,
+                max_redirects=_FETCH_MAX_REDIRECTS,
+            )
+            meta["status_code"] = result.status_code
+            meta["final_url"] = _clip(result.final_url, limit=_META_TEXT_LIMIT)
+            meta["bytes_len"] = result.bytes_len
+            return result.text, meta
+        except NetworkShieldError as exc:
+            meta["error"] = _clip(f"requests error: {exc}", limit=_META_ERROR_LIMIT)
             return "", meta
 
     if method == "playwright":
+        try:
+            validate_url_destination(url, allow_schemes=("http", "https"))
+        except NetworkShieldError as exc:
+            meta["error"] = _clip(f"playwright error: {exc}", limit=_META_ERROR_LIMIT)
+            return "", meta
+
         try:
             from playwright.sync_api import sync_playwright
         except Exception as exc:  # pragma: no cover - import error branch
@@ -74,16 +96,23 @@ def fetch_html(
                 if headers:
                     context.set_extra_http_headers(headers)
                 page = context.new_page()
+                # Network Shield v1 limitation:
+                # Playwright can internally follow redirects without exposing each hop in this
+                # code path. We pre-validate the input URL and validate the final URL post-goto.
                 response = page.goto(url, wait_until="networkidle", timeout=int(timeout_s * 1000))
                 html = page.content() or ""
+                html_bytes = html.encode("utf-8")
+                if len(html_bytes) > _FETCH_MAX_BYTES:
+                    raise RuntimeError(f"response exceeds max_bytes={_FETCH_MAX_BYTES}")
+                validate_url_destination(page.url, allow_schemes=("http", "https"))
                 meta["status_code"] = getattr(response, "status", None) if response else None
-                meta["final_url"] = page.url
-                meta["bytes_len"] = len(html.encode("utf-8"))
+                meta["final_url"] = _clip(page.url, limit=_META_TEXT_LIMIT)
+                meta["bytes_len"] = len(html_bytes)
                 context.close()
                 browser.close()
                 return html, meta
         except Exception as exc:
-            meta["error"] = f"playwright error: {exc}"
+            meta["error"] = _clip(f"playwright error: {exc}", limit=_META_ERROR_LIMIT)
             return "", meta
 
     raise RuntimeError(f"Unknown fetch method: {method}")
