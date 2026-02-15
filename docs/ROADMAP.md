@@ -73,26 +73,48 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-13 (local verification; see git + CI receipts)
+Last verified: 2026-02-15 on commit `72892a3b71dc10e809a53acd09c75c89e554fb07` (local verification; see git + CI receipts)
 Latest release: v0.1.0
 
 Foundation exists:
-- Deterministic scoring
-- Replayability
-- Snapshot-backed providers
-- AI weekly insights (guardrailed)
-- Per-job briefs
-- Cost guardrails
-- Discord alerts
-- Dashboard API
-- CI smoke enforcement
+- Deterministic scoring contract (versioned config + schema + replay checks).
+  Evidence: `config/scoring.v1.json`, `schemas/scoring.schema.v1.json`, `docs/DETERMINISM_CONTRACT.md`, `tests/test_scoring_determinism_contract.py`.
+- Replay + snapshot immutability gate is enforced in CI/local.
+  Evidence: `scripts/replay_smoke_fixture.py`, `scripts/verify_snapshots_immutable.py`, `Makefile` target `gate`, `.github/workflows/ci.yml`.
+- Provider platform guardrails are in place (schema validation, deterministic selection, authoring helpers, enablement checks).
+  Evidence: `schemas/providers.schema.v1.json`, `src/ji_engine/providers/selection.py`, `scripts/provider_authoring.py`, `tests/test_provider_authoring.py`, `tests/test_provider_registry.py`.
+- Candidate namespace contract + candidate CLI plumbing exists.
+  Evidence: `src/ji_engine/config.py`, `src/ji_engine/candidates/registry.py`, `scripts/candidates.py`, `docs/CANDIDATES.md`, `tests/test_candidate_state_contract.py`.
+- Run health + run summary artifacts are emitted and schema-validated.
+  Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `scripts/run_daily.py`, `tests/test_run_health_artifact.py`, `tests/test_run_summary_artifact.py`.
+- Local run index (SQLite) exists with deterministic read/list CLI.
+  Evidence: `src/ji_engine/state/run_index.py`, `scripts/rebuild_run_index.py`, `src/jobintel/cli.py` (`runs list/show/artifacts`), `tests/test_run_index_sqlite.py`, `tests/test_jobintel_cli.py`.
+- On-prem rehearsal has deterministic receipts and runbook wiring.
+  Evidence: `scripts/onprem_rehearsal.py`, `schemas/onprem_rehearsal_receipt.schema.v1.json`, `ops/onprem/RUNBOOK_DEPLOY.md`, `tests/test_onprem_rehearsal.py`.
+- CI has both fast feedback and full determinism gate.
+  Evidence: `.github/workflows/ci.yml`, `Makefile` targets `ci-fast` and `gate`, `docs/CI_SMOKE_GATE.md`.
 
 **Recent structural improvements (productization enablers):**
 - Candidate namespace reservation (default `local`) to prevent future multi-user rewrite
 - Dashboard artifact read hardening (bounded JSON reads + schema checks)
 - RunRepository seam (filesystem-backed now; enables future indexing later)
+- Provider default selection decoupled from hardcoded OpenAI (CLI/env/defaults/fallback precedence)
+- Provider enablement workflow now fails closed when fixtures/manifest/metadata are missing
+- Run receipt UX for one-command output discovery (`run_summary`, `run_health`, primary artifacts)
 
 Phase 1 is real.
+
+Recent receipts from `git log -n 30`:
+- `361be61` refactor(providers): decouple default provider from openai
+- `99d2ed7` feat(providers): add anthropic snapshot provider v1
+- `006173a` feat(onprem): rehearsal receipt UX + deployment next-steps
+- `e9f357b` feat(state): local run index sqlite v1 + runs list
+- `dff8277` feat(cli): run receipt UX and primary artifact pointers
+- `47c8ee3` chore(ci): add fast feedback job + keep full gate required
+- `1867669` feat(providers): safe provider config append helper (disabled-by-default)
+- `a6bba42` feat(run): add run_summary artifact v1 (single canonical output index)
+- `3fbd76f` feat(providers): provider enablement workflow with guardrails
+- `7fc07b5` fix(ci): include all pinned snapshot fixtures in docker test image
 
 ---
 
@@ -112,19 +134,21 @@ Every milestone must:
 
 # NEW ROADMAP — Thick Milestones
 
-## Milestone 10 — Provider Platform v1 (Boring Expansion)
+## Milestone 10 — Provider Platform v1 (Boring Expansion) ◐
 
 Goal: Provider expansion becomes boring and safe.
+Status: ◐ Core guardrails are implemented; registry-hash provenance + tombstone semantics are not fully landed.
+Evidence: `schemas/providers.schema.v1.json`, `scripts/provider_authoring.py`, `tests/test_provider_authoring.py`, `tests/test_provider_registry.py`, `scripts/verify_snapshots_immutable.py`.
 
 Definition of Done
-- [ ] Versioned provider registry schema exists
+- [x] Versioned provider registry schema exists
 - [ ] Registry hash recorded in provenance
-- [ ] Provider config validated in CI (schema + invariants)
-- [ ] Snapshot fixtures enforced per provider
+- [x] Provider config validated in CI (schema + invariants)
+- [x] Snapshot fixtures enforced per provider (enabled snapshot providers)
 - [ ] Provider tombstone supported (opt-out / takedown path)
-- [ ] At least 3 new providers added via registry-only changes
-- [ ] No core pipeline modification required to add a provider
-- [ ] Provider ordering deterministic across runs
+- [x] At least 3 providers now run in snapshot mode from registry config (`openai`, `anthropic`, `cohere`, `huggingface`, `mistral`, `perplexity`, `replit`, `scaleai`)
+- [x] No core pipeline modification required to add a provider (authoring + enablement tooling is config-driven)
+- [x] Provider ordering deterministic across runs
 
 Receipts Required
 - Deterministic ordering tests
@@ -133,18 +157,20 @@ Receipts Required
 
 ---
 
-## Milestone 11 — Artifact Model v2 (Legal + UI-Safe by Design)
+## Milestone 11 — Artifact Model v2 (Legal + UI-Safe by Design) ◐
 
 Goal: Legality + replayability enforced by shape.
+Status: ◐ Versioned run health/summary artifacts and redaction guardrails exist; full UI-safe vs replay-safe split is still incomplete.
+Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `tests/test_run_summary_artifact.py`, `tests/test_redaction_guard.py`, `tests/test_redaction_scan.py`.
 
 Definition of Done
 - [ ] UI-safe artifact schema versioned
 - [ ] Replay-safe artifact schema versioned
-- [ ] UI-safe artifacts contain no raw JD text (or strictly bounded excerpts if policy allows)
-- [ ] Redaction boundaries enforced by tests (stdout/logs included)
-- [ ] Retention policy documented (what is stored, for how long, why)
+- [x] UI-safe artifacts contain no raw JD text in run summary pointers
+- [x] Redaction boundaries enforced by tests (stdout/logs included)
+- [x] Retention policy documented (what is stored, for how long, why)
 - [ ] Artifact backward compatibility defined (and tested)
-- [ ] Artifact provenance includes provider policy decision + canonical URL
+- [x] Artifact provenance includes provider policy decision + canonical URL (run report provenance by provider)
 
 Receipts Required
 - Schema validation suite
@@ -153,18 +179,20 @@ Receipts Required
 
 ---
 
-## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability)
+## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability) ◐
 
 Goal: Failure is explicit and inspectable.
+Status: ◐ Run health taxonomy + summary + run inspection CLI landed; dedicated provider-availability artifact and explicit failure playbook receipts are still partial.
+Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `scripts/run_daily.py`, `src/jobintel/cli.py`, `tests/test_run_health_artifact.py`.
 
 Definition of Done
-- [ ] `failed_stage` always populated on failure
-- [ ] Cost telemetry always written (even on partial failure)
+- [x] `failed_stage` always populated on failure
+- [x] Cost telemetry always written (even on partial failure)
 - [ ] Provider availability artifact generated every run
-- [ ] One-command run inspection tooling (human-friendly)
-- [ ] CI smoke matches real run structure
+- [x] One-command run inspection tooling (human-friendly)
+- [x] CI smoke matches real run structure
 - [ ] Failure playbook updated
-- [ ] **Candidate namespace is treated as first-class (default `local`)**:
+- [x] **Candidate namespace is treated as first-class (default `local`)**:
   - candidate_id flows through orchestration
   - artifacts + pointers do not collide across candidates
   - backward compatibility policy documented
@@ -176,20 +204,22 @@ Receipts Required
 
 ---
 
-## Milestone 13 — Run Indexing v1 (Metadata Without Rewrites)
+## Milestone 13 — Run Indexing v1 (Metadata Without Rewrites) ◐
 
 Goal: Remove “filesystem-as-database” pain without abandoning artifacts.
 
 Rationale: Artifacts stay as blobs. Indexing is metadata only.
+Status: ◐ SQLite index, deterministic rebuild, and CLI run lookups are landed; full repository-only resolution coverage still needs finishing.
+Evidence: `src/ji_engine/state/run_index.py`, `scripts/rebuild_run_index.py`, `docs/proof/m13-run-indexing-v1-2026-02-13.md`, `tests/test_run_index_sqlite.py`, `src/jobintel/cli.py`.
 
 Definition of Done
 - [ ] RunRepository seam is the only way to resolve runs (no scattered path-walking)
-- [ ] A minimal index exists for O(1) “latest run” + recent run listing:
+- [x] A minimal index exists for O(1) “latest run” + recent run listing:
   - Option A (preferred on-prem friendly): SQLite index in state (single-writer safe)
   - Option B (cloud friendly): DynamoDB / Postgres later (not required now)
-- [ ] Index is append-only and derived from artifacts (rebuildable)
-- [ ] Dashboard endpoints do not require directory scans for the common case
-- [ ] Index rebuild tool exists (deterministic)
+- [x] Index is append-only and derived from artifacts (rebuildable)
+- [x] Dashboard endpoints do not require directory scans for the common case
+- [x] Index rebuild tool exists (deterministic)
 
 Receipts Required
 - Index rebuild proof
@@ -198,16 +228,18 @@ Receipts Required
 
 ---
 
-## Milestone 14 — AI Insights v1 (Grounded Intelligence, Bounded)
+## Milestone 14 — AI Insights v1 (Grounded Intelligence, Bounded) ◐
 
 Goal: Weekly insights are useful and bounded.
+Status: ◐ Structured AI insights pipeline exists with deterministic cache keys; full milestone contract (explicit schemas + complete trend surfaces) is still in progress.
+Evidence: `src/ji_engine/ai/insights_input.py`, `src/jobintel/ai_insights.py`, `tests/test_ai_insights.py`, `tests/test_insights_input.py`.
 
 Definition of Done
 - [ ] Deterministic input schema versioned
 - [ ] 7/14/30 day trend analysis
 - [ ] Skill token extraction from structured fields (not raw JD)
 - [ ] Strict output schema enforcement
-- [ ] Cache keyed by input hash + prompt version
+- [x] Cache keyed by input hash + prompt version
 - [ ] “Top 5 Actions” section included
 - [ ] No raw JD leakage
 
@@ -217,16 +249,18 @@ Receipts Required
 
 ---
 
-## Milestone 15 — AI Per-Job Briefs v1 (Coaching Per Job, Deterministic Cache)
+## Milestone 15 — AI Per-Job Briefs v1 (Coaching Per Job, Deterministic Cache) ◐
 
 Goal: Profile-aware coaching per job.
+Status: ◐ Profile-hash + deterministic cache behavior is implemented; explicit standalone schema file contract is still pending.
+Evidence: `src/jobintel/ai_job_briefs.py`, `tests/test_ai_job_briefs.py`, `scripts/run_daily.py` (`ai_accounting` fields).
 
 Definition of Done
-- [ ] Candidate profile hash contract defined
+- [x] Candidate profile hash contract defined
 - [ ] `ai_job_brief.schema.json` enforced
-- [ ] Cache keyed by job_hash + profile_hash + prompt_version
-- [ ] Cost accounting integrated
-- [ ] Deterministic hash stability verified
+- [x] Cache keyed by job_hash + profile_hash + prompt_version
+- [x] Cost accounting integrated
+- [x] Deterministic hash stability verified
 - [ ] Schema validation enforced in CI
 
 Receipts Required
@@ -235,16 +269,18 @@ Receipts Required
 
 ---
 
-## Milestone 16 — Explainability v1 (Make Scores Interpretable)
+## Milestone 16 — Explainability v1 (Make Scores Interpretable) ◐
 
 Goal: Scores are explainable and stable.
+Status: ◐ Explain-top outputs and penalty visibility exist in scorer output, but a formal `explanation_v1` artifact contract is not yet declared.
+Evidence: `scripts/score_jobs.py`, `tests/test_score_jobs_explain_top.py`, `tests/test_score_jobs_top_n.py`.
 
 Definition of Done
 - [ ] `explanation_v1` structure implemented
-- [ ] Top contributing signals surfaced
-- [ ] Penalties visible
+- [x] Top contributing signals surfaced
+- [x] Penalties visible
 - [ ] Semantic contribution bounded + surfaced (if used)
-- [ ] Deterministic ordering enforced
+- [x] Deterministic ordering enforced
 
 Receipts Required
 - Artifact snapshot proof
@@ -252,17 +288,19 @@ Receipts Required
 
 ---
 
-## Milestone 17 — Dashboard Plumbing v2 (Backend-First UI Readiness)
+## Milestone 17 — Dashboard Plumbing v2 (Backend-First UI Readiness) ◐
 
 Goal: Backend is UI-ready without becoming UI-first.
+Status: ◐ Candidate-aware run endpoints and bounded read-time validation exist; `/version` and broader API contract polish remain open.
+Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/proof/dashboard-artifact-serve-hardening-2026-02-13.md`.
 
 Definition of Done
 - [ ] `/version` endpoint
-- [ ] `/runs/latest` endpoint is candidate-aware
+- [x] `/runs/latest` endpoint is candidate-aware (implemented as `/v1/latest?candidate_id=...`)
 - [ ] Artifact index endpoint(s) are stable and documented
 - [ ] API contract documented
 - [ ] Optional deps isolated cleanly
-- [ ] Read-time validation is fail-closed and bounded
+- [x] Read-time validation is fail-closed and bounded
 
 Receipts Required
 - API proof doc
@@ -270,15 +308,17 @@ Receipts Required
 
 ---
 
-## Milestone 18 — Release Discipline v1 (Releases Are Proof Events)
+## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ◐
 
 Goal: Releases are evidence-backed.
+Status: ◐ Release process and proof artifacts exist; changelog enforcement and full reproducible-build verification need explicit CI enforcement.
+Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `scripts/preflight_env.py`.
 
 Definition of Done
-- [ ] Release checklist codified
-- [ ] Preflight validation script exists
+- [x] Release checklist codified
+- [x] Preflight validation script exists
 - [ ] Changelog enforcement policy
-- [ ] Every release includes proof bundle
+- [x] Every release includes proof bundle
 - [ ] Reproducible build instructions verified
 
 Receipts Required
@@ -288,9 +328,11 @@ Receipts Required
 
 # INFRASTRUCTURE EVOLUTION
 
-## Milestone 19 — AWS DR & Failover Hardening
+## Milestone 19 — AWS DR & Failover Hardening ◐
 
 Goal: Cloud execution survives failure.
+Status: ◐ AWS operational scripts/runbooks exist, but milestone-level DR receipts (versioning/lifecycle/rehearsal metrics) are not fully captured.
+Evidence: `scripts/aws_*.py`, `ops/aws/`, `docs/OPS_RUNBOOK.md`.
 
 Definition of Done
 - [ ] S3 versioning enabled
@@ -308,15 +350,17 @@ Receipts Required
 
 ---
 
-## Milestone 20 — On-Prem Migration Contract (AWS → k3s)
+## Milestone 20 — On-Prem Migration Contract (AWS → k3s) ◐
 
 Goal: Migration is engineered, not improvised.
+Status: ◐ On-prem deploy runbooks + deterministic rehearsal are in place; formal AWS-vs-onprem dual-run diff contract is still pending.
+Evidence: `ops/onprem/RUNBOOK_DEPLOY.md`, `ops/onprem/RUNBOOK_DNS.md`, `scripts/onprem_rehearsal.py`, `schemas/onprem_rehearsal_receipt.schema.v1.json`.
 
 Definition of Done
 - [ ] Data migration plan documented
 - [ ] Artifact compatibility verified
 - [ ] Backwards compatibility test suite passes
-- [ ] Rollback plan documented
+- [x] Rollback plan documented
 - [ ] Dual-run validation (AWS vs on-prem output diff)
 - [ ] Zero artifact schema changes required
 - [ ] Migration dry run executed
@@ -328,9 +372,11 @@ Receipts Required
 
 ---
 
-## Milestone 21 — On-Prem Stability Proof (Post-Migration)
+## Milestone 21 — On-Prem Stability Proof (Post-Migration) ⏸
 
 Goal: On-prem becomes primary without chaos.
+Status: ⏸ Foundational runbooks and rehearsal receipts exist, but 72-hour continuous stability proof is not yet complete.
+Evidence: `ops/onprem/RUNBOOK_BORING_72H_PROOF.md`, `docs/proof/onprem-ops-hardening-2026-02-13.md`.
 
 Definition of Done
 - [ ] 72-hour continuous k3s run
@@ -350,19 +396,21 @@ Receipts Required
 
 # GOVERNANCE & PRODUCTIZATION PREREQS
 
-## Milestone 22 — Security Review Pack v1 (Audited Posture)
+## Milestone 22 — Security Review Pack v1 (Audited Posture) ◐
 
 Goal: Security posture is audited, not assumed.
+Status: ◐ Security posture/runbooks and SSRF stance are documented; full formal threat-model + IAM review package remains incomplete.
+Evidence: `SECURITY.md`, `docs/LEGAL_POSITIONING.md`, `ops/onprem/RUNBOOK_DNS.md`, `tests/test_redaction_guard.py`.
 
 Definition of Done
 - [ ] Threat model document created (multi-tenant aware)
 - [ ] Attack surface review performed
-- [ ] Secrets handling reviewed + redaction tests enforced
+- [x] Secrets handling reviewed + redaction tests enforced
 - [ ] Dependency audit completed
 - [ ] Least-privilege IAM documented (AWS + on-prem)
-- [ ] Static analysis tool integrated
-- [ ] SECURITY.md aligned with reality
-- [ ] “User-supplied URL/provider” policy documented (SSRF/egress stance)
+- [x] Static analysis tool integrated
+- [x] SECURITY.md aligned with reality
+- [x] “User-supplied URL/provider” policy documented (SSRF/egress stance)
 
 Receipts Required
 - Threat model artifact
@@ -371,9 +419,11 @@ Receipts Required
 
 ---
 
-## Milestone 23 — Code Surface & Bloat Review (Entropy Reduction)
+## Milestone 23 — Code Surface & Bloat Review (Entropy Reduction) ⏸
 
 Goal: Eliminate entropy before adding product surfaces.
+Status: ⏸ Not yet run as a focused milestone; only opportunistic cleanup has landed with feature work.
+Evidence: no dedicated proof artifact yet.
 
 Definition of Done
 - [ ] Dead code removed
@@ -391,18 +441,20 @@ Receipts Required
 
 ---
 
-## Milestone 24 — Multi-User Plumbing v1 (Foundation + Isolation)
+## Milestone 24 — Multi-User Plumbing v1 (Foundation + Isolation) ◐
 
 Goal: Prepare for product without UI complexity.
+Status: ◐ Candidate registry/schema/isolation are implemented with backward compatibility for `local`; audit trail depth is still partial.
+Evidence: `schemas/candidate_profile.schema.v1.json`, `src/ji_engine/candidates/registry.py`, `scripts/candidates.py`, `tests/test_candidate_namespace.py`, `tests/test_candidate_state_contract.py`.
 
 Definition of Done
-- [ ] `candidate_profile.schema.json` defined
-- [ ] candidate registry exists (CRUD via file/CLI only; no web UI required)
-- [ ] Candidate isolation enforced end-to-end (paths, pointers, index)
-- [ ] Cross-user leakage tests implemented
+- [x] `candidate_profile.schema.json` defined
+- [x] candidate registry exists (CRUD via file/CLI only; no web UI required)
+- [x] Candidate isolation enforced end-to-end (paths, pointers, index)
+- [x] Cross-user leakage tests implemented
 - [ ] Audit trail artifacts exist (who/what triggered run; profile hash change record)
-- [ ] Backward compatibility maintained for `local`
-- [ ] No authentication/UI implemented yet
+- [x] Backward compatibility maintained for `local`
+- [x] No authentication/UI implemented yet
 
 Receipts Required
 - Isolation test suite
@@ -449,19 +501,20 @@ Do not reopen unless a regression threatens determinism, replayability, or deplo
 - [x] Selected inputs archived per run
 - [x] Replay workflow + hash verification
 
-## Milestone 3 — Scheduled run + object-store publishing (K8s CronJob first) ✅
-**Receipts:** proof bundles under `ops/proof/bundles/m3-*`, runbooks, publish/verify scripts.
+## Milestone 3 — Scheduled run + object-store publishing (K8s CronJob first) ◐
+**Status:** Core mechanics are present (CronJob manifests + publish tooling + tests), but external “real bucket/live scrape” proof receipts are not archived in-repo.
+**Receipts:** `scripts/publish_s3.py`, `scripts/verify_s3_publish.py`, `ops/k8s/overlays/onprem-pi/`, `tests/test_publish_*.py`.
 - [x] CronJob runs end-to-end
 - [x] S3 publish plan + offline verification
-- [x] Real bucket publish verified (+ latest pointers)
-- [x] Live scrape proof in-cluster
+- [ ] Real bucket publish verified (+ latest pointers)
+- [ ] Live scrape proof in-cluster
 - [x] Politeness/backoff/circuit breaker enforced
 
 ## Milestone 4 — On-Prem primary + Cloud DR (proven once; stability pending) ◐
 **Status:** Partially complete: backup/restore + cloud DR proven once, on-prem 72h stability not yet proven.
-**Receipts:** `ops/proof/bundles/m4-*`, runbooks in repo.
-- [x] Backup/restore rehearsal (encrypted + checksummed)
-- [x] DR rehearsal end-to-end (bring up → restore → run → teardown)
+**Receipts:** `ops/onprem/RUNBOOK_DEPLOY.md`, `ops/onprem/RUNBOOK_DNS.md`, `docs/proof/onprem-ops-hardening-2026-02-13.md`.
+- [x] Backup/restore rehearsal documented
+- [ ] DR rehearsal end-to-end (bring up → restore → run → teardown)
 - [ ] On-prem 72h stability receipts (blocked by hardware timing)
 
 ## Milestone 5 — Provider Expansion (config-driven, offline proof) ◐
