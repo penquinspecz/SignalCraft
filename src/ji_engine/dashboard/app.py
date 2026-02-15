@@ -24,6 +24,11 @@ try:
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
+from ji_engine.artifacts.catalog import (
+    ArtifactCategory,
+    get_artifact_category,
+    validate_artifact_payload,
+)
 from ji_engine.config import (
     DEFAULT_CANDIDATE_ID,
     RUN_METADATA_DIR,
@@ -389,12 +394,66 @@ def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[st
     return enriched
 
 
+def _enforce_artifact_model(
+    artifact_key: str,
+    run_id: str,
+    path: Path,
+    max_bytes: int,
+) -> bytes:
+    """
+    Enforce artifact model v2 at serving boundary.
+    Returns bytes to serve. Raises HTTPException on fail-closed.
+    """
+    if path.suffix.lower() != ".json":
+        category = get_artifact_category(artifact_key)
+        if category == ArtifactCategory.UNCATEGORIZED:
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "error": "artifact_uncategorized",
+                    "artifact_key": artifact_key,
+                    "run_id": run_id,
+                    "message": "Artifact not in catalog; fail-closed.",
+                },
+            )
+        return path.read_bytes()
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise HTTPException(status_code=413, detail="Artifact payload too large")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=500, detail="Artifact invalid shape")
+    category = get_artifact_category(artifact_key)
+    if category == ArtifactCategory.UNCATEGORIZED:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "artifact_uncategorized",
+                "artifact_key": artifact_key,
+                "run_id": run_id,
+                "message": "Artifact not in catalog; fail-closed.",
+            },
+        )
+    try:
+        validate_artifact_payload(payload, artifact_key, run_id, category)
+    except ValueError as exc:
+        try:
+            detail = json.loads(str(exc))
+        except json.JSONDecodeError:
+            detail = {"error": "validation_failed", "message": str(exc)}
+        raise HTTPException(status_code=500, detail=detail) from exc
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+
+
 @app.get("/runs/{run_id}/artifact/{name}")
 def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Response:
     _sanitize_run_id(run_id)
+    safe_run_id = run_id.strip()
     index = _load_index(run_id, candidate_id)
     path = _resolve_artifact_path(run_id, candidate_id, index, name)
-    return Response(path.read_bytes(), media_type=_content_type(path))
+    max_bytes = _max_json_bytes()
+    body = _enforce_artifact_model(name, safe_run_id, path, max_bytes)
+    return Response(body, media_type=_content_type(path))
 
 
 @app.get("/runs/{run_id}/semantic_summary/{profile}")
