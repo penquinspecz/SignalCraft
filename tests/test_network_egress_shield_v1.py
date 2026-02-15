@@ -93,20 +93,15 @@ def test_retry_final_url_allowlist_fail_closed(monkeypatch: pytest.MonkeyPatch) 
     assert exc.value.reason == "allowlist_denied"
 
 
-def test_snapshot_fetch_requests_validates_final_url_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_snapshot_fetch_requests_preflight_blocks_before_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
     _set_allowlist(monkeypatch, "allowed.example")
     monkeypatch.setattr(
-        "jobintel.snapshots.fetch.requests.get",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            text="<html>ok</html>",
-            status_code=200,
-            url="https://blocked.example/final",
-        ),
+        "jobintel.snapshots.fetch.safe_get_text",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("safe_get_text should not run")),
     )
-
-    html, meta = fetch_html("https://allowed.example/start", method="requests", timeout_s=5)
+    html, meta = fetch_html("https://blocked.example/start", method="requests", timeout_s=5)
     assert html == ""
-    assert str(meta["error"]).startswith("egress_blocked:final_url_allowlist_denied")
+    assert str(meta["error"]).startswith("egress_blocked:allowlist_denied")
 
 
 def test_snapshot_fetch_playwright_preflight_blocks_before_navigation(monkeypatch: pytest.MonkeyPatch) -> None:
