@@ -1567,9 +1567,12 @@ def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str)
 
 
 def _resolve_latest_run_ranked_legacy_scan(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
+    run_root = RUN_METADATA_DIR if CANDIDATE_ID == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(CANDIDATE_ID)
+    if not run_root.exists():
+        return None
     candidates: List[Tuple[float, str, Path]] = []
     current_name = _sanitize_run_id(current_run_id)
-    for run_dir in RUN_REPOSITORY.list_run_dirs(candidate_id=CANDIDATE_ID):
+    for run_dir in run_root.iterdir():
         if not run_dir.is_dir() or run_dir.name == current_name:
             continue
         ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
