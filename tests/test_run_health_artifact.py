@@ -144,3 +144,89 @@ def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: A
     artifact_pointer = run_report_payload.get("provider_availability_artifact")
     assert isinstance(artifact_pointer, dict)
     assert artifact_pointer.get("path")
+
+
+def test_run_health_written_on_forced_failure(tmp_path: Path, monkeypatch: Any) -> None:
+    """Forced failure via JOBINTEL_FORCE_FAIL_STAGE emits run_health with failed_stage and FORCED_FAILURE."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+
+    monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "scrape")
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    def fake_run(cmd: list[str], *, stage: str) -> None:
+        if stage == "scrape":
+            (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage == "classify":
+            (output_dir / "openai_labeled_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage == "enrich":
+            (output_dir / "openai_enriched_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage.startswith("score:"):
+            profile = stage.split(":", 1)[1]
+            for path in (
+                run_daily._provider_ranked_jobs_json("openai", profile),
+                run_daily._provider_ranked_jobs_csv("openai", profile),
+                run_daily._provider_ranked_families_json("openai", profile),
+                run_daily._provider_shortlist_md("openai", profile),
+                run_daily._provider_top_md("openai", profile),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if path.suffix == ".json":
+                    path.write_text("[]", encoding="utf-8")
+                else:
+                    path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(run_daily, "_run", fake_run)
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    rc = run_daily.main()
+    assert rc != 0
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["status"] == "failed"
+    assert payload["failed_stage"] == "scrape"
+    assert "FORCED_FAILURE" in payload["failure_codes"]
+
+
+def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: Any) -> None:
+    """On forced failure, run_health and run_summary are emitted; provider_availability is not a separate
+    artifact (fail-closed: runner builds it from provenance, which may be empty on early failure).
+    """
+    paths = _setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "classify")
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    output_dir = paths["output_dir"]
+
+    def fake_run(cmd: list[str], *, stage: str) -> None:
+        if stage == "scrape":
+            (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage == "classify":
+            pass  # forced fail before _run executes
+
+    monkeypatch.setattr(run_daily, "_run", fake_run)
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    rc = run_daily.main()
+    assert rc != 0
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["failed_stage"] == "classify"
+    assert "FORCED_FAILURE" in payload["failure_codes"]
+
+    run_summaries = sorted(run_daily.RUN_METADATA_DIR.glob("*/run_summary.v1.json"))
+    assert run_summaries, "run_summary should be emitted on forced failure"
