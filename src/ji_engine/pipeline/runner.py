@@ -83,9 +83,6 @@ from ji_engine.semantic.step import finalize_semantic_artifacts, semantic_score_
 from ji_engine.state.run_index import (
     append_run_record as append_run_index_record,
 )
-from ji_engine.state.run_index import (
-    list_runs_as_dicts as list_indexed_runs,
-)
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
@@ -1820,12 +1817,11 @@ def _resolve_local_last_success_ranked(provider: str, profile: str, current_run_
 
 def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
     current_name = _sanitize_run_id(current_run_id)
-    # Run index rows are ordered explicitly by (created_at DESC, run_id DESC),
-    # preserving deterministic baseline resolution.
+    # RunRepository is the single resolver for run discovery; index-first, fallback scan only when empty.
     try:
-        rows = list_indexed_runs(candidate_id=CANDIDATE_ID, limit=500)
+        rows = _run_repository().list_runs(candidate_id=CANDIDATE_ID, limit=500)
     except Exception as exc:
-        logger.warning("Run index lookup failed for baseline selection: %r", exc)
+        logger.warning("RunRepository lookup failed for baseline selection: %r", exc)
         rows = []
 
     for row in rows:
@@ -1839,6 +1835,7 @@ def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str)
         if ranked_path.exists():
             return ranked_path
 
+    # Fallback: only when index is empty or missing (explicit, bounded).
     return _resolve_latest_run_ranked_legacy_scan(provider, profile, current_run_id)
 
 
@@ -3134,10 +3131,12 @@ def _collect_run_log_pointers(run_id: str, file_sink_path: Optional[str]) -> Dic
     }
 
 
-def _enforce_run_log_retention(*, runs_dir: Path, keep_runs: int) -> Dict[str, Any]:
+def _enforce_run_log_retention(*, run_repository: RunRepository, candidate_id: str, keep_runs: int) -> Dict[str, Any]:
     if keep_runs < 1:
         raise ValueError(f"keep_runs must be >= 1 (got {keep_runs})")
-    run_entries = [p for p in sorted(runs_dir.iterdir(), key=lambda p: p.name) if p.is_dir()]
+    run_dirs = run_repository.list_run_dirs(candidate_id=candidate_id)
+    # list_run_dirs returns newest first; reverse for oldest-first so keep = last N = newest N.
+    run_entries = list(reversed(run_dirs))
     keep = set(run_entries[-keep_runs:]) if keep_runs > 0 else set()
     pruned_paths: List[str] = []
     for run_path in run_entries:
@@ -4814,7 +4813,9 @@ def main() -> int:
         if history_enabled:
             try:
                 log_retention_summary = _enforce_run_log_retention(
-                    runs_dir=stage_context.workspace.run_metadata_dir, keep_runs=history_keep_runs
+                    run_repository=_run_repository(),
+                    candidate_id=stage_context.candidate_id,
+                    keep_runs=history_keep_runs,
                 )
                 log_retention_summary["enabled"] = True
                 log_retention_summary["reason"] = "history_keep_runs"
