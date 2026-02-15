@@ -293,6 +293,13 @@ def _parse_allowlist(value: Optional[str]) -> list[str]:
     return [item.strip().lower() for item in value.split(",") if item.strip()]
 
 
+def _resolve_allowlist(provider_id: Optional[str]) -> list[str]:
+    allowlist = _parse_allowlist(os.environ.get(_provider_env_name("JOBINTEL_LIVE_ALLOWLIST_DOMAINS", provider_id)))
+    if allowlist:
+        return allowlist
+    return _parse_allowlist(os.environ.get("JOBINTEL_LIVE_ALLOWLIST_DOMAINS"))
+
+
 def _allowlist_allows(host: str, entries: list[str]) -> bool:
     if not entries:
         return True
@@ -304,6 +311,39 @@ def _allowlist_allows(host: str, entries: list[str]) -> bool:
         if host == entry:
             return True
     return False
+
+
+def evaluate_allowlist_policy(
+    url: str,
+    *,
+    provider_id: Optional[str] = None,
+) -> dict[str, object]:
+    parsed = urlparse(url)
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.netloc or "").lower()
+    allowlist = _resolve_allowlist(provider_id)
+    allowlist_allowed = _allowlist_allows(host, allowlist) if host else False
+    reason = "ok"
+    final_allowed = True
+    if scheme not in {"http", "https"}:
+        reason = "invalid_scheme"
+        final_allowed = False
+    elif not host:
+        reason = "missing_host"
+        final_allowed = False
+    elif not allowlist_allowed:
+        reason = "allowlist_denied"
+        final_allowed = False
+    return {
+        "provider": provider_id,
+        "url": url,
+        "scheme": scheme,
+        "host": host,
+        "allowlist_entries": allowlist,
+        "allowlist_allowed": allowlist_allowed,
+        "final_allowed": final_allowed,
+        "reason": reason,
+    }
 
 
 def record_policy_block(provider_id: Optional[str], reason: str) -> None:
@@ -323,10 +363,9 @@ def evaluate_robots_policy(
     scheme = parsed.scheme or "https"
     robots_url = f"{scheme}://{host}/robots.txt"
 
-    allowlist = _parse_allowlist(os.environ.get(_provider_env_name("JOBINTEL_LIVE_ALLOWLIST_DOMAINS", provider_id)))
-    if not allowlist:
-        allowlist = _parse_allowlist(os.environ.get("JOBINTEL_LIVE_ALLOWLIST_DOMAINS"))
-    allowlist_allowed = _allowlist_allows(host, allowlist)
+    allowlist_decision = evaluate_allowlist_policy(url, provider_id=provider_id)
+    allowlist = list(allowlist_decision.get("allowlist_entries") or [])
+    allowlist_allowed = bool(allowlist_decision.get("allowlist_allowed"))
 
     ua = user_agent or os.environ.get(
         "JOBINTEL_USER_AGENT",
@@ -369,6 +408,18 @@ def evaluate_robots_policy(
     try:
         if fetcher is None:
             resp = requests.get(robots_url, timeout=5)
+            final_url = str(getattr(resp, "url", robots_url) or robots_url)
+            final_allowlist = evaluate_allowlist_policy(final_url, provider_id=provider_id)
+            if not final_allowlist.get("final_allowed"):
+                decision["reason"] = str(final_allowlist.get("reason") or "allowlist_denied")
+                logger.warning(
+                    "[provider_retry][robots] provider=%s host=%s robots_final_url=%s reason=%s",
+                    provider_id,
+                    host,
+                    final_url,
+                    decision["reason"],
+                )
+                return decision
             status = resp.status_code
             text = resp.text
         else:
@@ -451,6 +502,12 @@ def fetch_text_with_retry(
     backoff_max_s: Optional[float] = None,
     provider_id: Optional[str] = None,
 ) -> str:
+    preflight = evaluate_allowlist_policy(url, provider_id=provider_id)
+    if not preflight.get("final_allowed"):
+        reason = str(preflight.get("reason") or "allowlist_denied")
+        record_policy_block(provider_id, reason)
+        raise ProviderFetchError(reason, attempts=0)
+
     _check_circuit(provider_id)
     attempts, backoff_base, backoff_max = _retry_config(
         max_attempts,
@@ -469,6 +526,12 @@ def fetch_text_with_retry(
             with _InflightGuard(host, max_inflight):
                 resp = requests.get(url, headers=headers or {}, timeout=timeout_s)
             last_status = resp.status_code
+            final_url = str(getattr(resp, "url", url) or url)
+            final_policy = evaluate_allowlist_policy(final_url, provider_id=provider_id)
+            if not final_policy.get("final_allowed"):
+                reason = str(final_policy.get("reason") or "allowlist_denied")
+                record_policy_block(provider_id, f"final_url_{reason}")
+                raise ProviderFetchError(reason, attempt, resp.status_code)
             if resp.status_code != 200:
                 last_reason = _classify_status(resp.status_code)
                 if attempt < attempts and _should_retry(last_reason, resp.status_code):
@@ -527,6 +590,12 @@ def fetch_urlopen_with_retry(
     backoff_max_s: Optional[float] = None,
     provider_id: Optional[str] = None,
 ) -> str:
+    preflight = evaluate_allowlist_policy(url, provider_id=provider_id)
+    if not preflight.get("final_allowed"):
+        reason = str(preflight.get("reason") or "allowlist_denied")
+        record_policy_block(provider_id, reason)
+        raise ProviderFetchError(reason, attempts=0)
+
     _check_circuit(provider_id)
     attempts, backoff_base, backoff_max = _retry_config(
         max_attempts,
@@ -546,6 +615,13 @@ def fetch_urlopen_with_retry(
             with _InflightGuard(host, max_inflight), urlopen(req, timeout=timeout_s) as resp:
                 status = getattr(resp, "status", 200)
                 last_status = status
+                final_url_getter = getattr(resp, "geturl", None)
+                final_url = str(final_url_getter() if callable(final_url_getter) else url)
+                final_policy = evaluate_allowlist_policy(final_url, provider_id=provider_id)
+                if not final_policy.get("final_allowed"):
+                    reason = str(final_policy.get("reason") or "allowlist_denied")
+                    record_policy_block(provider_id, f"final_url_{reason}")
+                    raise ProviderFetchError(reason, attempt, status)
                 if status != 200:
                     last_reason = _classify_status(status)
                     if attempt < attempts and _should_retry(last_reason, status):
@@ -606,6 +682,12 @@ def fetch_json_with_retry(
     backoff_max_s: Optional[float] = None,
     provider_id: Optional[str] = None,
 ) -> dict:
+    preflight = evaluate_allowlist_policy(url, provider_id=provider_id)
+    if not preflight.get("final_allowed"):
+        reason = str(preflight.get("reason") or "allowlist_denied")
+        record_policy_block(provider_id, reason)
+        raise ProviderFetchError(reason, attempts=0)
+
     _check_circuit(provider_id)
     attempts, backoff_base, backoff_max = _retry_config(
         max_attempts,
@@ -624,6 +706,12 @@ def fetch_json_with_retry(
             with _InflightGuard(host, max_inflight):
                 resp = requests.post(url, headers=headers or {}, json=payload or {}, timeout=timeout_s)
             last_status = resp.status_code
+            final_url = str(getattr(resp, "url", url) or url)
+            final_policy = evaluate_allowlist_policy(final_url, provider_id=provider_id)
+            if not final_policy.get("final_allowed"):
+                reason = str(final_policy.get("reason") or "allowlist_denied")
+                record_policy_block(provider_id, f"final_url_{reason}")
+                raise ProviderFetchError(reason, attempt, resp.status_code)
             if resp.status_code != 200:
                 last_reason = _classify_status(resp.status_code)
                 if attempt < attempts and _should_retry(last_reason, resp.status_code):
@@ -675,6 +763,7 @@ def fetch_json_with_retry(
 __all__ = [
     "ProviderFetchError",
     "classify_failure_type",
+    "evaluate_allowlist_policy",
     "evaluate_robots_policy",
     "fetch_json_with_retry",
     "fetch_text_with_retry",
