@@ -12,9 +12,18 @@ from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.user_state import load_user_state
 
 
-def _list_runs(profile: str) -> List[Dict[str, object]]:
-    runs_by_id: Dict[str, Dict[str, object]] = {}
+def _list_runs_from_index(profile: str) -> List[Dict[str, object]]:
+    """List runs for profile using RunRepository (SQLite index-backed)."""
+    repo = run_daily._run_repository()
+    rows = repo.list_runs_for_profile(candidate_id=run_daily.DEFAULT_CANDIDATE_ID, profile=profile, limit=500)
+    # Preserve original semantics: report_changes expects oldest-first (sorted by run_id)
+    # so that _get_previous_run(run_b) returns run_a when runs = [run_a, run_b]
+    return [dict(r) for r in reversed(rows)]
 
+
+def _list_runs_from_history_scan(profile: str) -> List[Dict[str, object]]:
+    """Legacy: list runs by scanning history directory (fallback when index has no matches)."""
+    runs_by_id: Dict[str, Dict[str, object]] = {}
     for profile_dir in HISTORY_DIR.rglob(profile):
         if "latest" in profile_dir.parts:
             continue
@@ -25,7 +34,10 @@ def _list_runs(profile: str) -> List[Dict[str, object]]:
         for meta_path in sorted(profile_dir.glob("*.json")):
             if meta_path.name == "run_summary.txt":
                 continue
-            data = json.loads(meta_path.read_text(encoding="utf-8"))
+            try:
+                data = json.loads(meta_path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
             if not isinstance(data, dict):
                 continue
             run_id = data.get("run_id")
@@ -37,8 +49,15 @@ def _list_runs(profile: str) -> List[Dict[str, object]]:
             if profile not in profiles:
                 continue
             runs_by_id[run_id] = data
-
     return [runs_by_id[run_id] for run_id in sorted(runs_by_id)]
+
+
+def _list_runs(profile: str) -> List[Dict[str, object]]:
+    """List runs for profile: index-backed first, legacy history scan fallback."""
+    runs = _list_runs_from_index(profile)
+    if runs:
+        return runs
+    return _list_runs_from_history_scan(profile)
 
 
 def _select_run(profile: str, run_id: str | None) -> Dict[str, object]:
