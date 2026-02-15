@@ -71,6 +71,8 @@ data/state/*.json
 # data/openai_snapshots/
 
 # packaging/build artifacts
+build/
+dist/
 *.egg-info/
 
 # Local AI cache
