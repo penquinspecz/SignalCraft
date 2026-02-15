@@ -1,4 +1,3 @@
 """
 SignalCraft state helpers.
 """
-
