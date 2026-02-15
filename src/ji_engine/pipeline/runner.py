@@ -33,18 +33,12 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
 from ji_engine.config import (
-    DATA_DIR,
     DEFAULT_CANDIDATE_ID,
     ENRICHED_JOBS_JSON,
-    HISTORY_DIR,
     LABELED_JOBS_JSON,
     LOCK_PATH,
     RAW_JOBS_JSON,
     REPO_ROOT,
-    RUN_METADATA_DIR,
-    SNAPSHOT_DIR,
-    STATE_DIR,
-    USER_STATE_DIR,
     candidate_last_run_pointer_path,
     candidate_last_run_read_paths,
     candidate_last_success_pointer_path,
@@ -56,7 +50,6 @@ from ji_engine.config import (
     ranked_jobs_csv,
     ranked_jobs_json,
     sanitize_candidate_id,
-    state_last_ranked,
 )
 from ji_engine.config import (
     shortlist_md as shortlist_md_path,
@@ -125,7 +118,7 @@ try:
 except ModuleNotFoundError:
     from schema_validate import resolve_named_schema_path, validate_payload  # type: ignore
 
-OUTPUT_DIR = DATA_DIR
+OUTPUT_DIR = RAW_JOBS_JSON.parent
 SCORING_CONFIG_PATH = REPO_ROOT / "config" / "scoring.v1.json"
 PROFILES_CONFIG_PATH = REPO_ROOT / "config" / "profiles.json"
 
@@ -200,7 +193,6 @@ RUN_HEALTH_FAILURE_CODES = (
 )
 _RUN_HEALTH_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
-RUN_REPOSITORY: RunRepository = FileSystemRunRepository(RUN_METADATA_DIR)
 
 StageStatus = Literal["success", "skipped", "error"]
 
@@ -213,6 +205,77 @@ class WorkspacePaths:
     history_dir: Path
     run_metadata_dir: Path
     snapshot_dir: Path
+
+
+def _workspace_paths() -> WorkspacePaths:
+    # Resolve once from candidate namespace roots to avoid direct module-level
+    # dependencies on legacy config path constants.
+    candidate_paths = candidate_state_paths(CANDIDATE_ID)
+    state_dir = candidate_paths.root.parent.parent
+    data_dir = ranked_jobs_json("workspace").parent
+    return WorkspacePaths(
+        repo_root=REPO_ROOT,
+        data_dir=data_dir,
+        state_dir=state_dir,
+        history_dir=state_dir / "history",
+        run_metadata_dir=state_dir / "runs",
+        snapshot_dir=data_dir / "openai_snapshots",
+    )
+
+
+WORKSPACE = _workspace_paths()
+RUN_REPOSITORY: RunRepository = FileSystemRunRepository(WORKSPACE.run_metadata_dir)
+# Compatibility exports for legacy tests/monkeypatches. Internal logic should
+# resolve paths through WORKSPACE/RUN_REPOSITORY.
+DATA_DIR = WORKSPACE.data_dir
+STATE_DIR = WORKSPACE.state_dir
+RUN_METADATA_DIR = WORKSPACE.run_metadata_dir
+HISTORY_DIR = WORKSPACE.history_dir
+SNAPSHOT_DIR = WORKSPACE.snapshot_dir
+USER_STATE_DIR = WORKSPACE.state_dir / "user_state"
+
+
+def _workspace() -> WorkspacePaths:
+    data_dir = globals().get("DATA_DIR")
+    state_dir = globals().get("STATE_DIR")
+    history_dir = globals().get("HISTORY_DIR")
+    run_metadata_dir = globals().get("RUN_METADATA_DIR")
+    snapshot_dir = globals().get("SNAPSHOT_DIR")
+    resolved_data_dir = data_dir if isinstance(data_dir, Path) else WORKSPACE.data_dir
+    resolved_state_dir = state_dir if isinstance(state_dir, Path) else WORKSPACE.state_dir
+    state_overridden = resolved_state_dir != WORKSPACE.state_dir
+    if state_overridden:
+        if isinstance(history_dir, Path) and history_dir.parent == resolved_state_dir:
+            resolved_history_dir = history_dir
+        else:
+            resolved_history_dir = resolved_state_dir / "history"
+    else:
+        resolved_history_dir = history_dir if isinstance(history_dir, Path) else WORKSPACE.history_dir
+    if state_overridden:
+        if isinstance(run_metadata_dir, Path) and run_metadata_dir.parent == resolved_state_dir:
+            resolved_run_metadata_dir = run_metadata_dir
+        else:
+            resolved_run_metadata_dir = resolved_state_dir / "runs"
+    else:
+        resolved_run_metadata_dir = (
+            run_metadata_dir if isinstance(run_metadata_dir, Path) else WORKSPACE.run_metadata_dir
+        )
+    if isinstance(snapshot_dir, Path) and snapshot_dir != WORKSPACE.snapshot_dir:
+        resolved_snapshot_dir = snapshot_dir
+    else:
+        resolved_snapshot_dir = WORKSPACE.snapshot_dir
+    return WorkspacePaths(
+        repo_root=WORKSPACE.repo_root,
+        data_dir=resolved_data_dir,
+        state_dir=resolved_state_dir,
+        history_dir=resolved_history_dir,
+        run_metadata_dir=resolved_run_metadata_dir,
+        snapshot_dir=resolved_snapshot_dir,
+    )
+
+
+def _run_repository() -> RunRepository:
+    return FileSystemRunRepository(_workspace().run_metadata_dir)
 
 
 @dataclass(frozen=True)
@@ -674,8 +737,8 @@ def _load_scrape_provenance(providers: List[str]) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
     for provider in providers:
         meta_path = _scrape_meta_path(provider)
-        if not meta_path.exists() and OUTPUT_DIR != DATA_DIR:
-            meta_path = DATA_DIR / f"{provider}_scrape_meta.json"
+        if not meta_path.exists() and OUTPUT_DIR != _workspace().data_dir:
+            meta_path = _workspace().data_dir / f"{provider}_scrape_meta.json"
         if not meta_path.exists():
             continue
         try:
@@ -842,7 +905,7 @@ def _apply_score_fallback_metadata(selection: Dict[str, Any], ranked_json: Path)
 
 def _run_metadata_path(run_id: str) -> Path:
     safe_id = _sanitize_run_id(run_id)
-    return RUN_METADATA_DIR / f"{safe_id}.json"
+    return _workspace().run_metadata_dir / f"{safe_id}.json"
 
 
 def _run_health_path(run_id: str) -> Path:
@@ -1173,7 +1236,7 @@ def _write_run_summary_artifact(
 
     costs_path = _run_registry_dir(run_id) / "costs.json"
     if not costs_path.exists():
-        legacy_costs_path = RUN_METADATA_DIR / _sanitize_run_id(run_id) / "costs.json"
+        legacy_costs_path = _workspace().run_metadata_dir / _sanitize_run_id(run_id) / "costs.json"
         if legacy_costs_path.exists():
             costs_path = legacy_costs_path
 
@@ -1434,7 +1497,7 @@ def _resolve_output_dir() -> Path:
     if env_value:
         output_dir = Path(env_value).expanduser()
     else:
-        output_dir = DATA_DIR / "ashby_cache"
+        output_dir = _workspace().data_dir / "ashby_cache"
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -1465,7 +1528,7 @@ def _alerts_paths(provider: str, profile: str) -> Tuple[Path, Path]:
 
 
 def _last_seen_path(provider: str, profile: str) -> Path:
-    return STATE_DIR / "runs" / "last_seen" / f"{provider}.{profile}.json"
+    return _workspace().state_dir / "runs" / "last_seen" / f"{provider}.{profile}.json"
 
 
 def _provider_ai_jobs_json(provider: str) -> Path:
@@ -1511,8 +1574,8 @@ def _provider_diff_paths(provider: str, profile: str) -> Tuple[Path, Path]:
 
 def _state_last_ranked(provider: str, profile: str) -> Path:
     if provider == "openai":
-        return state_last_ranked(profile)
-    return STATE_DIR / f"last_ranked.{provider}.{profile}.json"
+        return _workspace().state_dir / f"last_ranked.{profile}.json"
+    return _workspace().state_dir / f"last_ranked.{provider}.{profile}.json"
 
 
 def _local_last_success_pointer_paths(provider: str, profile: str) -> List[Path]:
@@ -1520,7 +1583,7 @@ def _local_last_success_pointer_paths(provider: str, profile: str) -> List[Path]
         return [candidate_last_success_pointer_path(CANDIDATE_ID)]
     return [
         *candidate_last_success_read_paths(CANDIDATE_ID),
-        STATE_DIR / provider / profile / "last_success.json",
+        _workspace().state_dir / provider / profile / "last_success.json",
     ]
 
 
@@ -1567,7 +1630,11 @@ def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str)
 
 
 def _resolve_latest_run_ranked_legacy_scan(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
-    run_root = RUN_METADATA_DIR if CANDIDATE_ID == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(CANDIDATE_ID)
+    run_root = (
+        _workspace().run_metadata_dir
+        if CANDIDATE_ID == DEFAULT_CANDIDATE_ID
+        else candidate_run_metadata_dir(CANDIDATE_ID)
+    )
     if not run_root.exists():
         return None
     candidates: List[Tuple[float, str, Path]] = []
@@ -1594,14 +1661,14 @@ def _history_run_dir(run_id: str, profile: str, provider: Optional[str] = None) 
     run_date = run_id.split("T")[0]
     sanitized = _sanitize_run_id(run_id)
     if provider and provider != "openai":
-        return HISTORY_DIR / run_date / sanitized / provider / profile
-    return HISTORY_DIR / run_date / sanitized / profile
+        return _workspace().history_dir / run_date / sanitized / provider / profile
+    return _workspace().history_dir / run_date / sanitized / profile
 
 
 def _latest_profile_dir(profile: str, provider: Optional[str] = None) -> Path:
     if provider and provider != "openai":
-        return HISTORY_DIR / "latest" / provider / profile
-    return HISTORY_DIR / "latest" / profile
+        return _workspace().history_dir / "latest" / provider / profile
+    return _workspace().history_dir / "latest" / profile
 
 
 def _copy_artifact(src: Path, dest: Path) -> None:
@@ -1630,7 +1697,7 @@ def _archive_input(
     src: Path,
     dest_rel: Path,
     *,
-    state_dir: Path = STATE_DIR,
+    state_dir: Optional[Path] = None,
 ) -> Dict[str, Any]:
     if not src.exists():
         logger.error("Archive source missing: %s", src)
@@ -1645,9 +1712,10 @@ def _archive_input(
     except Exception as exc:
         logger.error("Archive copy failed for %s -> %s: %s", src, dest, exc)
         raise SystemExit(3) from exc
+    root_state_dir = state_dir or _workspace().state_dir
     return {
         "source_path": str(src),
-        "archived_path": dest.relative_to(state_dir).as_posix(),
+        "archived_path": dest.relative_to(root_state_dir).as_posix(),
         "sha256": sha256,
         "bytes": size,
         "hash_algo": "sha256",
@@ -1680,9 +1748,9 @@ def _archive_run_inputs(
 
 
 def _run_registry_dir(run_id: str) -> Path:
-    resolved = RUN_REPOSITORY.resolve_run_dir(run_id, candidate_id=CANDIDATE_ID)
+    resolved = _run_repository().resolve_run_dir(run_id, candidate_id=CANDIDATE_ID)
     if CANDIDATE_ID == DEFAULT_CANDIDATE_ID and not resolved.exists():
-        return RUN_METADATA_DIR / _sanitize_run_id(run_id)
+        return _workspace().run_metadata_dir / _sanitize_run_id(run_id)
     return resolved
 
 
@@ -2073,7 +2141,7 @@ def _resolve_s3_baseline(
                 run_id,
                 provider,
                 profile,
-                STATE_DIR / "baseline_cache",
+                _workspace().state_dir / "baseline_cache",
             )
             if ranked_path:
                 logger.info(
@@ -2114,7 +2182,7 @@ def _resolve_s3_baseline(
                 run_id,
                 provider,
                 profile,
-                STATE_DIR / "baseline_cache",
+                _workspace().state_dir / "baseline_cache",
             )
             if ranked_path:
                 logger.info(
@@ -2148,7 +2216,7 @@ def _resolve_s3_baseline(
             run_id,
             provider,
             profile,
-            STATE_DIR / "baseline_cache",
+            _workspace().state_dir / "baseline_cache",
         )
         if ranked_path:
             logger.info(
@@ -2320,7 +2388,7 @@ def _verifiable_artifacts(
                     continue
                 logical_key = f"{provider}:{profile}:{output_key}"
                 artifacts[logical_key] = Path(path_str)
-    return build_verifiable_artifacts(DATA_DIR, artifacts)
+    return build_verifiable_artifacts(_workspace().data_dir, artifacts)
 
 
 def _best_effort_git_sha() -> Optional[str]:
@@ -2657,7 +2725,7 @@ def _load_last_run() -> Dict[str, Any]:
 def _write_last_run(payload: Dict[str, Any]) -> None:
     _write_json(LAST_RUN_JSON, payload)
     if CANDIDATE_ID == DEFAULT_CANDIDATE_ID:
-        _write_json(STATE_DIR / "last_run.json", payload)
+        _write_json(_workspace().state_dir / "last_run.json", payload)
 
 
 def _parse_logical_key(logical_key: str) -> Optional[Tuple[str, str, str]]:
@@ -2712,7 +2780,7 @@ def _write_last_success_pointer(run_report: Dict[str, Any], run_report_path: Pat
     )
     if CANDIDATE_ID == DEFAULT_CANDIDATE_ID:
         atomic_write_text(
-            STATE_DIR / "last_success.json",
+            _workspace().state_dir / "last_success.json",
             json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
         )
 
@@ -2906,7 +2974,10 @@ def _hash_job(job: Dict[str, Any]) -> str:
 
 
 def _load_profile_user_state(profile: str) -> Dict[str, Dict[str, Any]]:
-    path = USER_STATE_DIR / f"{profile}.json"
+    user_state_dir = globals().get("USER_STATE_DIR")
+    if not isinstance(user_state_dir, Path):
+        user_state_dir = _workspace().state_dir / "user_state"
+    path = user_state_dir / f"{profile}.json"
     data, warning = load_user_state_checked(path)
     if warning:
         logger.warning("%s", warning)
@@ -3639,7 +3710,7 @@ def _write_ai_accounting_rollups(candidate_id: str) -> Dict[str, str]:
     safe_candidate = sanitize_candidate_id(candidate_id)
     daily: Dict[str, Dict[str, Any]] = {}
     weekly: Dict[str, Dict[str, Any]] = {}
-    for run_dir in RUN_REPOSITORY.list_run_dirs(candidate_id=safe_candidate):
+    for run_dir in _run_repository().list_run_dirs(candidate_id=safe_candidate):
         report_path = run_dir / "run_report.json"
         costs_path = run_dir / "costs.json"
         if not report_path.exists() or not costs_path.exists():
@@ -3684,7 +3755,7 @@ def _write_ai_accounting_rollups(candidate_id: str) -> Dict[str, str]:
             entry["tokens_total"] += tokens_total
             entry["cost"] += cost
 
-    candidate_root = STATE_DIR / "candidates" / safe_candidate
+    candidate_root = _workspace().state_dir / "candidates" / safe_candidate
     candidate_root.mkdir(parents=True, exist_ok=True)
     daily_path = candidate_root / "ai_accounting_daily.json"
     weekly_path = candidate_root / "ai_accounting_weekly.json"
@@ -3980,10 +4051,10 @@ def main() -> int:
         raise SystemExit(f"Scoring config validation failed: {exc}") from exc
 
     if args.print_paths:
-        print("DATA_DIR=", DATA_DIR)
-        print("STATE_DIR=", STATE_DIR)
-        print("HISTORY_DIR=", HISTORY_DIR)
-        print("RUN_METADATA_DIR=", RUN_METADATA_DIR)
+        print("DATA_DIR=", _workspace().data_dir)
+        print("STATE_DIR=", _workspace().state_dir)
+        print("HISTORY_DIR=", _workspace().history_dir)
+        print("RUN_METADATA_DIR=", _workspace().run_metadata_dir)
         return 0
 
     if args.test_post:
@@ -4142,7 +4213,7 @@ def main() -> int:
             )
         semantic_summary, semantic_summary_path, semantic_scores_path = finalize_semantic_artifacts(
             run_id=run_id,
-            run_metadata_dir=RUN_METADATA_DIR,
+            run_metadata_dir=stage_context.workspace.run_metadata_dir,
             enabled=bool(semantic_settings["enabled"]),
             model_id=str(semantic_settings["model_id"]),
             policy={
@@ -4364,7 +4435,7 @@ def main() -> int:
                         bucket=None,
                         prefix=None,
                         candidate_id=CANDIDATE_ID,
-                        run_dir=RUN_METADATA_DIR / publish_s3._sanitize_run_id(run_id),
+                        run_dir=stage_context.workspace.run_metadata_dir / publish_s3._sanitize_run_id(run_id),
                         dry_run=dry_run,
                         require_s3=require_s3,
                         providers=providers,
@@ -4435,7 +4506,7 @@ def main() -> int:
                 artifact_result = None
                 try:
                     artifact_result = write_history_run_artifacts(
-                        history_dir=HISTORY_DIR,
+                        history_dir=stage_context.workspace.history_dir,
                         run_id=run_id,
                         profile=profile,
                         run_report_path=run_metadata_path,
@@ -4446,8 +4517,8 @@ def main() -> int:
                         "Failed to write history artifacts for profile=%s run_id=%s: %r", profile, run_id, exc
                     )
                 result = update_history_retention(
-                    history_dir=HISTORY_DIR,
-                    runs_dir=RUN_METADATA_DIR,
+                    history_dir=stage_context.workspace.history_dir,
+                    runs_dir=stage_context.workspace.run_metadata_dir,
                     profile=profile,
                     run_id=run_id,
                     run_timestamp=str(telemetry.get("ended_at") or ""),
@@ -4500,7 +4571,7 @@ def main() -> int:
         if history_enabled:
             try:
                 log_retention_summary = _enforce_run_log_retention(
-                    runs_dir=RUN_METADATA_DIR, keep_runs=history_keep_runs
+                    runs_dir=stage_context.workspace.run_metadata_dir, keep_runs=history_keep_runs
                 )
                 log_retention_summary["enabled"] = True
                 log_retention_summary["reason"] = "history_keep_runs"
@@ -4692,14 +4763,7 @@ def main() -> int:
     try:
         profiles = _resolve_profiles(args)
         profiles_list[:] = profiles
-        workspace = WorkspacePaths(
-            repo_root=REPO_ROOT,
-            data_dir=DATA_DIR,
-            state_dir=STATE_DIR,
-            history_dir=HISTORY_DIR,
-            run_metadata_dir=RUN_METADATA_DIR,
-            snapshot_dir=SNAPSHOT_DIR,
-        )
+        workspace = _workspace()
         planned_stages = resolve_stage_order(
             providers=providers,
             profiles=profiles,
@@ -4724,7 +4788,13 @@ def main() -> int:
         ai_required = args.ai
 
         # Self-check: warn if common artifacts/directories are not writable (e.g., root-owned from Docker).
-        warn_paths: List[Path] = [DATA_DIR / "ashby_cache", STATE_DIR, LAST_RUN_JSON, Path("/tmp"), Path("/work")]
+        warn_paths: List[Path] = [
+            workspace.data_dir / "ashby_cache",
+            workspace.state_dir,
+            LAST_RUN_JSON,
+            Path("/tmp"),
+            Path("/work"),
+        ]
         for provider in providers:
             warn_paths.extend(
                 [
@@ -4738,7 +4808,11 @@ def main() -> int:
 
         # Snapshot presence check (fail fast with alert if missing and needed)
         if "openai" in providers:
-            snapshot_path = SNAPSHOT_DIR / "index.html"
+            snapshot_path = workspace.snapshot_dir / "index.html"
+            if not snapshot_path.exists() and not USE_SUBPROCESS:
+                repo_snapshot = workspace.repo_root / "data" / "openai_snapshots" / "index.html"
+                if repo_snapshot.exists():
+                    snapshot_path = repo_snapshot
             if not snapshot_path.exists():
                 msg = (
                     f"Snapshot not found at {snapshot_path}. "
@@ -4923,7 +4997,7 @@ def main() -> int:
                         run_id=run_id,
                         provider="openai",
                         profile=profile,
-                        run_metadata_dir=RUN_METADATA_DIR,
+                        run_metadata_dir=stage_context.workspace.run_metadata_dir,
                     ),
                     us_only=bool(args.us_only),
                     prefer_ai=bool(args.ai or args.ai_only),
@@ -4931,7 +5005,7 @@ def main() -> int:
                 if need_score:
                     record_stage(current_stage, lambda cmd=cmd, stage_name=current_stage: _run(cmd, stage=stage_name))
 
-                    state_path = state_last_ranked(profile)
+                    state_path = _state_last_ranked("openai", profile)
                     curr = _read_json(ranked_json)
                     prev = _read_json(state_path) if state_path.exists() else []
                     _write_json(state_path, curr)
@@ -5167,7 +5241,7 @@ def main() -> int:
                         run_id=run_id,
                         provider=provider,
                         profile=profile,
-                        run_metadata_dir=RUN_METADATA_DIR,
+                        run_metadata_dir=stage_context.workspace.run_metadata_dir,
                     ),
                     us_only=bool(args.us_only),
                     prefer_ai=bool(args.ai or args.ai_only),
