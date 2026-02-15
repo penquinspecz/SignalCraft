@@ -230,3 +230,48 @@ def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: An
 
     run_summaries = sorted(run_daily.RUN_METADATA_DIR.glob("*/run_summary.v1.json"))
     assert run_summaries, "run_summary should be emitted on forced failure"
+
+
+def test_forced_failure_e2e_artifact_paths(tmp_path: Path, monkeypatch: Any) -> None:
+    """E2E: forced failure emits run_health and run_summary at canonical paths; provider_availability optional."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "scrape")
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(run_daily, "_run", lambda *a, **k: None)
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    rc = run_daily.main()
+    assert rc != 0
+
+    run_dirs = sorted(
+        (p for p in run_daily.RUN_METADATA_DIR.iterdir() if p.is_dir()),
+        key=lambda p: p.name,
+    )
+    assert run_dirs, "run dir should exist"
+    run_dir = run_dirs[-1]
+
+    run_health_path = run_dir / "run_health.v1.json"
+    run_summary_path = run_dir / "run_summary.v1.json"
+    provider_availability_path = run_dir / "artifacts" / "provider_availability_v1.json"
+
+    assert run_health_path.exists(), f"run_health must exist at {run_health_path}"
+    assert run_summary_path.exists(), f"run_summary must exist at {run_summary_path}"
+
+    health = json.loads(run_health_path.read_text(encoding="utf-8"))
+    summary = json.loads(run_summary_path.read_text(encoding="utf-8"))
+
+    assert health["status"] == "failed"
+    assert health["failed_stage"] == "scrape"
+    assert "FORCED_FAILURE" in health["failure_codes"]
+    assert summary["status"] == "failed"
+    assert "run_health" in summary
+
+    # provider_availability: optional on early forced failure (fail-closed)
+    # If present, validate; if absent, acceptable per m12-forced-failure-receipts
