@@ -64,7 +64,11 @@ from ji_engine.pipeline.stages import (
     build_score_command,
     build_scrape_command,
 )
-from ji_engine.providers.registry import provider_registry_provenance, provider_tombstone_provenance
+from ji_engine.providers.registry import (
+    load_providers_config,
+    provider_registry_provenance,
+    provider_tombstone_provenance,
+)
 from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
@@ -163,6 +167,7 @@ RUN_REPORT_SCHEMA_VERSION = 1
 RUN_HEALTH_SCHEMA_VERSION = 1
 RUN_SUMMARY_SCHEMA_VERSION = 1
 PROOF_RECEIPT_SCHEMA_VERSION = 1
+PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
 try:
     CANDIDATE_ID = sanitize_candidate_id(os.environ.get("JOBINTEL_CANDIDATE_ID", DEFAULT_CANDIDATE_ID))
 except ValueError as exc:
@@ -195,6 +200,7 @@ RUN_HEALTH_FAILURE_CODES = (
 )
 _RUN_HEALTH_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_PROVIDER_AVAILABILITY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 StageStatus = Literal["success", "skipped", "error"]
 
@@ -752,6 +758,160 @@ def _load_scrape_provenance(providers: List[str]) -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def _provider_registry_hash(providers_config_path: Path) -> Optional[str]:
+    try:
+        providers = load_providers_config(providers_config_path)
+    except Exception:
+        return None
+    canonical_payload = {
+        "schema_version": 1,
+        "providers": providers,
+    }
+    canonical_json = json.dumps(canonical_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return compute_sha256_bytes(canonical_json.encode("utf-8"))
+
+
+def _provider_config_map(providers_config_path: Path) -> Dict[str, Dict[str, Any]]:
+    try:
+        providers = load_providers_config(providers_config_path)
+    except Exception:
+        return {}
+    return {str(entry.get("provider_id") or ""): entry for entry in providers if isinstance(entry, dict)}
+
+
+def _provider_mode(provider_cfg: Optional[Dict[str, Any]]) -> str:
+    if not isinstance(provider_cfg, dict):
+        return "disabled"
+    enabled = bool(provider_cfg.get("enabled", True))
+    if not enabled:
+        return "disabled"
+    mode = str(provider_cfg.get("mode") or "snapshot").strip().lower()
+    if mode in {"snapshot", "live"}:
+        return mode
+    if mode == "auto":
+        if bool(provider_cfg.get("live_enabled", True)):
+            return "live"
+        return "snapshot"
+    return "snapshot"
+
+
+def _provider_policy_details(meta: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "robots": {
+            "url": meta.get("robots_url"),
+            "fetched": meta.get("robots_fetched"),
+            "status_code": meta.get("robots_status"),
+            "allowed": meta.get("robots_allowed"),
+            "reason": meta.get("robots_reason"),
+            "user_agent": meta.get("robots_user_agent"),
+        },
+        "network_shield": {
+            "allowlist_allowed": meta.get("allowlist_allowed"),
+            "robots_final_allowed": meta.get("robots_final_allowed"),
+            "live_error_reason": meta.get("live_error_reason"),
+            "live_error_type": meta.get("live_error_type"),
+        },
+        "canonical_url_policy": {
+            "policy_snapshot": meta.get("policy_snapshot"),
+            "live_http_status": meta.get("live_http_status"),
+            "live_status_code": meta.get("live_status_code"),
+        },
+    }
+
+
+def _provider_reason_code(meta: Dict[str, Any], provider_cfg: Optional[Dict[str, Any]]) -> str:
+    tombstone = provider_cfg.get("tombstone") if isinstance(provider_cfg, dict) else None
+    if isinstance(tombstone, dict) and bool(tombstone.get("enabled", False)):
+        return "tombstoned"
+    if isinstance(provider_cfg, dict) and not bool(provider_cfg.get("enabled", True)):
+        return "not_enabled"
+
+    reason_raw = str(meta.get("unavailable_reason") or "").strip().lower()
+    if not reason_raw:
+        if str(meta.get("availability") or "").strip().lower() == "available":
+            return "ok"
+        return "unknown"
+    if "tombstone" in reason_raw:
+        return "tombstoned"
+    if "fixture" in reason_raw or ("snapshot" in reason_raw and "missing" in reason_raw):
+        return "missing_fixtures"
+    if "allowlist" in reason_raw or "policy" in reason_raw:
+        return "policy_denied"
+    if "credential" in reason_raw or "api key" in reason_raw or "auth" in reason_raw:
+        return "missing_creds"
+    if "rate" in reason_raw:
+        return "rate_limited"
+    return reason_raw.replace(" ", "_")
+
+
+def _write_provider_availability_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    selected_providers: List[str],
+    provenance_by_provider: Dict[str, Dict[str, Any]],
+    providers_config_path: Path,
+) -> Path:
+    provider_cfg_map = _provider_config_map(providers_config_path)
+    all_provider_ids = sorted(
+        set(selected_providers) | set(provider_cfg_map.keys()) | set(provenance_by_provider.keys())
+    )
+    generated_at = _utcnow_iso()
+    registry_sha = _provider_registry_hash(providers_config_path)
+    providers_payload: List[Dict[str, Any]] = []
+    for provider_id in all_provider_ids:
+        meta = (
+            provenance_by_provider.get(provider_id) if isinstance(provenance_by_provider.get(provider_id), dict) else {}
+        )
+        provider_cfg = provider_cfg_map.get(provider_id)
+        availability = str(meta.get("availability") or "").strip().lower()
+        if availability not in {"available", "unavailable"}:
+            if provider_cfg is not None and not bool(provider_cfg.get("enabled", True)):
+                availability = "unavailable"
+            elif provider_id in selected_providers:
+                availability = "unavailable"
+            else:
+                availability = "unavailable"
+        providers_payload.append(
+            {
+                "provider_id": provider_id,
+                "mode": _provider_mode(provider_cfg),
+                "enabled": bool(provider_cfg.get("enabled", False)) if isinstance(provider_cfg, dict) else False,
+                "snapshot_enabled": bool(provider_cfg.get("snapshot_enabled", False))
+                if isinstance(provider_cfg, dict)
+                else False,
+                "live_enabled": bool(provider_cfg.get("live_enabled", False))
+                if isinstance(provider_cfg, dict)
+                else False,
+                "availability": availability,
+                "reason_code": _provider_reason_code(meta, provider_cfg),
+                "unavailable_reason": meta.get("unavailable_reason"),
+                "attempts_made": meta.get("attempts_made"),
+                "policy": _provider_policy_details(meta),
+            }
+        )
+
+    payload = {
+        "provider_availability_schema_version": PROVIDER_AVAILABILITY_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": generated_at,
+        "provider_registry_sha256": registry_sha,
+        "providers": providers_payload,
+    }
+    errors = validate_payload(payload, _provider_availability_schema())
+    if errors:
+        raise RuntimeError(f"provider_availability schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    path = _provider_availability_path(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _redaction_guard_json(path, payload)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _get_env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
     if raw is None:
@@ -947,6 +1107,18 @@ def _run_summary_schema() -> Dict[str, Any]:
     return _RUN_SUMMARY_SCHEMA_CACHE
 
 
+def _provider_availability_path(run_id: str) -> Path:
+    return _run_registry_dir(run_id) / "artifacts" / "provider_availability_v1.json"
+
+
+def _provider_availability_schema() -> Dict[str, Any]:
+    global _PROVIDER_AVAILABILITY_SCHEMA_CACHE
+    if _PROVIDER_AVAILABILITY_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("provider_availability", PROVIDER_AVAILABILITY_SCHEMA_VERSION)
+        _PROVIDER_AVAILABILITY_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _PROVIDER_AVAILABILITY_SCHEMA_CACHE
+
+
 def _summary_path_text(path: Path) -> str:
     try:
         return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
@@ -1034,7 +1206,9 @@ def _primary_artifact_filename(output_key: str, provider: str, profile: str) -> 
 
 
 def _primary_artifacts(
-    run_id: str, ranked_outputs: Dict[str, List[Dict[str, Any]]]
+    run_id: str,
+    ranked_outputs: Dict[str, List[Dict[str, Any]]],
+    run_report_payload: Dict[str, Any],
 ) -> List[Dict[str, Optional[str] | Optional[int]]]:
     primary: List[Dict[str, Optional[str] | Optional[int]]] = []
     run_dir = _run_registry_dir(run_id)
@@ -1088,6 +1262,24 @@ def _primary_artifacts(
                 "bytes": bytes_value,
             }
         )
+    availability_artifact = run_report_payload.get("provider_availability_artifact")
+    if isinstance(availability_artifact, dict):
+        artifact_path = availability_artifact.get("path")
+        if isinstance(artifact_path, str) and artifact_path:
+            primary.append(
+                {
+                    "artifact_key": "provider_availability",
+                    "provider": "all",
+                    "profile": "all",
+                    "path": artifact_path,
+                    "sha256": availability_artifact.get("sha256")
+                    if isinstance(availability_artifact.get("sha256"), str)
+                    else None,
+                    "bytes": availability_artifact.get("bytes")
+                    if isinstance(availability_artifact.get("bytes"), int)
+                    else None,
+                }
+            )
     return primary
 
 
@@ -1171,12 +1363,19 @@ def _build_run_summary_payload(
 ) -> Dict[str, Any]:
     report_payload = run_report_payload or {}
     ranked_outputs = _ranked_output_pointers(report_payload)
-    primary_artifacts = _primary_artifacts(run_id, ranked_outputs)
+    primary_artifacts = _primary_artifacts(run_id, ranked_outputs, report_payload)
+    provider_availability_pointer = report_payload.get("provider_availability_artifact")
     quicklinks = {
         "run_dir": _summary_path_text(_run_registry_dir(run_id)),
         "run_report": run_report_pointer.get("path"),
         "run_health": run_health_pointer.get("path"),
         "costs": costs_pointer.get("path"),
+        "provider_availability": (
+            provider_availability_pointer.get("path")
+            if isinstance(provider_availability_pointer, dict)
+            and isinstance(provider_availability_pointer.get("path"), str)
+            else None
+        ),
         "ranked_json": [entry["path"] for entry in ranked_outputs["ranked_json"] if entry.get("path")],
         "ranked_csv": [entry["path"] for entry in ranked_outputs["ranked_csv"] if entry.get("path")],
         "ranked_families_json": [
@@ -1911,6 +2110,7 @@ def _persist_run_metadata(
     candidate_input_provenance: Optional[Dict[str, Any]] = None,
     scoring_model: Optional[Dict[str, Any]] = None,
     providers_config: Optional[str] = None,
+    provider_availability_pointer: Optional[Dict[str, Any]] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -1998,6 +2198,8 @@ def _persist_run_metadata(
         },
         "candidate_input_provenance": candidate_input_provenance,
         "selection": selection,
+        "provider_availability_artifact": provider_availability_pointer
+        or _artifact_pointer(_provider_availability_path(run_id)),
         "inputs": inputs,
         "scoring_inputs_by_profile": scoring_inputs_by_profile,
         "scoring_input_selection_by_profile": scoring_input_selection_by_profile,
@@ -4316,6 +4518,14 @@ def main() -> int:
             telemetry["error"] = str(exc)
             _write_last_run(telemetry)
             return final_status
+        provider_availability_path = _write_provider_availability_artifact(
+            run_id=run_id,
+            candidate_id=CANDIDATE_ID,
+            selected_providers=providers,
+            provenance_by_provider=provenance_by_provider,
+            providers_config_path=Path(args.providers_config),
+        )
+        provider_availability_pointer = _artifact_pointer(provider_availability_path)
         run_metadata_path = _persist_run_metadata(
             run_id,
             telemetry,
@@ -4348,6 +4558,7 @@ def main() -> int:
             ai_accounting=costs_payload.get("ai_accounting"),
             scoring_model=scoring_model_metadata,
             providers_config=args.providers_config,
+            provider_availability_pointer=provider_availability_pointer,
         )
         if telemetry.get("success", False):
             try:
