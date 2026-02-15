@@ -20,7 +20,7 @@ from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, candidate_r
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
-from ji_engine.state.run_index import list_runs_as_dicts
+from ji_engine.state.run_index import get_run_as_dict, list_runs_as_dicts
 
 from .safety.diff import build_safety_diff_report, load_jobs_from_path, render_summary, write_report
 from .snapshots.refresh import refresh_snapshot
@@ -412,6 +412,205 @@ def _runs_list(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_summary_health_paths(
+    candidate_id: str,
+    run_id: str,
+    run_row: Optional[Dict[str, object]],
+) -> tuple[Path, Path]:
+    default_summary = _run_summary_path(candidate_id, run_id)
+    default_health = _run_health_path(candidate_id, run_id)
+    if not run_row:
+        return default_summary, default_health
+
+    summary_raw = run_row.get("summary_path")
+    health_raw = run_row.get("health_path")
+
+    summary_path = Path(summary_raw) if isinstance(summary_raw, str) and summary_raw.strip() else default_summary
+    health_path = Path(health_raw) if isinstance(health_raw, str) and health_raw.strip() else default_health
+    return summary_path, health_path
+
+
+def _extract_status(
+    summary_payload: Optional[Dict[str, object]],
+    health_payload: Optional[Dict[str, object]],
+    run_row: Optional[Dict[str, object]],
+) -> Optional[str]:
+    if isinstance(summary_payload, dict):
+        value = summary_payload.get("status")
+        if isinstance(value, str) and value.strip():
+            return value
+    if isinstance(health_payload, dict):
+        value = health_payload.get("status")
+        if isinstance(value, str) and value.strip():
+            return value
+    if isinstance(run_row, dict):
+        value = run_row.get("status")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _extract_created_at(
+    summary_payload: Optional[Dict[str, object]],
+    run_row: Optional[Dict[str, object]],
+) -> Optional[str]:
+    if isinstance(summary_payload, dict):
+        value = summary_payload.get("created_at_utc")
+        if isinstance(value, str) and value.strip():
+            return value
+    if isinstance(run_row, dict):
+        value = run_row.get("created_at")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _extract_git_sha(
+    summary_payload: Optional[Dict[str, object]],
+    run_row: Optional[Dict[str, object]],
+) -> Optional[str]:
+    if isinstance(summary_payload, dict):
+        value = summary_payload.get("git_sha")
+        if isinstance(value, str) and value.strip():
+            return value
+    if isinstance(run_row, dict):
+        value = run_row.get("git_sha")
+        if isinstance(value, str) and value.strip():
+            return value
+    return None
+
+
+def _runs_show(args: argparse.Namespace) -> int:
+    candidate_id = sanitize_candidate_id(args.candidate_id)
+    run_id = args.run_id.strip()
+    run_row = get_run_as_dict(run_id=run_id, candidate_id=candidate_id)
+    summary_path, health_path = _resolve_summary_health_paths(candidate_id, run_id, run_row)
+    summary_payload = _read_json_dict(summary_path) if summary_path.exists() else None
+    health_payload = _read_json_dict(health_path) if health_path.exists() else None
+
+    if run_row is None and summary_payload is None and health_payload is None:
+        raise SystemExit(
+            f"run '{run_id}' not found for candidate '{candidate_id}'. "
+            f"Use `python -m jobintel.cli runs list --candidate-id {candidate_id}`."
+        )
+
+    status = _extract_status(summary_payload, health_payload, run_row)
+    created_at = _extract_created_at(summary_payload, run_row)
+    git_sha = _extract_git_sha(summary_payload, run_row)
+    run_dir = _run_dir(candidate_id, run_id)
+
+    lines = [
+        f"run_id={run_id}",
+        f"candidate_id={candidate_id}",
+        f"run_dir={run_dir}",
+    ]
+    if status is not None:
+        lines.append(f"status={status}")
+    if created_at is not None:
+        lines.append(f"created_at={created_at}")
+    if git_sha is not None:
+        lines.append(f"git_sha={git_sha}")
+    if summary_path.exists() or (run_row and run_row.get("summary_path")):
+        lines.append(f"run_summary={summary_path}")
+    if health_path.exists() or (run_row and run_row.get("health_path")):
+        lines.append(f"run_health={health_path}")
+    for idx, path in enumerate(_primary_artifact_paths(summary_payload), start=1):
+        lines.append(f"primary_artifact_{idx}={path}")
+
+    print("RUN_SHOW_BEGIN")
+    for line in lines:
+        print(line)
+    print("RUN_SHOW_END")
+    return 0
+
+
+def _artifact_key_rank(artifact_key: str) -> int:
+    ranks = {"ranked_json": 0, "ranked_csv": 1, "shortlist_md": 2}
+    return ranks.get(artifact_key, 99)
+
+
+def _primary_artifacts_rows(summary_payload: Optional[Dict[str, object]]) -> List[List[str]]:
+    if not summary_payload:
+        return []
+    raw_items = summary_payload.get("primary_artifacts")
+    if not isinstance(raw_items, list):
+        return []
+
+    normalized: List[Dict[str, str]] = []
+    for item in raw_items:
+        if not isinstance(item, dict):
+            continue
+        artifact_key = item.get("artifact_key")
+        provider = item.get("provider")
+        profile = item.get("profile")
+        path = item.get("path")
+        sha256 = item.get("sha256")
+        bytes_value = item.get("bytes")
+        if not all(isinstance(value, str) and value.strip() for value in (artifact_key, provider, profile, path)):
+            continue
+        normalized.append(
+            {
+                "artifact_key": artifact_key,
+                "provider": provider,
+                "profile": profile,
+                "path": path,
+                "sha256": sha256 if isinstance(sha256, str) else "",
+                "bytes": str(bytes_value) if isinstance(bytes_value, int) else "",
+            }
+        )
+
+    normalized.sort(
+        key=lambda item: (
+            _artifact_key_rank(item["artifact_key"]),
+            item["provider"],
+            item["profile"],
+            item["path"],
+        )
+    )
+    return [
+        [
+            item["artifact_key"],
+            item["provider"],
+            item["profile"],
+            item["path"],
+            item["sha256"],
+            item["bytes"],
+        ]
+        for item in normalized
+    ]
+
+
+def _runs_artifacts(args: argparse.Namespace) -> int:
+    candidate_id = sanitize_candidate_id(args.candidate_id)
+    run_id = args.run_id.strip()
+    run_row = get_run_as_dict(run_id=run_id, candidate_id=candidate_id)
+    summary_path, _ = _resolve_summary_health_paths(candidate_id, run_id, run_row)
+
+    if not summary_path.exists():
+        raise SystemExit(
+            f"run_summary not found for run '{run_id}' candidate '{candidate_id}' at {summary_path}. "
+            "Run the pipeline first or rebuild run index metadata."
+        )
+    summary_payload = _read_json_dict(summary_path)
+    if summary_payload is None:
+        raise SystemExit(f"run_summary at {summary_path} is not valid JSON object")
+
+    headers = ("ARTIFACT_KEY", "PROVIDER", "PROFILE", "PATH", "SHA256", "BYTES")
+    table_rows = _primary_artifacts_rows(summary_payload)
+    widths = [len(h) for h in headers]
+    for row in table_rows:
+        for idx, cell in enumerate(row):
+            widths[idx] = max(widths[idx], len(cell))
+
+    fmt = "  ".join("{:<" + str(width) + "}" for width in widths)
+    print(fmt.format(*headers))
+    print(fmt.format(*("-" * len(h) for h in headers)))
+    for row in table_rows:
+        print(fmt.format(*row))
+    print(f"ROWS={len(table_rows)}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="jobintel",
@@ -474,6 +673,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     runs_list_cmd.add_argument("--limit", type=int, default=20, help="Maximum rows to print (default: 20).")
     runs_list_cmd.set_defaults(func=_runs_list)
+    runs_show_cmd = runs_sub.add_parser("show", help="Show canonical pointers for one run id")
+    runs_show_cmd.add_argument("run_id", help="Run id (e.g. 2026-02-14T16:55:01Z).")
+    runs_show_cmd.add_argument(
+        "--candidate-id",
+        "--candidate_id",
+        dest="candidate_id",
+        default=DEFAULT_CANDIDATE_ID,
+        help=f"Candidate namespace id (default: {DEFAULT_CANDIDATE_ID}).",
+    )
+    runs_show_cmd.set_defaults(func=_runs_show)
+    runs_artifacts_cmd = runs_sub.add_parser(
+        "artifacts",
+        help="List primary run artifacts (ranked_json/ranked_csv/shortlist_md) for one run id",
+    )
+    runs_artifacts_cmd.add_argument("run_id", help="Run id (e.g. 2026-02-14T16:55:01Z).")
+    runs_artifacts_cmd.add_argument(
+        "--candidate-id",
+        "--candidate_id",
+        dest="candidate_id",
+        default=DEFAULT_CANDIDATE_ID,
+        help=f"Candidate namespace id (default: {DEFAULT_CANDIDATE_ID}).",
+    )
+    runs_artifacts_cmd.set_defaults(func=_runs_artifacts)
 
     safety_cmd = subparsers.add_parser("safety", help="Semantic safety net tooling")
     safety_sub = safety_cmd.add_subparsers(dest="safety_command", required=True)

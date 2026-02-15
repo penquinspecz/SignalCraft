@@ -126,6 +126,9 @@ scoring outputs.
   - `run_health`
   - `primary_artifact_1..3` (canonical `ranked_json`, `ranked_csv`, `shortlist_md` pointers)
 - `run_summary.v1.json` also includes `primary_artifacts` for machine-readable pointer lookups.
+- Direct lookup commands:
+  - `python -m jobintel.cli runs show <run_id> --candidate-id <id>`
+  - `python -m jobintel.cli runs artifacts <run_id> --candidate-id <id>`
 
 ### Provider provenance additions
 Each provider entry in `provenance_by_provider` may include:
