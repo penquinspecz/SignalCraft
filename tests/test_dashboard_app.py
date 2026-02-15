@@ -258,7 +258,12 @@ def test_dashboard_semantic_summary_endpoint(tmp_path: Path, monkeypatch) -> Non
     run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
     semantic_dir = run_dir / "semantic"
     semantic_dir.mkdir(parents=True, exist_ok=True)
-    (run_dir / "index.json").write_text(json.dumps({"run_id": run_id, "timestamp": run_id}), encoding="utf-8")
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "providers": {"openai": {"profiles": {"cs": {}, "se": {}}}},
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
     (semantic_dir / "semantic_summary.json").write_text(
         json.dumps({"enabled": True, "model_id": "deterministic-hash-v1"}),
         encoding="utf-8",
