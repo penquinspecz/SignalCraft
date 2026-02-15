@@ -81,7 +81,12 @@ from ji_engine.scoring import (
 )
 from ji_engine.semantic.core import DEFAULT_SEMANTIC_MODEL_ID, EMBEDDING_BACKEND_VERSION
 from ji_engine.semantic.step import finalize_semantic_artifacts, semantic_score_artifact_path
-from ji_engine.state.run_index import append_run_record as append_run_index_record
+from ji_engine.state.run_index import (
+    append_run_record as append_run_index_record,
+)
+from ji_engine.state.run_index import (
+    list_runs_as_dicts as list_indexed_runs,
+)
 from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
@@ -1538,12 +1543,33 @@ def _resolve_local_last_success_ranked(provider: str, profile: str, current_run_
 
 
 def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
-    run_root = RUN_METADATA_DIR if CANDIDATE_ID == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(CANDIDATE_ID)
-    if not run_root.exists():
-        return None
+    current_name = _sanitize_run_id(current_run_id)
+    # Run index rows are ordered explicitly by (created_at DESC, run_id DESC),
+    # preserving deterministic baseline resolution.
+    try:
+        rows = list_indexed_runs(candidate_id=CANDIDATE_ID, limit=500)
+    except Exception as exc:
+        logger.warning("Run index lookup failed for baseline selection: %r", exc)
+        rows = []
+
+    for row in rows:
+        run_id = str(row.get("run_id") or "").strip()
+        if not run_id:
+            continue
+        if run_id == current_run_id or _sanitize_run_id(run_id) == current_name:
+            continue
+        run_dir = _run_registry_dir(run_id)
+        ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
+        if ranked_path.exists():
+            return ranked_path
+
+    return _resolve_latest_run_ranked_legacy_scan(provider, profile, current_run_id)
+
+
+def _resolve_latest_run_ranked_legacy_scan(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
     candidates: List[Tuple[float, str, Path]] = []
     current_name = _sanitize_run_id(current_run_id)
-    for run_dir in run_root.iterdir():
+    for run_dir in RUN_REPOSITORY.list_run_dirs(candidate_id=CANDIDATE_ID):
         if not run_dir.is_dir() or run_dir.name == current_name:
             continue
         ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
