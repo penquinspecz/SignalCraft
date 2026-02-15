@@ -22,6 +22,7 @@ from urllib.request import Request, urlopen
 
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
+from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.utils.job_id import extract_job_id_from_url
 from ji_engine.utils.time import utc_now_z
 
@@ -106,9 +107,17 @@ def _write_meta(out_dir: Path, payload: dict) -> None:
 
 
 def _fetch_html(url: str, timeout: float, user_agent: str) -> Tuple[Optional[bytes], Optional[int], Optional[str]]:
+    preflight = evaluate_allowlist_policy(url)
+    if not preflight.get("final_allowed"):
+        return None, None, f"egress_blocked:{preflight.get('reason')}"
     req = Request(url, headers={"User-Agent": user_agent})
     try:
         with urlopen(req, timeout=timeout) as resp:
+            final_url_getter = getattr(resp, "geturl", None)
+            final_url = str(final_url_getter() if callable(final_url_getter) else url)
+            final_policy = evaluate_allowlist_policy(final_url)
+            if not final_policy.get("final_allowed"):
+                return None, None, f"egress_blocked:final_url_{final_policy.get('reason')}"
             data = resp.read()
             return data, getattr(resp, "status", 200), None
     except HTTPError as e:
