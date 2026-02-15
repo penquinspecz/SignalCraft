@@ -727,6 +727,30 @@
       },
       "additionalProperties": true
     },
+    "provider_availability_artifact": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
     "delta_summary": {
       "type": "object"
     }
