@@ -37,6 +37,20 @@ def _validate_run_health_schema(payload: Dict[str, Any]) -> None:
     assert errors == [], f"run_health schema validation failed: {errors}"
 
 
+def _latest_provider_availability_path(run_daily: Any) -> Path:
+    paths = sorted(run_daily.RUN_METADATA_DIR.glob("*/artifacts/provider_availability_v1.json"))
+    assert paths, "provider availability artifact should exist"
+    return paths[-1]
+
+
+def _validate_provider_availability_schema(path: Path) -> Dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    schema = json.loads(resolve_named_schema_path("provider_availability", 1).read_text(encoding="utf-8"))
+    errors = validate_payload(payload, schema)
+    assert errors == [], f"provider_availability schema validation failed: {errors}"
+    return payload
+
+
 def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None:
     paths = _setup_env(monkeypatch, tmp_path)
     output_dir = paths["output_dir"]
@@ -80,6 +94,12 @@ def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None
     assert payload["status"] == "success"
     assert payload["phases"]["snapshot_fetch"]["status"] == "success"
     assert payload["phases"]["score"]["status"] == "success"
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    assert availability["run_id"]
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["mode"] in {"snapshot", "live", "disabled"}
 
 
 def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: Any) -> None:
@@ -111,8 +131,16 @@ def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: A
     assert payload["status"] == "failed"
     assert payload["failed_stage"] == "classify"
     assert "CLASSIFY_STAGE_FAILED" in payload["failure_codes"]
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    assert availability["run_id"]
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
 
     run_reports = sorted(run_daily.RUN_METADATA_DIR.glob("*.json"))
     assert run_reports, "run_report metadata should still be written on controlled failure"
     run_report_payload = json.loads(run_reports[-1].read_text(encoding="utf-8"))
     assert run_report_payload["run_report_schema_version"] == 1
+    artifact_pointer = run_report_payload.get("provider_availability_artifact")
+    assert isinstance(artifact_pointer, dict)
+    assert artifact_pointer.get("path")
