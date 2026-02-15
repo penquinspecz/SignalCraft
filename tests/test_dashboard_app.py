@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 
@@ -734,6 +735,44 @@ def test_dashboard_v1_artifact_index_unknown_run_returns_404(tmp_path: Path, mon
     resp = client.get("/v1/runs/2026-99-99T99:99:99Z/artifacts?candidate_id=local")
     assert resp.status_code == 404
     assert "not found" in str(resp.json().get("detail", "")).lower()
+
+
+def test_dashboard_v1_artifact_index_rejects_invalid_run_id(tmp_path: Path, monkeypatch) -> None:
+    """GET /v1/runs/{run_id}/artifacts returns 400 for invalid run_id."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state" / "runs").mkdir(parents=True, exist_ok=True)
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    for bad_run_id in ("", "a/b", "a\\b", "x" * 200):
+        path_run_id = quote(bad_run_id, safe="") if bad_run_id else ""
+        resp = client.get(f"/v1/runs/{path_run_id}/artifacts?candidate_id=local")
+        assert resp.status_code == 400, f"run_id={bad_run_id!r} expected 400 got {resp.status_code}"
+        assert "invalid" in str(resp.json().get("detail", "")).lower()
+
+
+def test_dashboard_v1_artifact_index_rejects_path_traversal_run_id(tmp_path: Path, monkeypatch) -> None:
+    """GET /v1/runs/{run_id}/artifacts returns 400 for path traversal in run_id."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    (tmp_path / "state" / "runs").mkdir(parents=True, exist_ok=True)
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(dashboard)
+
+    client = TestClient(dashboard.app)
+    for bad_run_id in ("../etc/passwd", "..", "run/../../../secret"):
+        path_run_id = quote(bad_run_id, safe="")
+        resp = client.get(f"/v1/runs/{path_run_id}/artifacts?candidate_id=local")
+        assert resp.status_code == 400, f"run_id={bad_run_id!r} expected 400 got {resp.status_code}"
+        assert "invalid" in str(resp.json().get("detail", "")).lower()
 
 
 def test_dashboard_v1_artifact_index_bounded_no_huge_reads(tmp_path: Path, monkeypatch) -> None:
