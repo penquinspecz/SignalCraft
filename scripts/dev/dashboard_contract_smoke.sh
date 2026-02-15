@@ -12,6 +12,11 @@ command -v jq >/dev/null 2>&1 || {
   exit 2
 }
 
+curl -sS -o /dev/null -w "" --connect-timeout 2 "${BASE_URL}/version" 2>/dev/null || {
+  echo "FAIL: Dashboard not reachable at $BASE_URL. Start with: make dashboard" >&2
+  exit 1
+}
+
 _fail() {
   echo "FAIL: $*" >&2
   exit 1
