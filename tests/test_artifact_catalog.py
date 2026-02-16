@@ -9,8 +9,10 @@ import json
 import pytest
 
 from ji_engine.artifacts.catalog import (
+    FORBIDDEN_JD_KEYS,
     ArtifactCategory,
     get_artifact_category,
+    redact_forbidden_fields,
     validate_artifact_payload,
 )
 
@@ -67,3 +69,23 @@ def test_validate_artifact_payload_ui_safe_passes_without_prohibited() -> None:
         "run-123",
         ArtifactCategory.UI_SAFE,
     )
+
+
+def test_redact_forbidden_fields_removes_jd_keys() -> None:
+    """redact_forbidden_fields strips jd_text, description, etc. recursively."""
+    assert FORBIDDEN_JD_KEYS
+    inp = {
+        "job_id": "j1",
+        "jd_text": "secret JD",
+        "description": "forbidden",
+        "title": "Engineer",
+        "nested": {"job_description": "also forbidden", "ok": True},
+    }
+    out = redact_forbidden_fields(inp)
+    assert isinstance(out, dict)
+    assert out.get("job_id") == "j1"
+    assert out.get("title") == "Engineer"
+    assert "jd_text" not in out
+    assert "description" not in out
+    assert out.get("nested", {}).get("ok") is True
+    assert "job_description" not in out.get("nested", {})

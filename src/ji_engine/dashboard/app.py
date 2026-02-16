@@ -27,6 +27,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environmen
 from ji_engine.artifacts.catalog import (
     ArtifactCategory,
     get_artifact_category,
+    redact_forbidden_fields,
     validate_artifact_payload,
 )
 from ji_engine.config import (
@@ -431,12 +432,12 @@ def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[st
     )
     costs = _load_optional_json_object(run_dir / "costs.json", context="run costs")
     prompt_version = _load_first_ai_prompt_version(run_id, candidate_id, index)
-    enriched = dict(index)
+    enriched: Dict[str, Any] = dict(index)
     enriched["semantic_enabled"] = bool(run_report.get("semantic_enabled", False))
     enriched["semantic_mode"] = run_report.get("semantic_mode")
     enriched["ai_prompt_version"] = prompt_version
     enriched["cost_summary"] = costs
-    return enriched
+    return redact_forbidden_fields(enriched)
 
 
 def _enforce_artifact_model(
@@ -487,6 +488,11 @@ def _enforce_artifact_model(
         except json.JSONDecodeError:
             detail = {"error": "validation_failed", "message": str(exc)}
         raise HTTPException(status_code=500, detail=detail) from exc
+    # Redact forbidden JD fields from replay_safe before serving (no raw JD leakage)
+    if category == ArtifactCategory.REPLAY_SAFE:
+        payload = redact_forbidden_fields(payload)
+        if not isinstance(payload, dict):
+            payload = {}
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
@@ -574,7 +580,8 @@ def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_
                 entries.append(item)
 
     entries.sort(key=lambda item: (str(item.get("provider") or ""), str(item.get("job_id") or "")))
-    return {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
+    response: Dict[str, Any] = {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
+    return redact_forbidden_fields(response)
 
 
 @app.get("/v1/latest")
@@ -591,11 +598,11 @@ def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
             "bucket": bucket,
             "prefix": prefix,
             "key": key,
-            "payload": payload,
+            "payload": redact_forbidden_fields(payload),
         }
     pointer_path = _state_last_success_path(safe_candidate)
     payload = _read_local_json(pointer_path)
-    return {"source": "local", "path": str(pointer_path), "payload": payload}
+    return {"source": "local", "path": str(pointer_path), "payload": redact_forbidden_fields(payload)}
 
 
 @app.get("/v1/runs/{run_id}")
@@ -617,11 +624,11 @@ def run_receipt(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[s
                 "bucket": bucket,
                 "prefix": prefix,
                 "key": proof_key,
-                "payload": payload,
+                "payload": redact_forbidden_fields(payload),
             }
     local_path = _local_proof_path(run_id, safe_candidate)
     payload = _read_local_json(local_path)
-    return {"source": "local", "path": str(local_path), "payload": payload}
+    return {"source": "local", "path": str(local_path), "payload": redact_forbidden_fields(payload)}
 
 
 @app.get("/v1/runs/{run_id}/artifacts")
