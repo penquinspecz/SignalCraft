@@ -912,7 +912,7 @@ def test_dashboard_api_no_raw_jd_leakage(tmp_path: Path, monkeypatch: Any, endpo
         json.dumps(
             {
                 "entries": [
-                    {"job_id": "j1", "provider": "openai", "profile": "cs", "jd_text": "leak"},
+                    {"job_id": "j1", "provider": "openai", "profile": "cs"},
                     {"job_id": "j2", "provider": "openai", "profile": "cs"},
                 ]
             }
@@ -939,5 +939,37 @@ def test_dashboard_api_no_raw_jd_leakage(tmp_path: Path, monkeypatch: Any, endpo
     forbidden = _find_forbidden_keys(data)
     assert not forbidden, (
         f"Endpoint {endpoint} leaked forbidden JD fields: {forbidden}. "
-        "API must redact jd_text, description, description_text, descriptionHtml, job_description."
+        "UI-safe endpoints must fail closed; no forbidden keys in response."
     )
+
+
+def test_dashboard_ui_safe_fail_closed_when_forbidden_key_injected(tmp_path: Path, monkeypatch) -> None:
+    """UI-safe endpoints return 500 when payload contains forbidden JD fields (fail-closed)."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    index_with_jd = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "jd_text": "forbidden leak",
+        "artifacts": {},
+    }
+    (run_dir / "index.json").write_text(json.dumps(index_with_jd), encoding="utf-8")
+    (run_dir / "run_report.json").write_text(json.dumps({"semantic_enabled": False}), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}")
+    assert resp.status_code == 500, f"Expected 500 for run_detail with jd_text, got {resp.status_code}"
+    detail = resp.json().get("detail", {})
+    if isinstance(detail, dict):
+        assert "forbidden_jd_fields" in str(detail).lower() or "violations" in str(detail).lower()

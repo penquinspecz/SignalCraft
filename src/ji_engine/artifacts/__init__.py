@@ -8,6 +8,7 @@ See LICENSE for permitted use.
 from ji_engine.artifacts.catalog import (
     FORBIDDEN_JD_KEYS,
     ArtifactCategory,
+    assert_no_forbidden_fields,
     get_artifact_category,
     redact_forbidden_fields,
     validate_artifact_payload,
@@ -16,6 +17,7 @@ from ji_engine.artifacts.catalog import (
 __all__ = [
     "ArtifactCategory",
     "FORBIDDEN_JD_KEYS",
+    "assert_no_forbidden_fields",
     "get_artifact_category",
     "redact_forbidden_fields",
     "validate_artifact_payload",

@@ -74,6 +74,20 @@ def get_artifact_category(artifact_key: str) -> str:
 FORBIDDEN_JD_KEYS = frozenset(_UI_SAFE_PROHIBITED_KEYS)
 
 
+def assert_no_forbidden_fields(obj: object, context: str = "") -> None:
+    """
+    Fail-closed: raise ValueError if obj contains any forbidden JD keys.
+    Use for UI-safe endpoints. Redaction is only for replay-safe/legacy paths.
+    """
+    violations = _scan_prohibited(obj)
+    if violations:
+        msg = json.dumps(
+            {"error": "forbidden_jd_fields", "context": context, "violations": violations},
+            sort_keys=True,
+        )
+        raise ValueError(msg)
+
+
 def redact_forbidden_fields(obj: object) -> object:
     """
     Recursively remove forbidden JD-related keys from a JSON-serializable structure.
