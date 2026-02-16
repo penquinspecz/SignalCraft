@@ -1,0 +1,38 @@
+# Manual workflow: generate Codex review queue for from-composer PRs.
+# Uses default GITHUB_TOKEN (no extra secrets).
+# Least-privilege: read-only except artifact upload.
+name: codex-review-queue
+
+on:
+  workflow_dispatch:
+    inputs:
+      since_date:
+        description: "Since date (YYYY-MM-DD); default last 7 days"
+        required: false
+        default: ""
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate Codex review queue
+        run: |
+          chmod +x scripts/dev/list_from_composer_prs.sh scripts/dev/generate_codex_review_queue.sh
+          if [[ -n "${{ github.event.inputs.since_date }}" ]]; then
+            ./scripts/dev/list_from_composer_prs.sh --since-date "${{ github.event.inputs.since_date }}"
+            ./scripts/dev/generate_codex_review_queue.sh --since-date "${{ github.event.inputs.since_date }}"
+          else
+            ./scripts/dev/list_from_composer_prs.sh
+            ./scripts/dev/generate_codex_review_queue.sh
+          fi
+
+      - name: Upload queue artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-review-queue
+          path: docs/proof/from-composer-codex-review-*.md
