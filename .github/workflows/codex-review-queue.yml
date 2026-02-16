@@ -1,5 +1,6 @@
 # Manual workflow: generate Codex review queue for from-composer PRs.
 # Uses default GITHUB_TOKEN (no extra secrets).
+# Least-privilege: read-only except artifact upload.
 name: codex-review-queue
 
 on:
@@ -13,6 +14,9 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
 
