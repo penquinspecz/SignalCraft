@@ -43,7 +43,6 @@ from ji_engine.config import (
     candidate_last_run_read_paths,
     candidate_last_success_pointer_path,
     candidate_last_success_read_paths,
-    candidate_run_metadata_dir,
     candidate_state_paths,
     ensure_dirs,
     ranked_families_json,
@@ -1840,17 +1839,12 @@ def _resolve_latest_run_ranked(provider: str, profile: str, current_run_id: str)
 
 
 def _resolve_latest_run_ranked_legacy_scan(provider: str, profile: str, current_run_id: str) -> Optional[Path]:
-    run_root = (
-        _workspace().run_metadata_dir
-        if CANDIDATE_ID == DEFAULT_CANDIDATE_ID
-        else candidate_run_metadata_dir(CANDIDATE_ID)
-    )
-    if not run_root.exists():
-        return None
-    candidates: List[Tuple[float, str, Path]] = []
+    """Uses RunRepository.list_run_dirs (no direct filesystem scan)."""
     current_name = _sanitize_run_id(current_run_id)
-    for run_dir in run_root.iterdir():
-        if not run_dir.is_dir() or run_dir.name == current_name:
+    run_dirs = _run_repository().list_run_dirs(candidate_id=CANDIDATE_ID)
+    candidates: List[Tuple[float, str, Path]] = []
+    for run_dir in run_dirs:
+        if run_dir.name == current_name:
             continue
         ranked_path = run_dir / provider / profile / f"{provider}_ranked_jobs.{profile}.json"
         if not ranked_path.exists():
@@ -4454,6 +4448,7 @@ def main() -> int:
                 "max_boost": float(semantic_settings["max_boost"]),
                 "min_similarity": float(semantic_settings["min_similarity"]),
             },
+            provider_profile_pairs=[(p, pf) for p in providers for pf in profiles_list],
         )
         telemetry["semantic"] = {
             "enabled": semantic_summary.get("enabled"),

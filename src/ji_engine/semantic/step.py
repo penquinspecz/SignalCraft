@@ -278,6 +278,7 @@ def finalize_semantic_artifacts(
     enabled: bool,
     model_id: str,
     policy: Dict[str, Any],
+    provider_profile_pairs: Optional[List[tuple[str, str]]] = None,
 ) -> tuple[Dict[str, Any], Path, Path]:
     run_dir = run_metadata_dir / _sanitize_run_id(run_id)
     semantic_dir = run_dir / "semantic"
@@ -285,7 +286,13 @@ def finalize_semantic_artifacts(
     summary_path = semantic_dir / "semantic_summary.json"
     semantic_dir.mkdir(parents=True, exist_ok=True)
 
-    per_profile_paths = sorted(semantic_dir.glob("scores_*.json"), key=lambda p: p.name)
+    if provider_profile_pairs:
+        per_profile_paths = [
+            semantic_dir / f"scores_{provider}_{profile}.json" for provider, profile in provider_profile_pairs
+        ]
+        per_profile_paths = sorted([p for p in per_profile_paths if p.exists()], key=lambda p: p.name)
+    else:
+        per_profile_paths = sorted(semantic_dir.glob("scores_*.json"), key=lambda p: p.name)
     entries: List[Dict[str, Any]] = []
     cache_totals = {"hit": 0, "miss": 0, "write": 0, "profile_hit": 0, "profile_miss": 0}
     skipped: List[str] = []
