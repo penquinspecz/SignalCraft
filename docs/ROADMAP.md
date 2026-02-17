@@ -73,7 +73,7 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-17 on commit `610d859a1f339cc2504e8f3a201677ce43a7f375` (we ran mainline verification checks on this SHA; `main` may have advanced since. See CI + proof receipts.)
+Last verification run: 2026-02-17 on commit `9a6d4e492b15034790dd07143c7f541ba0ea43b3` (`make ci-fast` + `make gate` passed on this SHA; `main` may have advanced since. See CI + proof receipts.)
 Latest release: v0.1.0
 
 Foundation exists:
@@ -172,16 +172,16 @@ Receipts Required
 
 ---
 
-## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability) ◐
+## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability) ✅
 
 Goal: Failure is explicit and inspectable.
-Status: ◐ Run health taxonomy + summary + run inspection + failure playbook receipts are landed; strict “provider availability artifact generated every run” is still open.
-Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `schemas/provider_availability.schema.v1.json`, `docs/OPS_RUNBOOK.md`, `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `scripts/run_daily.py`, `tests/test_run_health_artifact.py`.
+Status: ✅ Run health taxonomy + summary + run inspection + failure playbook receipts are landed, and `provider_availability_v1.json` now emits fail-closed on every finalized run path (success and failure modes).
+Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `schemas/provider_availability.schema.v1.json`, `docs/OPS_RUNBOOK.md`, `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-provider-availability-every-run-2026-02-17.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `scripts/run_daily.py`, `tests/test_run_health_artifact.py`.
 
 Definition of Done
 - [x] `failed_stage` always populated on failure
 - [x] Cost telemetry always written (even on partial failure)
-- [ ] Provider availability artifact generated every run
+- [x] Provider availability artifact generated every run
 - [x] One-command run inspection tooling (human-friendly)
 - [x] CI smoke matches real run structure
 - [x] Failure playbook updated
@@ -303,18 +303,18 @@ Receipts Required
 
 ---
 
-## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ◐
+## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ✅
 
 Goal: Releases are evidence-backed.
-Status: ◐ Release process and proof artifacts exist; changelog enforcement and full reproducible-build verification need explicit CI enforcement.
-Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `scripts/preflight_env.py`.
+Status: ✅ Release checklist/process, changelog enforcement policy in CI, and reproducible build instructions verification receipts are in place.
+Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `docs/proof/m18-changelog-enforcement-2026-02-17.md`, `scripts/preflight_env.py`, `scripts/check_changelog_policy.py`, `.github/workflows/ci.yml`.
 
 Definition of Done
 - [x] Release checklist codified
 - [x] Preflight validation script exists
-- [ ] Changelog enforcement policy
+- [x] Changelog enforcement policy
 - [x] Every release includes proof bundle
-- [ ] Reproducible build instructions verified
+- [x] Reproducible build instructions verified
 
 Receipts Required
 - One full release dry-run proof bundle
