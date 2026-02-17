@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+from ji_engine.providers.registry import provider_registry_provenance
 from ji_engine.utils.verification import compute_sha256_file
 from scripts.schema_validate import resolve_named_schema_path, validate_payload
 
@@ -95,6 +96,14 @@ def test_run_summary_written_with_hashes_on_success(tmp_path: Path, monkeypatch:
 
     run_report_path = Path(run_daily.REPO_ROOT / payload["run_report"]["path"])
     assert payload["run_report"]["sha256"] == compute_sha256_file(run_report_path)
+    run_report = json.loads(run_report_path.read_text(encoding="utf-8"))
+    build_provenance = run_report.get("provenance", {}).get("build", {})
+    expected_registry = provider_registry_provenance(Path("config/providers.json"))
+    assert (
+        build_provenance.get("provider_registry_schema_version")
+        == expected_registry["provider_registry_schema_version"]
+    )
+    assert build_provenance.get("provider_registry_sha256") == expected_registry["provider_registry_sha256"]
 
     run_health_path = Path(run_daily.REPO_ROOT / payload["run_health"]["path"])
     assert payload["run_health"]["sha256"] == compute_sha256_file(run_health_path)
@@ -109,7 +118,12 @@ def test_run_summary_written_with_hashes_on_success(tmp_path: Path, monkeypatch:
     assert ranked_json[0]["sha256"]
 
     primary = payload["primary_artifacts"]
-    assert [item["artifact_key"] for item in primary] == ["ranked_json", "ranked_csv", "shortlist_md"]
+    assert [item["artifact_key"] for item in primary] == [
+        "ranked_json",
+        "ranked_csv",
+        "shortlist_md",
+        "provider_availability",
+    ]
     run_dir = payload["quicklinks"]["run_dir"]
     assert isinstance(run_dir, str) and run_dir
     for item in primary:

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import scripts.run_daily as run_daily
+from ji_engine.providers.registry import provider_registry_provenance
 from scripts.schema_validate import resolve_schema_path, validate_report
 
 
@@ -190,6 +191,37 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
             },
         },
     }
+    providers_config_path = tmp_path / "providers.json"
+    providers_config_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "providers": [
+                    {
+                        "provider_id": "openai",
+                        "display_name": "OpenAI",
+                        "enabled": True,
+                        "careers_urls": ["https://openai.example/jobs"],
+                        "extraction_mode": "jsonld",
+                    },
+                    {
+                        "provider_id": "legacy",
+                        "display_name": "Legacy",
+                        "enabled": False,
+                        "live_enabled": False,
+                        "careers_urls": ["https://legacy.example/jobs"],
+                        "extraction_mode": "jsonld",
+                        "tombstone": {
+                            "enabled": True,
+                            "reason": "tombstoned_by_policy",
+                            "date": "2026-02-15",
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     path1 = run_daily._persist_run_metadata(
         run_id="2026-01-01T00:00:00Z",
@@ -202,6 +234,7 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         scoring_input_selection_by_profile=scoring_input_selection_by_profile,
         config_fingerprint=config_fingerprint,
         environment_fingerprint=environment_fingerprint,
+        providers_config=str(providers_config_path),
     )
     path2 = run_daily._persist_run_metadata(
         run_id="2026-01-01T00:00:00Z",
@@ -214,6 +247,7 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
         scoring_input_selection_by_profile=scoring_input_selection_by_profile,
         config_fingerprint=config_fingerprint,
         environment_fingerprint=environment_fingerprint,
+        providers_config=str(providers_config_path),
     )
 
     assert path1 == path2
@@ -276,6 +310,24 @@ def test_run_metadata_written_and_deterministic(tmp_path: Path, monkeypatch) -> 
     assert data["provenance"]["build"]["image"] == "unknown"
     assert data["provenance"]["build"]["taskdef"] == "unknown"
     assert data["provenance"]["build"]["ecs_task_arn"] == "unknown"
+    expected_registry = provider_registry_provenance(providers_config_path)
+    assert (
+        data["provenance"]["build"]["provider_registry_schema_version"]
+        == expected_registry["provider_registry_schema_version"]
+    )
+    assert data["provenance"]["build"]["provider_registry_sha256"] == expected_registry["provider_registry_sha256"]
+    assert data["provenance"]["build"]["provider_tombstones"] == {
+        "legacy": {
+            "reason": "tombstoned_by_policy",
+            "date": "2026-02-15",
+        }
+    }
+    assert data["selection"]["provider_tombstones"] == {
+        "legacy": {
+            "reason": "tombstoned_by_policy",
+            "date": "2026-02-15",
+        }
+    }
     assert data["ai_accounting"]["totals"]["calls"] == 0
     assert data["ai_accounting"]["totals"]["tokens_total"] == 0
     assert data["ai_accounting"]["totals"]["estimated_cost_usd"] == "0.000000"

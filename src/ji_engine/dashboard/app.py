@@ -19,11 +19,18 @@ from botocore.exceptions import ClientError
 
 try:
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import Response
+    from fastapi.responses import FileResponse, Response
     from pydantic import BaseModel, ConfigDict, Field, ValidationError
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
+from ji_engine.artifacts.catalog import (
+    ArtifactCategory,
+    assert_no_forbidden_fields,
+    get_artifact_category,
+    redact_forbidden_fields,
+    validate_artifact_payload,
+)
 from ji_engine.config import (
     DEFAULT_CANDIDATE_ID,
     RUN_METADATA_DIR,
@@ -155,6 +162,18 @@ def _sanitize_run_id(run_id: str) -> str:
     return raw.replace(":", "").replace("-", "").replace(".", "")
 
 
+def _ensure_ui_safe(obj: object, context: str = "") -> None:
+    """Fail-closed: raise HTTPException 500 if obj contains forbidden JD fields."""
+    try:
+        assert_no_forbidden_fields(obj, context=context)
+    except ValueError as exc:
+        try:
+            detail = json.loads(str(exc))
+        except json.JSONDecodeError:
+            detail = {"error": "forbidden_jd_fields", "message": str(exc)}
+        raise HTTPException(status_code=500, detail=detail) from exc
+
+
 def _run_dir(run_id: str, candidate_id: str) -> Path:
     _sanitize_run_id(run_id)
     return RUN_REPOSITORY.resolve_run_dir(run_id, candidate_id=_sanitize_candidate_id(candidate_id))
@@ -176,8 +195,25 @@ def _load_index(run_id: str, candidate_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Run index has invalid shape") from exc
 
 
-def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
-    for path in sorted(run_dir.glob("ai_insights.*.json"), key=lambda p: p.name):
+def _load_first_ai_prompt_version(run_id: str, candidate_id: str, index: Dict[str, Any]) -> Optional[str]:
+    """Index-backed: resolve ai_insights.*.json from index.artifacts, no directory scan."""
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), dict) else {}
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    for key in sorted(artifacts.keys()):
+        if not (key.startswith("ai_insights.") and key.endswith(".json")):
+            continue
+        rel = artifacts.get(key)
+        if not isinstance(rel, str) or not rel.strip():
+            continue
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            continue
+        try:
+            path = RUN_REPOSITORY.resolve_run_artifact_path(run_id, rel_path.as_posix(), candidate_id=safe_candidate)
+        except ValueError:
+            continue
+        if not path.exists() or not path.is_file():
+            continue
         payload = _load_optional_json_object(path, context="AI insights payload", schema=_AiInsightsSchema)
         if not payload:
             continue
@@ -189,20 +225,9 @@ def _load_first_ai_prompt_version(run_dir: Path) -> Optional[str]:
 
 
 def _list_runs(candidate_id: str) -> List[Dict[str, Any]]:
-    runs: List[Dict[str, Any]] = []
+    """List runs via RunRepository (index-first, fallback to filesystem scan)."""
     safe_candidate = _sanitize_candidate_id(candidate_id)
-    for path in RUN_REPOSITORY.list_run_dirs(candidate_id=safe_candidate):
-        index_path = path / "index.json"
-        if not index_path.exists():
-            continue
-        try:
-            data = _read_local_json_object(index_path, schema=_RunIndexSchema)
-        except _DashboardJsonError as exc:
-            logger.warning("Skipping run index at %s (%s)", index_path, exc.code)
-            continue
-        runs.append(data)
-    runs.sort(key=lambda r: r.get("timestamp") or "", reverse=True)
-    return runs
+    return RUN_REPOSITORY.list_runs(candidate_id=safe_candidate, limit=200)
 
 
 def _resolve_artifact_path(run_id: str, candidate_id: str, index: Dict[str, Any], name: str) -> Path:
@@ -242,6 +267,21 @@ def _content_type(path: Path) -> str:
     if suffix in {".md", ".markdown"}:
         return "text/markdown"
     return "text/plain"
+
+
+def _schema_version_for_artifact_key(key: str) -> Optional[int]:
+    """Derive schema version from artifact key where known. Returns None if unknown."""
+    if not key:
+        return None
+    if key == "run_summary.v1.json":
+        return 1
+    if key == "run_health.v1.json":
+        return 1
+    if key == "provider_availability_v1.json":
+        return 1
+    if key == "run_report.json":
+        return 1
+    return None
 
 
 def _s3_bucket() -> str:
@@ -361,6 +401,30 @@ def _s3_list_keys(bucket: str, prefix: str) -> List[str]:
     return keys
 
 
+def _version_payload() -> Dict[str, Any]:
+    """Build /version response. Stable shape for UI readiness."""
+    git_sha = (os.environ.get("JOBINTEL_GIT_SHA") or os.environ.get("GIT_SHA") or "unknown").strip() or "unknown"
+    build_ts = (os.environ.get("JOBINTEL_BUILD_TIMESTAMP") or os.environ.get("BUILD_TIMESTAMP") or "").strip()
+    schema_versions: Dict[str, int] = {
+        "run_summary": 1,
+        "run_health": 1,
+    }
+    out: Dict[str, Any] = {
+        "service": "SignalCraft",
+        "git_sha": git_sha,
+        "schema_versions": schema_versions,
+    }
+    if build_ts:
+        out["build_timestamp"] = build_ts
+    return out
+
+
+@app.get("/version")
+def version() -> Dict[str, Any]:
+    """Return service identity and schema versions for UI readiness."""
+    return _version_payload()
+
+
 @app.get("/healthz")
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
@@ -380,29 +444,118 @@ def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[st
         _load_optional_json_object(run_dir / "run_report.json", context="run report", schema=_RunReportSchema) or {}
     )
     costs = _load_optional_json_object(run_dir / "costs.json", context="run costs")
-    prompt_version = _load_first_ai_prompt_version(run_dir)
-    enriched = dict(index)
+    prompt_version = _load_first_ai_prompt_version(run_id, candidate_id, index)
+    enriched: Dict[str, Any] = dict(index)
     enriched["semantic_enabled"] = bool(run_report.get("semantic_enabled", False))
     enriched["semantic_mode"] = run_report.get("semantic_mode")
     enriched["ai_prompt_version"] = prompt_version
     enriched["cost_summary"] = costs
+    _ensure_ui_safe(enriched, context="run_detail")
     return enriched
+
+
+def _enforce_artifact_model(
+    artifact_key: str,
+    run_id: str,
+    path: Path,
+    max_bytes: int,
+) -> Optional[bytes]:
+    """
+    Enforce artifact model v2 at serving boundary.
+    Returns bytes to serve. Raises HTTPException on fail-closed.
+    """
+    category = get_artifact_category(artifact_key)
+    if category == ArtifactCategory.UNCATEGORIZED:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "artifact_uncategorized",
+                "artifact_key": artifact_key,
+                "run_id": run_id,
+                "message": "Artifact not in catalog; fail-closed.",
+            },
+        )
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail={"error": "artifact_too_large", "message": "Artifact payload too large", "max_bytes": max_bytes},
+        )
+    if path.suffix.lower() != ".json":
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=500, detail="Artifact invalid shape")
+    try:
+        validate_artifact_payload(payload, artifact_key, run_id, category)
+    except ValueError as exc:
+        try:
+            detail = json.loads(str(exc))
+        except json.JSONDecodeError:
+            detail = {"error": "validation_failed", "message": str(exc)}
+        raise HTTPException(status_code=500, detail=detail) from exc
+    # Redact forbidden JD fields from replay_safe before serving (no raw JD leakage)
+    if category == ArtifactCategory.REPLAY_SAFE:
+        payload = redact_forbidden_fields(payload)
+        if not isinstance(payload, dict):
+            payload = {}
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
 @app.get("/runs/{run_id}/artifact/{name}")
 def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Response:
     _sanitize_run_id(run_id)
+    safe_run_id = run_id.strip()
     index = _load_index(run_id, candidate_id)
     path = _resolve_artifact_path(run_id, candidate_id, index, name)
-    return Response(path.read_bytes(), media_type=_content_type(path))
+    max_bytes = _max_json_bytes()
+    body = _enforce_artifact_model(name, safe_run_id, path, max_bytes)
+    if body is not None:
+        return Response(body, media_type=_content_type(path))
+    return FileResponse(path, media_type=_content_type(path))
+
+
+def _provider_profile_pairs_for_semantic(index: Dict[str, Any], run_dir: Path, profile: str) -> List[Tuple[str, str]]:
+    """Index-backed: derive (provider, profile) pairs from index.providers, run_report, or index.artifacts."""
+    pairs: List[Tuple[str, str]] = []
+    providers = index.get("providers") if isinstance(index.get("providers"), dict) else {}
+    for prov, prov_data in providers.items():
+        if isinstance(prov_data, dict):
+            profiles_dict = prov_data.get("profiles") or {}
+            if isinstance(profiles_dict, dict) and profile in profiles_dict:
+                pairs.append((prov, profile))
+    if pairs:
+        return sorted(pairs)
+    run_report = (
+        _load_optional_json_object(run_dir / "run_report.json", context="run report", schema=_RunReportSchema) or {}
+    )
+    outputs = run_report.get("outputs_by_provider") or {}
+    for prov, prov_data in outputs.items():
+        if isinstance(prov_data, dict) and profile in prov_data:
+            pairs.append((prov, profile))
+    if pairs:
+        return sorted(pairs)
+    artifacts = index.get("artifacts") if isinstance(index.get("artifacts"), dict) else {}
+    prefix, suffix = "semantic/scores_", f"_{profile}.json"
+    for key in artifacts:
+        if key.startswith(prefix) and key.endswith(suffix) and len(key) > len(prefix) + len(suffix):
+            prov = key[len(prefix) : -len(suffix)]
+            if prov and "/" not in prov and ".." not in prov:
+                pairs.append((prov, profile))
+    return sorted(pairs)
 
 
 @app.get("/runs/{run_id}/semantic_summary/{profile}")
 def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
     _sanitize_run_id(run_id)
+    index = _load_index(run_id, candidate_id)
     run_dir = _run_dir(run_id, candidate_id)
-    semantic_dir = run_dir / "semantic"
-    summary_path = semantic_dir / "semantic_summary.json"
+    summary_rel = "semantic/semantic_summary.json"
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    try:
+        summary_path = RUN_REPOSITORY.resolve_run_artifact_path(run_id, summary_rel, candidate_id=safe_candidate)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Semantic summary not found") from None
     if not summary_path.exists():
         raise HTTPException(status_code=404, detail="Semantic summary not found")
     try:
@@ -416,7 +569,14 @@ def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_
         raise HTTPException(status_code=500, detail="Semantic summary has invalid shape") from exc
 
     entries: List[Dict[str, Any]] = []
-    for path in sorted(semantic_dir.glob(f"scores_*_{profile}.json"), key=lambda p: p.name):
+    for prov, prof in _provider_profile_pairs_for_semantic(index, run_dir, profile):
+        scores_rel = f"semantic/scores_{prov}_{prof}.json"
+        try:
+            path = RUN_REPOSITORY.resolve_run_artifact_path(run_id, scores_rel, candidate_id=safe_candidate)
+        except ValueError:
+            continue
+        if not path.exists() or not path.is_file():
+            continue
         payload = _load_optional_json_object(path, context="semantic scores payload")
         if not payload:
             continue
@@ -428,7 +588,9 @@ def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_
                 entries.append(item)
 
     entries.sort(key=lambda item: (str(item.get("provider") or ""), str(item.get("job_id") or "")))
-    return {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
+    response: Dict[str, Any] = {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
+    _ensure_ui_safe(response, context="run_semantic_summary")
+    return response
 
 
 @app.get("/v1/latest")
@@ -440,15 +602,11 @@ def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
         payload, status, key = aws_runs.read_last_success_state(bucket, prefix, candidate_id=safe_candidate)
         if status != "ok" or not payload:
             raise HTTPException(status_code=404, detail=f"s3 last_success not found ({status})")
-        return {
-            "source": "s3",
-            "bucket": bucket,
-            "prefix": prefix,
-            "key": key,
-            "payload": payload,
-        }
+        _ensure_ui_safe(payload, context="latest")
+        return {"source": "s3", "bucket": bucket, "prefix": prefix, "key": key, "payload": payload}
     pointer_path = _state_last_success_path(safe_candidate)
     payload = _read_local_json(pointer_path)
+    _ensure_ui_safe(payload, context="latest")
     return {"source": "local", "path": str(pointer_path), "payload": payload}
 
 
@@ -466,16 +624,60 @@ def run_receipt(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[s
             payload, status = _read_s3_json(bucket, legacy_key)
             proof_key = legacy_key
         if status == "ok" and payload:
-            return {
-                "source": "s3",
-                "bucket": bucket,
-                "prefix": prefix,
-                "key": proof_key,
-                "payload": payload,
-            }
+            _ensure_ui_safe(payload, context="run_receipt")
+            return {"source": "s3", "bucket": bucket, "prefix": prefix, "key": proof_key, "payload": payload}
     local_path = _local_proof_path(run_id, safe_candidate)
     payload = _read_local_json(local_path)
+    _ensure_ui_safe(payload, context="run_receipt")
     return {"source": "local", "path": str(local_path), "payload": payload}
+
+
+@app.get("/v1/runs/{run_id}/artifacts")
+def run_artifact_index(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    """
+    Stable artifact index for a run. Bounded: no raw artifact bodies.
+    Returns { run_id, candidate_id, artifacts: [{key, schema_version, path, content_type, size_bytes?}] }
+    """
+    _sanitize_run_id(run_id)
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    index = _load_index(run_id, candidate_id)
+    artifacts_map = index.get("artifacts")
+    if not isinstance(artifacts_map, dict):
+        artifacts_map = {}
+    entries: List[Dict[str, Any]] = []
+    for key, rel in sorted(artifacts_map.items()):
+        if not isinstance(rel, str) or not rel.strip():
+            continue
+        rel_path = Path(rel)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            continue
+        try:
+            full_path = RUN_REPOSITORY.resolve_run_artifact_path(
+                run_id, rel_path.as_posix(), candidate_id=safe_candidate
+            )
+        except ValueError:
+            continue
+        content_type = _content_type(full_path)
+        schema_version = _schema_version_for_artifact_key(key)
+        entry: Dict[str, Any] = {
+            "key": key,
+            "path": rel,
+            "content_type": content_type,
+        }
+        if schema_version is not None:
+            entry["schema_version"] = schema_version
+        if full_path.exists() and full_path.is_file():
+            try:
+                size = full_path.stat().st_size
+                entry["size_bytes"] = size
+            except OSError:
+                pass
+        entries.append(entry)
+    return {
+        "run_id": run_id,
+        "candidate_id": safe_candidate,
+        "artifacts": entries,
+    }
 
 
 @app.get("/v1/artifacts/latest/{provider}/{profile}")

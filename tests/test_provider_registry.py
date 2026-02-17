@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ji_engine.providers.registry import load_providers_config, resolve_provider_ids
+from ji_engine.providers.registry import load_providers_config, provider_registry_provenance, resolve_provider_ids
 
 
 def test_load_providers_config_defaults(tmp_path: Path) -> None:
@@ -59,6 +59,58 @@ def test_load_providers_config_is_sorted_and_deterministic(tmp_path: Path) -> No
     second = load_providers_config(config_path)
     assert [p["provider_id"] for p in first] == ["alpha", "zeta"]
     assert first == second
+
+
+def test_provider_registry_provenance_hash_stable_for_identical_content(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.json"
+    payload = {
+        "schema_version": 1,
+        "providers": [
+            {
+                "provider_id": "zeta",
+                "careers_urls": ["https://zeta.example/jobs"],
+                "extraction_mode": "snapshot_json",
+            },
+            {
+                "provider_id": "alpha",
+                "careers_urls": ["https://alpha.example/jobs"],
+                "extraction_mode": "snapshot_json",
+            },
+        ],
+    }
+    config_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    first = provider_registry_provenance(config_path)
+    second = provider_registry_provenance(config_path)
+    assert first == second
+    assert first["provider_registry_schema_version"] == 1
+    assert isinstance(first["provider_registry_sha256"], str)
+    assert len(first["provider_registry_sha256"]) == 64
+
+
+def test_provider_registry_provenance_hash_changes_when_content_changes(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.json"
+    payload = {
+        "schema_version": 1,
+        "providers": [
+            {
+                "provider_id": "alpha",
+                "careers_urls": ["https://alpha.example/jobs"],
+                "extraction_mode": "snapshot_json",
+            }
+        ],
+    }
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    before = provider_registry_provenance(config_path)["provider_registry_sha256"]
+    payload["providers"].append(
+        {
+            "provider_id": "beta",
+            "careers_urls": ["https://beta.example/jobs"],
+            "extraction_mode": "snapshot_json",
+        }
+    )
+    config_path.write_text(json.dumps(payload), encoding="utf-8")
+    after = provider_registry_provenance(config_path)["provider_registry_sha256"]
+    assert before != after
 
 
 def test_load_providers_config_rejects_duplicate_provider_ids(tmp_path: Path) -> None:
@@ -321,6 +373,69 @@ def test_resolve_provider_ids_rejects_disabled_provider(tmp_path: Path) -> None:
     providers = load_providers_config(config_path)
     with pytest.raises(ValueError, match="disabled in config"):
         resolve_provider_ids("alpha", providers)
+
+
+def test_resolve_provider_ids_rejects_tombstoned_provider_with_reason(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.json"
+    config_path.write_text(
+        """
+{
+  "schema_version": 1,
+  "providers": [
+    {
+      "provider_id": "alpha",
+      "display_name": "Alpha",
+      "enabled": true,
+      "live_enabled": true,
+      "careers_urls": ["https://alpha.example/jobs"],
+      "extraction_mode": "jsonld",
+      "tombstone": {
+        "enabled": true,
+        "reason": "tombstoned_by_policy",
+        "date": "2026-02-15"
+      }
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    providers = load_providers_config(config_path)
+    with pytest.raises(ValueError, match="tombstoned by policy"):
+        resolve_provider_ids("alpha", providers)
+    with pytest.raises(ValueError, match="No enabled providers configured"):
+        resolve_provider_ids("all", providers)
+
+
+def test_tombstoned_provider_is_forced_disabled_in_normalized_registry(tmp_path: Path) -> None:
+    config_path = tmp_path / "providers.json"
+    config_path.write_text(
+        """
+{
+  "schema_version": 1,
+  "providers": [
+    {
+      "provider_id": "alpha",
+      "display_name": "Alpha",
+      "enabled": true,
+      "live_enabled": true,
+      "careers_urls": ["https://alpha.example/jobs"],
+      "extraction_mode": "jsonld",
+      "tombstone": {
+        "enabled": true,
+        "reason": "legal_takedown"
+      }
+    }
+  ]
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    providers = load_providers_config(config_path)
+    assert providers[0]["enabled"] is False
+    assert providers[0]["live_enabled"] is False
+    assert providers[0]["tombstone"]["enabled"] is True
+    assert providers[0]["tombstone"]["reason"] == "legal_takedown"
 
 
 def test_load_providers_config_rejects_llm_fallback_mode_without_enabled_fallback(tmp_path: Path) -> None:
