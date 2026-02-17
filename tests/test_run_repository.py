@@ -240,3 +240,61 @@ def test_list_runs_for_profile_uses_index(tmp_path: Path, monkeypatch) -> None:
     assert len(eng_runs) == 2
     assert eng_runs[0]["run_id"] == run_c
     assert eng_runs[1]["run_id"] == run_a
+
+
+def test_list_runs_for_profile_pages_until_enough_matches(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    runs_dir = config.RUN_METADATA_DIR
+    cs_ids: list[str] = []
+    for idx in range(290):
+        day = 1 + (idx // 24)
+        hour = idx % 24
+        run_id = f"2026-01-{day:02d}T{hour:02d}:00:00Z"
+        profiles = ["eng"] if idx >= 40 else ["cs"]
+        if "cs" in profiles:
+            cs_ids.append(run_id)
+        _write_index(runs_dir / _sanitize(run_id), run_id, run_id, profiles=profiles)
+
+    repo = run_repository.FileSystemRunRepository()
+    repo.rebuild_index("local")
+
+    rows = repo.list_runs_for_profile(candidate_id="local", profile="cs", limit=5)
+    assert [row["run_id"] for row in rows] == sorted(cs_ids, reverse=True)[:5]
+
+
+def test_list_runs_for_profile_pages_until_exhausted(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    runs_dir = config.RUN_METADATA_DIR
+    cs_ids: list[str] = []
+    for idx in range(260):
+        day = 1 + (idx // 24)
+        hour = idx % 24
+        run_id = f"2026-02-{day:02d}T{hour:02d}:00:00Z"
+        profiles = ["eng"] if idx >= 10 else ["cs"]
+        if "cs" in profiles:
+            cs_ids.append(run_id)
+        _write_index(runs_dir / _sanitize(run_id), run_id, run_id, profiles=profiles)
+
+    repo = run_repository.FileSystemRunRepository()
+    repo.rebuild_index("local")
+
+    rows = repo.list_runs_for_profile(candidate_id="local", profile="cs", limit=50)
+    assert [row["run_id"] for row in rows] == sorted(cs_ids, reverse=True)
