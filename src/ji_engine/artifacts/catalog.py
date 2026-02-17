@@ -70,6 +70,41 @@ def get_artifact_category(artifact_key: str) -> str:
     return ArtifactCategory.UNCATEGORIZED
 
 
+# Exported for tests and dashboard
+FORBIDDEN_JD_KEYS = frozenset(_UI_SAFE_PROHIBITED_KEYS)
+
+
+def assert_no_forbidden_fields(obj: object, context: str = "") -> None:
+    """
+    Fail-closed: raise ValueError if obj contains any forbidden JD keys.
+    Use for UI-safe endpoints. Redaction is only for replay-safe/legacy paths.
+    """
+    violations = _scan_prohibited(obj)
+    if violations:
+        msg = json.dumps(
+            {"error": "forbidden_jd_fields", "context": context, "violations": violations},
+            sort_keys=True,
+        )
+        raise ValueError(msg)
+
+
+def redact_forbidden_fields(obj: object) -> object:
+    """
+    Recursively remove forbidden JD-related keys from a JSON-serializable structure.
+    Returns a copy; does not mutate input. Used to ensure API responses never leak raw JD.
+    """
+    if isinstance(obj, dict):
+        return {
+            k: redact_forbidden_fields(v)
+            for k, v in obj.items()
+            if k not in _UI_SAFE_PROHIBITED_KEYS
+            and (k.lower() if isinstance(k, str) else "") not in {x.lower() for x in _UI_SAFE_PROHIBITED_KEYS}
+        }
+    if isinstance(obj, list):
+        return [redact_forbidden_fields(item) for item in obj]
+    return obj
+
+
 def _scan_prohibited(value: object, path: str = "") -> List[str]:
     """Recursively find prohibited keys in a JSON-serializable value."""
     violations: List[str] = []

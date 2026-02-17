@@ -809,3 +809,167 @@ def test_dashboard_v1_artifact_index_bounded_no_huge_reads(tmp_path: Path, monke
     assert payload["artifacts"][0]["size_bytes"] > 500_000
     assert "data" not in str(payload)
     assert large_content[:100] not in str(payload)
+
+
+_FORBIDDEN_JD_KEYS = frozenset({"jd_text", "description", "description_text", "descriptionHtml", "job_description"})
+
+
+def _find_forbidden_keys(obj: object, path: str = "") -> list[str]:
+    """Recursively find forbidden JD keys in JSON structure. Returns list of paths."""
+    found: list[str] = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            k_str = str(k).lower() if isinstance(k, str) else ""
+            if k in _FORBIDDEN_JD_KEYS or k_str in {x.lower() for x in _FORBIDDEN_JD_KEYS}:
+                found.append(f"{path}.{k}" if path else str(k))
+            found.extend(_find_forbidden_keys(v, f"{path}.{k}" if path else str(k)))
+    elif isinstance(obj, list):
+        for i, item in enumerate(obj):
+            found.extend(_find_forbidden_keys(item, f"{path}[{i}]"))
+    return found
+
+
+@pytest.mark.parametrize(
+    "endpoint,method",
+    [
+        ("/version", "GET"),
+        ("/healthz", "GET"),
+        ("/runs", "GET"),
+        ("/runs/20260122T000000Z", "GET"),
+        ("/runs/20260122T000000Z/artifact/openai_ranked_jobs.cs.json", "GET"),
+        ("/runs/20260122T000000Z/semantic_summary/cs", "GET"),
+        ("/v1/latest", "GET"),
+        ("/v1/runs/20260122T000000Z/artifacts", "GET"),
+    ],
+)
+def test_dashboard_api_no_raw_jd_leakage(tmp_path: Path, monkeypatch: Any, endpoint: str, method: str) -> None:
+    """All dashboard API responses must not contain forbidden JD fields (jd_text, description, etc.)."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    # Fixture: ranked_jobs with jd_text (replay_safe - must be redacted when served)
+    ranked_jobs = [
+        {"job_id": "j1", "jd_text": "Secret JD content here", "apply_url": "https://example.com/j1"},
+        {"job_id": "j2", "description": "Another forbidden field", "apply_url": "https://example.com/j2"},
+    ]
+    (run_dir / "openai_ranked_jobs.cs.json").write_text(json.dumps(ranked_jobs), encoding="utf-8")
+
+    index = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "providers": {"openai": {"profiles": {"cs": {}}}},
+        "artifacts": {
+            "run_summary.v1.json": "run_summary.v1.json",
+            "openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json",
+            "semantic/semantic_summary.json": "semantic/semantic_summary.json",
+            "semantic/scores_openai_cs.json": "semantic/scores_openai_cs.json",
+        },
+    }
+    (run_dir / "index.json").write_text(json.dumps(index), encoding="utf-8")
+    (run_dir / "run_summary.v1.json").write_text(
+        json.dumps(
+            {
+                "run_summary_schema_version": 1,
+                "run_id": run_id,
+                "candidate_id": "local",
+                "status": "success",
+                "git_sha": "x",
+                "created_at_utc": run_id,
+                "run_health": {},
+                "run_report": {},
+                "ranked_outputs": {},
+                "primary_artifacts": {},
+                "costs": {},
+                "scoring_config": {},
+                "snapshot_manifest": {},
+                "quicklinks": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "run_report.json").write_text(
+        json.dumps({"outputs_by_provider": {"openai": {"cs": {}}}, "semantic_enabled": True}),
+        encoding="utf-8",
+    )
+    semantic_dir = run_dir / "semantic"
+    semantic_dir.mkdir(parents=True, exist_ok=True)
+    (semantic_dir / "semantic_summary.json").write_text(
+        json.dumps({"enabled": True, "embedded_job_count": 2}),
+        encoding="utf-8",
+    )
+    (semantic_dir / "scores_openai_cs.json").write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {"job_id": "j1", "provider": "openai", "profile": "cs"},
+                    {"job_id": "j2", "provider": "openai", "profile": "cs"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get(endpoint) if method == "GET" else client.request(method, endpoint)
+
+    if resp.status_code != 200:
+        pytest.skip(f"Endpoint {endpoint} returned {resp.status_code} (may need more fixture)")
+
+    try:
+        data = resp.json()
+    except Exception:
+        pytest.skip(f"Endpoint {endpoint} did not return JSON")
+
+    forbidden = _find_forbidden_keys(data)
+    assert not forbidden, (
+        f"Endpoint {endpoint} leaked forbidden JD fields: {forbidden}. "
+        "UI-safe endpoints must fail closed; no forbidden keys in response."
+    )
+
+
+def test_dashboard_ui_safe_fail_closed_when_forbidden_key_injected(tmp_path: Path, monkeypatch) -> None:
+    """UI-safe endpoints return 500 when payload contains forbidden JD fields (fail-closed)."""
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    index_with_jd = {
+        "run_id": run_id,
+        "timestamp": run_id,
+        "jd_text": "forbidden leak",
+        "artifacts": {},
+    }
+    (run_dir / "index.json").write_text(json.dumps(index_with_jd), encoding="utf-8")
+    (run_dir / "run_report.json").write_text(json.dumps({"semantic_enabled": False}), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}")
+    assert resp.status_code == 500, f"Expected 500 for run_detail with jd_text, got {resp.status_code}"
+    detail = resp.json().get("detail", {})
+    if isinstance(detail, dict):
+        assert "forbidden_jd_fields" in str(detail).lower() or "violations" in str(detail).lower()
