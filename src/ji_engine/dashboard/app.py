@@ -26,7 +26,9 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environmen
 
 from ji_engine.artifacts.catalog import (
     ArtifactCategory,
+    assert_no_forbidden_fields,
     get_artifact_category,
+    redact_forbidden_fields,
     validate_artifact_payload,
 )
 from ji_engine.config import (
@@ -158,6 +160,18 @@ def _sanitize_run_id(run_id: str) -> str:
     if not _RUN_ID_RE.fullmatch(raw):
         raise HTTPException(status_code=400, detail="Invalid run_id")
     return raw.replace(":", "").replace("-", "").replace(".", "")
+
+
+def _ensure_ui_safe(obj: object, context: str = "") -> None:
+    """Fail-closed: raise HTTPException 500 if obj contains forbidden JD fields."""
+    try:
+        assert_no_forbidden_fields(obj, context=context)
+    except ValueError as exc:
+        try:
+            detail = json.loads(str(exc))
+        except json.JSONDecodeError:
+            detail = {"error": "forbidden_jd_fields", "message": str(exc)}
+        raise HTTPException(status_code=500, detail=detail) from exc
 
 
 def _run_dir(run_id: str, candidate_id: str) -> Path:
@@ -431,11 +445,12 @@ def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[st
     )
     costs = _load_optional_json_object(run_dir / "costs.json", context="run costs")
     prompt_version = _load_first_ai_prompt_version(run_id, candidate_id, index)
-    enriched = dict(index)
+    enriched: Dict[str, Any] = dict(index)
     enriched["semantic_enabled"] = bool(run_report.get("semantic_enabled", False))
     enriched["semantic_mode"] = run_report.get("semantic_mode")
     enriched["ai_prompt_version"] = prompt_version
     enriched["cost_summary"] = costs
+    _ensure_ui_safe(enriched, context="run_detail")
     return enriched
 
 
@@ -487,6 +502,11 @@ def _enforce_artifact_model(
         except json.JSONDecodeError:
             detail = {"error": "validation_failed", "message": str(exc)}
         raise HTTPException(status_code=500, detail=detail) from exc
+    # Redact forbidden JD fields from replay_safe before serving (no raw JD leakage)
+    if category == ArtifactCategory.REPLAY_SAFE:
+        payload = redact_forbidden_fields(payload)
+        if not isinstance(payload, dict):
+            payload = {}
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 
 
@@ -574,7 +594,9 @@ def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_
                 entries.append(item)
 
     entries.sort(key=lambda item: (str(item.get("provider") or ""), str(item.get("job_id") or "")))
-    return {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
+    response: Dict[str, Any] = {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
+    _ensure_ui_safe(response, context="run_semantic_summary")
+    return response
 
 
 @app.get("/v1/latest")
@@ -586,15 +608,11 @@ def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
         payload, status, key = aws_runs.read_last_success_state(bucket, prefix, candidate_id=safe_candidate)
         if status != "ok" or not payload:
             raise HTTPException(status_code=404, detail=f"s3 last_success not found ({status})")
-        return {
-            "source": "s3",
-            "bucket": bucket,
-            "prefix": prefix,
-            "key": key,
-            "payload": payload,
-        }
+        _ensure_ui_safe(payload, context="latest")
+        return {"source": "s3", "bucket": bucket, "prefix": prefix, "key": key, "payload": payload}
     pointer_path = _state_last_success_path(safe_candidate)
     payload = _read_local_json(pointer_path)
+    _ensure_ui_safe(payload, context="latest")
     return {"source": "local", "path": str(pointer_path), "payload": payload}
 
 
@@ -612,15 +630,11 @@ def run_receipt(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[s
             payload, status = _read_s3_json(bucket, legacy_key)
             proof_key = legacy_key
         if status == "ok" and payload:
-            return {
-                "source": "s3",
-                "bucket": bucket,
-                "prefix": prefix,
-                "key": proof_key,
-                "payload": payload,
-            }
+            _ensure_ui_safe(payload, context="run_receipt")
+            return {"source": "s3", "bucket": bucket, "prefix": prefix, "key": proof_key, "payload": payload}
     local_path = _local_proof_path(run_id, safe_candidate)
     payload = _read_local_json(local_path)
+    _ensure_ui_safe(payload, context="run_receipt")
     return {"source": "local", "path": str(local_path), "payload": payload}
 
 
