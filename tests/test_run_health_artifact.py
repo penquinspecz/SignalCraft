@@ -196,9 +196,7 @@ def test_run_health_written_on_forced_failure(tmp_path: Path, monkeypatch: Any) 
 
 
 def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: Any) -> None:
-    """On forced failure, run_health and run_summary are emitted; provider_availability is not a separate
-    artifact (fail-closed: runner builds it from provenance, which may be empty on early failure).
-    """
+    """Forced failure still emits provider_availability as a fail-closed artifact."""
     paths = _setup_env(monkeypatch, tmp_path)
     monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "classify")
 
@@ -230,10 +228,16 @@ def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: An
 
     run_summaries = sorted(run_daily.RUN_METADATA_DIR.glob("*/run_summary.v1.json"))
     assert run_summaries, "run_summary should be emitted on forced failure"
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["availability"] == "unavailable"
+    assert providers["openai"]["reason_code"] in {"early_failure_unknown", "policy_denied"}
 
 
 def test_forced_failure_e2e_artifact_paths(tmp_path: Path, monkeypatch: Any) -> None:
-    """E2E: forced failure emits run_health and run_summary at canonical paths; provider_availability optional."""
+    """E2E: forced failure emits run_health, run_summary, and provider_availability at canonical paths."""
     paths = _setup_env(monkeypatch, tmp_path)
     monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "scrape")
 
@@ -272,6 +276,69 @@ def test_forced_failure_e2e_artifact_paths(tmp_path: Path, monkeypatch: Any) -> 
     assert "FORCED_FAILURE" in health["failure_codes"]
     assert summary["status"] == "failed"
     assert "run_health" in summary
+    assert provider_availability_path.exists(), f"provider_availability must exist at {provider_availability_path}"
+    availability = _validate_provider_availability_schema(provider_availability_path)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["availability"] == "unavailable"
+    assert providers["openai"]["reason_code"] == "early_failure_unknown"
 
-    # provider_availability: optional on early forced failure (fail-closed)
-    # If present, validate; if absent, acceptable per m12-forced-failure-receipts
+
+def test_provider_availability_written_on_provider_policy_failure(tmp_path: Path, monkeypatch: Any) -> None:
+    """Provider policy/network-shield denial still emits provider_availability and run_health."""
+    _setup_env(monkeypatch, tmp_path)
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(run_daily, "_run", lambda *a, **k: None)
+    monkeypatch.setattr(
+        run_daily,
+        "_load_scrape_provenance",
+        lambda providers: {
+            "openai": {
+                "availability": "unavailable",
+                "unavailable_reason": "allowlist_denied",
+                "attempts_made": 1,
+                "scrape_mode": "live",
+                "parsed_job_count": 0,
+                "allowlist_allowed": False,
+                "robots_final_allowed": False,
+                "live_error_reason": "allowlist_denied",
+                "live_error_type": "policy",
+            }
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--providers",
+            "openai",
+            "--scrape_only",
+            "--no_post",
+        ],
+    )
+
+    rc = run_daily.main()
+    assert rc == 3
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["status"] == "failed"
+    assert payload["failed_stage"] == "provider_policy"
+    assert "PROVIDER_POLICY_FAILED" in payload["failure_codes"]
+
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["availability"] == "unavailable"
+    assert providers["openai"]["reason_code"] == "policy_denied"
+    assert providers["openai"]["policy"]["network_shield"]["allowlist_allowed"] is False
