@@ -156,6 +156,37 @@ def _install_fake_jq(bin_dir: Path) -> None:
     _write_executable(bin_dir / "jq", content)
 
 
+def _install_fake_gh_for_from_composer(bin_dir: Path) -> None:
+    _write_executable(
+        bin_dir / "gh",
+        """
+        #!/usr/bin/env bash
+        set -euo pipefail
+        if [[ "$1" != "api" || "$2" != "graphql" ]]; then
+          echo "unsupported gh invocation: $*" >&2
+          exit 2
+        fi
+        cursor=""
+        for arg in "$@"; do
+          case "$arg" in
+            endCursor=*)
+              cursor="${arg#endCursor=}"
+              ;;
+          esac
+        done
+        if [[ -z "$cursor" ]]; then
+          printf '%s' "${GH_FAKE_PAGE1_JSON:-}"
+          exit 0
+        fi
+        if [[ "$cursor" == "CUR2" ]]; then
+          printf '%s' "${GH_FAKE_PAGE2_JSON:-}"
+          exit 0
+        fi
+        printf '{"data":{"repository":{"pullRequests":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}'
+        """,
+    )
+
+
 def test_shell_scripts_syntax() -> None:
     bash = shutil.which("bash")
     if not bash:
@@ -349,3 +380,237 @@ def test_verify_published_s3_missing_run_report(tmp_path: Path, monkeypatch) -> 
         ]
     )
     assert exit_code == 2
+
+
+def test_list_from_composer_prs_paginates_with_stable_metadata(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    jq_bin = shutil.which("jq")
+    if not bash:
+        pytest.skip("bash not available")
+    if not jq_bin:
+        pytest.skip("jq not available")
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "dev" / "list_from_composer_prs.sh"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh_for_from_composer(bin_dir)
+    env = {
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+        "GH_FAKE_PAGE1_JSON": json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": [
+                                {
+                                    "number": 12,
+                                    "title": "later",
+                                    "mergedAt": "2026-02-16T02:00:00Z",
+                                    "headRefName": "branch-12",
+                                    "url": "https://example/pr/12",
+                                    "mergeCommit": {"oid": "sha12"},
+                                },
+                                {
+                                    "number": 10,
+                                    "title": "older",
+                                    "mergedAt": "2026-02-14T02:00:00Z",
+                                    "headRefName": "branch-10",
+                                    "url": "https://example/pr/10",
+                                    "mergeCommit": {"oid": "sha10"},
+                                },
+                            ],
+                            "pageInfo": {"hasNextPage": True, "endCursor": "CUR2"},
+                        }
+                    }
+                }
+            }
+        ),
+        "GH_FAKE_PAGE2_JSON": json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": [
+                                {
+                                    "number": 11,
+                                    "title": "middle",
+                                    "mergedAt": "2026-02-15T02:00:00Z",
+                                    "headRefName": "branch-11",
+                                    "url": "https://example/pr/11",
+                                    "mergeCommit": {"oid": "sha11"},
+                                }
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        ),
+    }
+    result = subprocess.run(
+        [bash, str(script), "--since-date", "2026-02-15"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    assert "metadata.ordering: mergedAt_asc" in out
+    assert "metadata.total_discovered: 3" in out
+    assert "metadata.total_in_range: 2" in out
+    assert "metadata.total_included: 2" in out
+    assert "metadata.truncated: false" in out
+    assert out.index("PR #11") < out.index("PR #12")
+
+
+def test_list_from_composer_prs_completeness_assertion_fails_on_internal_cap(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    jq_bin = shutil.which("jq")
+    if not bash:
+        pytest.skip("bash not available")
+    if not jq_bin:
+        pytest.skip("jq not available")
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "dev" / "list_from_composer_prs.sh"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh_for_from_composer(bin_dir)
+    env = {
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+        "FROM_COMPOSER_INTERNAL_CAP": "2",
+        "GH_FAKE_PAGE1_JSON": json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": [
+                                {
+                                    "number": 1,
+                                    "title": "a",
+                                    "mergedAt": "2026-02-16T00:00:00Z",
+                                    "headRefName": "a",
+                                    "url": "https://example/pr/1",
+                                    "mergeCommit": {"oid": "sha1"},
+                                },
+                                {
+                                    "number": 2,
+                                    "title": "b",
+                                    "mergedAt": "2026-02-16T00:01:00Z",
+                                    "headRefName": "b",
+                                    "url": "https://example/pr/2",
+                                    "mergeCommit": {"oid": "sha2"},
+                                },
+                            ],
+                            "pageInfo": {"hasNextPage": True, "endCursor": "CUR2"},
+                        }
+                    }
+                }
+            }
+        ),
+        "GH_FAKE_PAGE2_JSON": json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": [],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        ),
+    }
+    result = subprocess.run(
+        [bash, str(script), "--since-date", "2026-02-15"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 1
+    assert "Completeness assertion failed" in (result.stderr or "")
+
+
+def test_generate_codex_review_queue_emits_metadata_and_limit_truncation(tmp_path: Path) -> None:
+    bash = shutil.which("bash")
+    jq_bin = shutil.which("jq")
+    if not bash:
+        pytest.skip("bash not available")
+    if not jq_bin:
+        pytest.skip("jq not available")
+    repo_root = Path(__file__).resolve().parents[1]
+    script = repo_root / "scripts" / "dev" / "generate_codex_review_queue.sh"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _install_fake_gh_for_from_composer(bin_dir)
+    output_file = tmp_path / "queue.md"
+    env = {
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+        "FROM_COMPOSER_OUTPUT_FILE": str(output_file),
+        "GH_FAKE_PAGE1_JSON": json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": [
+                                {
+                                    "number": 12,
+                                    "title": "later",
+                                    "mergedAt": "2026-02-16T02:00:00Z",
+                                    "headRefName": "branch-12",
+                                    "url": "https://example/pr/12",
+                                    "mergeCommit": {"oid": "sha12"},
+                                },
+                                {
+                                    "number": 10,
+                                    "title": "older",
+                                    "mergedAt": "2026-02-14T02:00:00Z",
+                                    "headRefName": "branch-10",
+                                    "url": "https://example/pr/10",
+                                    "mergeCommit": {"oid": "sha10"},
+                                },
+                            ],
+                            "pageInfo": {"hasNextPage": True, "endCursor": "CUR2"},
+                        }
+                    }
+                }
+            }
+        ),
+        "GH_FAKE_PAGE2_JSON": json.dumps(
+            {
+                "data": {
+                    "repository": {
+                        "pullRequests": {
+                            "nodes": [
+                                {
+                                    "number": 11,
+                                    "title": "middle",
+                                    "mergedAt": "2026-02-15T02:00:00Z",
+                                    "headRefName": "branch-11",
+                                    "url": "https://example/pr/11",
+                                    "mergeCommit": {"oid": "sha11"},
+                                }
+                            ],
+                            "pageInfo": {"hasNextPage": False, "endCursor": None},
+                        }
+                    }
+                }
+            }
+        ),
+    }
+    result = subprocess.run(
+        [bash, str(script), "--since-date", "2026-02-15", "--limit", "1"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode == 0, result.stderr
+    assert output_file.exists()
+    body = output_file.read_text(encoding="utf-8")
+    assert "- total_discovered: 3" in body
+    assert "- total_in_range: 2" in body
+    assert "- total_included: 1" in body
+    assert "- truncated: true" in body
+    assert "### PR #11: middle" in body
