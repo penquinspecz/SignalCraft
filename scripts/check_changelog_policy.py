@@ -47,8 +47,12 @@ def _labels_from_event(event_path: Path | None) -> Set[str]:
 def _changed_files(base_ref: str, head_ref: str) -> Set[str]:
     if not base_ref.strip():
         raise RuntimeError("base ref is required to compute changed files")
-    merge_base = _run_git(["merge-base", base_ref, head_ref])
-    changed = _run_git(["diff", "--name-only", f"{merge_base}..{head_ref}"])
+    try:
+        merge_base = _run_git(["merge-base", base_ref, head_ref])
+        changed = _run_git(["diff", "--name-only", f"{merge_base}..{head_ref}"])
+    except subprocess.CalledProcessError:
+        # Shallow CI checkouts may not have merge-base available yet; bounded fallback.
+        changed = _run_git(["diff", "--name-only", f"{base_ref}..{head_ref}"])
     return _normalize_files(changed.splitlines())
 
 

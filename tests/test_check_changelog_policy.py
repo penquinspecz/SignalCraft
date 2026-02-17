@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.check_changelog_policy import _labels_from_event, evaluate_policy
+import scripts.check_changelog_policy as changelog_policy
+from scripts.check_changelog_policy import _changed_files, _labels_from_event, evaluate_policy
 
 
 def test_policy_skips_when_not_triggered() -> None:
@@ -40,3 +41,21 @@ def test_labels_from_event_payload(tmp_path: Path) -> None:
     event_path = tmp_path / "event.json"
     event_path.write_text(json.dumps(payload), encoding="utf-8")
     assert _labels_from_event(event_path) == {"release", "from-composer"}
+
+
+def test_changed_files_falls_back_when_merge_base_unavailable(monkeypatch) -> None:
+    calls = []
+
+    def fake_run_git(args):
+        calls.append(tuple(args))
+        if args[0] == "merge-base":
+            raise changelog_policy.subprocess.CalledProcessError(returncode=1, cmd=["git", *args])
+        if args == ["diff", "--name-only", "origin/main..HEAD"]:
+            return "pyproject.toml\nCHANGELOG.md\n"
+        raise AssertionError(f"unexpected args: {args}")
+
+    monkeypatch.setattr(changelog_policy, "_run_git", fake_run_git)
+    changed = _changed_files("origin/main", "HEAD")
+    assert changed == {"pyproject.toml", "CHANGELOG.md"}
+    assert calls[0] == ("merge-base", "origin/main", "HEAD")
+    assert calls[1] == ("diff", "--name-only", "origin/main..HEAD")
