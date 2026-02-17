@@ -22,7 +22,7 @@ jobs:
       - name: Fetch PR base ref (for changelog policy diff)
         run: git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
       - name: Changelog policy
-        run: make changelog-policy
+        run: GITHUB_BASE_REF="origin/${{ github.base_ref }}" make changelog-policy
       - name: Restore venv cache
         id: venv-cache
         uses: actions/cache@v4
