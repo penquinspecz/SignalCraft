@@ -73,7 +73,7 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-15 on commit `72892a3b71dc10e809a53acd09c75c89e554fb07` (local verification; see git + CI receipts)
+Last verified: 2026-02-17 on commit `610d859a1f339cc2504e8f3a201677ce43a7f375` (mainline verification; see CI + proof receipts)
 Latest release: v0.1.0
 
 Foundation exists:
@@ -95,26 +95,11 @@ Foundation exists:
   Evidence: `.github/workflows/ci.yml`, `Makefile` targets `ci-fast` and `gate`, `docs/CI_SMOKE_GATE.md`.
 
 **Recent structural improvements (productization enablers):**
-- Candidate namespace reservation (default `local`) to prevent future multi-user rewrite
-- Dashboard artifact read hardening (bounded JSON reads + schema checks)
-- RunRepository seam (filesystem-backed now; enables future indexing later)
-- Provider default selection decoupled from hardcoded OpenAI (CLI/env/defaults/fallback precedence)
-- Provider enablement workflow now fails closed when fixtures/manifest/metadata are missing
-- Run receipt UX for one-command output discovery (`run_summary`, `run_health`, primary artifacts)
-
-Phase 1 is real.
-
-Recent receipts from `git log -n 30`:
-- `361be61` refactor(providers): decouple default provider from openai
-- `99d2ed7` feat(providers): add anthropic snapshot provider v1
-- `006173a` feat(onprem): rehearsal receipt UX + deployment next-steps
-- `e9f357b` feat(state): local run index sqlite v1 + runs list
-- `dff8277` feat(cli): run receipt UX and primary artifact pointers
-- `47c8ee3` chore(ci): add fast feedback job + keep full gate required
-- `1867669` feat(providers): safe provider config append helper (disabled-by-default)
-- `a6bba42` feat(run): add run_summary artifact v1 (single canonical output index)
-- `3fbd76f` feat(providers): provider enablement workflow with guardrails
-- `7fc07b5` fix(ci): include all pinned snapshot fixtures in docker test image
+- Network Shield v1 + unified egress policy gates are enforced across provider/snapshot/pipeline fetch paths (fail-closed, redirect revalidation, bounded reads). Verified by `docs/proof/post-merge-phase2-hardening-2026-02-15.md`, `src/ji_engine/utils/network_shield.py`, `tests/test_network_shield.py`, `tests/test_network_egress_shield_v1.py`.
+- Artifact model v2 schemas + dashboard API boundary enforcement are landed. Verified by `docs/proof/m11-artifact-model-v2-enforcement-2026-02-15.md`, `docs/proof/m11-api-ui-safe-enforcement-2026-02-15.md`, `src/ji_engine/artifacts/catalog.py`, `src/ji_engine/dashboard/app.py`, `tests/test_artifact_model_v2.py`, `tests/test_dashboard_app.py`.
+- Operations hardening receipts expanded with provider availability artifact and failure playbook receipts. Verified by `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `docs/OPS_RUNBOOK.md`, `tests/test_run_health_artifact.py`.
+- Run indexing/read-path migration advanced: RunRepository-only run resolution and SQLite-backed history read path landed. Verified by `docs/proof/m13-no-run-filesystem-scan-outside-tests-2026-02-15.md`, `docs/proof/m13-readpath-history-sqlite-2026-02-15.md`, `src/ji_engine/run_repository.py`, `scripts/report_changes.py`, `tests/test_m13_no_run_filesystem_scan_repo_wide.py`, `tests/test_run_repository.py`.
+- Dashboard plumbing is now API-boring: `/version`, artifact index endpoint, bounded artifact serving, and smoke receipts are landed. Verified by `docs/proof/m17-api-boring-pack-2026-02-15.md`, `docs/proof/m17-artifact-index-endpoint-2026-02-14.md`, `docs/proof/m17-api-boring-pack-smoke-negative-2026-02-15.md`, `docs/proof/p1-artifact-download-size-cap-2026-02-17.md`, `docs/DASHBOARD_API.md`.
 
 ---
 
@@ -134,22 +119,22 @@ Every milestone must:
 
 # NEW ROADMAP — Thick Milestones
 
-## Milestone 10 — Provider Platform v1 (Boring Expansion) ◐
+## Milestone 10 — Provider Platform v1 (Boring Expansion) ✅
 
 Goal: Provider expansion becomes boring and safe.
-Status: ◐ Core guardrails are implemented; registry-hash provenance + tombstone semantics are not fully landed.
-Evidence: `schemas/providers.schema.v1.json`, `scripts/provider_authoring.py`, `tests/test_provider_authoring.py`, `tests/test_provider_registry.py`, `scripts/verify_snapshots_immutable.py`.
+Status: ✅ Registry schema/guardrails, Network Shield requirements, registry-hash provenance, and tombstone semantics are landed.
+Evidence: `schemas/providers.schema.v1.json`, `docs/proof/m10-provider-registry-hash-2026-02-15.md`, `docs/proof/m10-provider-tombstone-2026-02-15.md`, `src/ji_engine/providers/registry.py`, `src/ji_engine/utils/network_shield.py`, `tests/test_provider_registry.py`, `tests/test_network_shield.py`.
 
 Definition of Done
 - [x] Versioned provider registry schema exists
-- [ ] **Network Shield v1 (SSRF/Egress hardening) is required before any provider may set `live_enabled=true`**, including:
+- [x] **Network Shield v1 (SSRF/Egress hardening) is required before any provider may set `live_enabled=true`**, including:
   - denylist coverage for `localhost`/`127.0.0.1`, RFC1918 ranges, and link-local metadata endpoints (for example `169.254.169.254`)
   - redirect revalidation on every hop
   - max-bytes streamed download cap enforcement
-- [ ] Registry hash recorded in provenance
+- [x] Registry hash recorded in provenance
 - [x] Provider config validated in CI (schema + invariants)
 - [x] Snapshot fixtures enforced per provider (enabled snapshot providers)
-- [ ] Provider tombstone supported (opt-out / takedown path)
+- [x] Provider tombstone supported (opt-out / takedown path)
 - [x] At least 3 providers now run in snapshot mode from registry config (`openai`, `anthropic`, `cohere`, `huggingface`, `mistral`, `perplexity`, `replit`, `scaleai`)
 - [x] No core pipeline modification required to add a provider (authoring + enablement tooling is config-driven)
 - [x] Provider ordering deterministic across runs
@@ -165,10 +150,10 @@ Receipts Required
 
 ---
 
-## Milestone 11 — Artifact Model v2 (Legal + UI-Safe by Design) ◐
+## Milestone 11 — Artifact Model v2 (Legal + UI-Safe by Design) ✅
 
 Goal: Legality + replayability enforced by shape.
-Status: ◐ UI-safe and replay-safe schema contracts scaffolded; pipeline emission of v2 artifacts is deferred.
+Status: ✅ UI-safe/replay-safe schema contracts and API boundary enforcement are landed.
 Evidence: `schemas/ui_safe_artifact.schema.v1.json`, `schemas/replay_safe_artifact.schema.v1.json`, `docs/ARTIFACT_MODEL.md`, `tests/test_artifact_model_v2.py`, `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `tests/test_redaction_guard.py`, `tests/test_redaction_scan.py`.
 
 Definition of Done
@@ -190,8 +175,8 @@ Receipts Required
 ## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability) ◐
 
 Goal: Failure is explicit and inspectable.
-Status: ◐ Run health taxonomy + summary + run inspection CLI landed; dedicated provider-availability artifact and explicit failure playbook receipts are still partial.
-Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `scripts/run_daily.py`, `src/jobintel/cli.py`, `tests/test_run_health_artifact.py`.
+Status: ◐ Run health taxonomy + summary + run inspection + failure playbook receipts are landed; strict “provider availability artifact generated every run” is still open.
+Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `schemas/provider_availability.schema.v1.json`, `docs/OPS_RUNBOOK.md`, `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `scripts/run_daily.py`, `tests/test_run_health_artifact.py`.
 
 Definition of Done
 - [x] `failed_stage` always populated on failure
@@ -199,7 +184,7 @@ Definition of Done
 - [ ] Provider availability artifact generated every run
 - [x] One-command run inspection tooling (human-friendly)
 - [x] CI smoke matches real run structure
-- [ ] Failure playbook updated
+- [x] Failure playbook updated
 - [x] **Candidate namespace is treated as first-class (default `local`)**:
   - candidate_id flows through orchestration
   - artifacts + pointers do not collide across candidates
@@ -212,23 +197,23 @@ Receipts Required
 
 ---
 
-## Milestone 13 — Run Indexing v1 (Metadata Without Rewrites) ◐
+## Milestone 13 — Run Indexing v1 (Metadata Without Rewrites) ✅
 
 Goal: Remove “filesystem-as-database” pain without abandoning artifacts.
 
 Rationale: Artifacts stay as blobs. Indexing is metadata only.
-Status: ◐ SQLite index, deterministic rebuild, and CLI run lookups are landed; full repository-only resolution coverage still needs finishing.
-Evidence: `src/ji_engine/state/run_index.py`, `scripts/rebuild_run_index.py`, `docs/proof/m13-run-indexing-v1-2026-02-13.md`, `tests/test_run_index_sqlite.py`, `src/jobintel/cli.py`.
+Status: ✅ SQLite index, deterministic rebuild, repository-only run resolution, and SQLite-backed read-path migration are landed.
+Evidence: `src/ji_engine/state/run_index.py`, `src/ji_engine/run_repository.py`, `scripts/rebuild_run_index.py`, `scripts/report_changes.py`, `docs/proof/m13-run-indexing-v1-2026-02-13.md`, `docs/proof/m13-no-run-filesystem-scan-outside-tests-2026-02-15.md`, `docs/proof/m13-readpath-history-sqlite-2026-02-15.md`, `tests/test_m13_no_run_filesystem_scan_repo_wide.py`, `tests/test_run_repository.py`, `tests/test_report_changes.py`.
 
 Definition of Done
-- [ ] RunRepository seam is the only way to resolve runs (no scattered path-walking)
+- [x] RunRepository seam is the only way to resolve runs (no scattered path-walking)
 - [x] A minimal index exists for O(1) “latest run” + recent run listing:
   - Option A (preferred on-prem friendly): SQLite index in state (single-writer safe)
   - Option B (cloud friendly): DynamoDB / Postgres later (not required now)
 - [x] Index is append-only and derived from artifacts (rebuildable)
 - [x] Dashboard endpoints do not require directory scans for the common case
 - [x] Index rebuild tool exists (deterministic)
-- [ ] At least one real read path (`history`, `diff`, or `retention`) is migrated to SQLite-backed lookup instead of walking JSON files
+- [x] At least one real read path (`history`, `diff`, or `retention`) is migrated to SQLite-backed lookup instead of walking JSON files
 
 Receipts Required
 - Index rebuild proof
@@ -298,18 +283,18 @@ Receipts Required
 
 ---
 
-## Milestone 17 — Dashboard Plumbing v2 (Backend-First UI Readiness) ◐
+## Milestone 17 — Dashboard Plumbing v2 (Backend-First UI Readiness) ✅
 
 Goal: Backend is UI-ready without becoming UI-first.
-Status: ◐ `/version` endpoint and API contract documented; artifact index endpoints already stable.
-Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/DASHBOARD_API.md`, `scripts/dev/curl_dashboard_proof.sh`, `docs/proof/m17-api-boring-pack-2026-02-15.md`.
+Status: ✅ `/version`, candidate-aware latest endpoint, artifact index endpoint, API docs, optional dependency isolation, and bounded fail-closed reads are landed.
+Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/DASHBOARD_API.md`, `docs/OPERATIONS.md`, `scripts/dev/curl_dashboard_proof.sh`, `docs/proof/m17-api-boring-pack-2026-02-15.md`, `docs/proof/m17-artifact-index-endpoint-2026-02-14.md`, `docs/proof/m17-api-boring-pack-smoke-negative-2026-02-15.md`, `docs/proof/p1-artifact-download-size-cap-2026-02-17.md`.
 
 Definition of Done
 - [x] `/version` endpoint
 - [x] `/runs/latest` endpoint is candidate-aware (implemented as `/v1/latest?candidate_id=...`)
 - [x] Artifact index endpoint(s) are stable and documented
 - [x] API contract documented
-- [ ] Optional deps isolated cleanly
+- [x] Optional deps isolated cleanly
 - [x] Read-time validation is fail-closed and bounded
 
 Receipts Required
