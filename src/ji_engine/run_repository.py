@@ -307,6 +307,9 @@ class FileSystemRunRepository(RunRepository):
         }
 
     def _read_rows(self, candidate_id: str, limit: int) -> List[Dict[str, Any]]:
+        return self._read_rows_page(candidate_id, limit=limit, offset=0)
+
+    def _read_rows_page(self, candidate_id: str, *, limit: int, offset: int) -> List[Dict[str, Any]]:
         safe_candidate = sanitize_candidate_id(candidate_id)
         db_path = self._db_path(safe_candidate)
         if not db_path.exists():
@@ -320,8 +323,9 @@ class FileSystemRunRepository(RunRepository):
                 WHERE candidate_id = ?
                 ORDER BY timestamp DESC, run_id DESC
                 LIMIT ?
+                OFFSET ?
                 """,
-                (safe_candidate, limit),
+                (safe_candidate, limit, offset),
             ).fetchall()
             return [json.loads(row[0]) for row in rows]
         finally:
@@ -387,21 +391,58 @@ class FileSystemRunRepository(RunRepository):
         profile: str,
         limit: int = 200,
     ) -> List[Dict[str, Any]]:
-        """List runs that include the given profile, using index-backed selection."""
+        """
+        List runs that include the given profile, newest-first.
+        Deterministic ordering matches list_runs(): timestamp DESC, run_id DESC.
+        """
         safe_candidate = sanitize_candidate_id(candidate_id)
         bounded_limit = max(1, min(limit, 1000))
-        runs = self.list_runs(candidate_id=safe_candidate, limit=bounded_limit)
-        result: List[Dict[str, Any]] = []
-        for payload in runs:
-            profiles = _profiles_from_run_payload(payload)
-            if profile in profiles:
-                result.append(
-                    {
-                        "run_id": payload.get("run_id"),
-                        "profiles": profiles,
-                    }
-                )
-        return result
+        page_size = min(200, bounded_limit)
+
+        def _select(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            selected: List[Dict[str, Any]] = []
+            for payload in items:
+                profiles = _profiles_from_run_payload(payload)
+                if profile in profiles:
+                    selected.append({"run_id": payload.get("run_id"), "profiles": profiles})
+                    if len(selected) >= bounded_limit:
+                        break
+            return selected
+
+        try:
+            result: List[Dict[str, Any]] = []
+            offset = 0
+            while len(result) < bounded_limit:
+                page = self._read_rows_page(safe_candidate, limit=page_size, offset=offset)
+                if not page:
+                    break
+                for item in _select(page):
+                    result.append(item)
+                    if len(result) >= bounded_limit:
+                        break
+                if len(page) < page_size:
+                    break
+                offset += page_size
+            return result
+        except (json.JSONDecodeError, OSError, sqlite3.DatabaseError, sqlite3.OperationalError):
+            self.rebuild_index(safe_candidate)
+            try:
+                result = []
+                offset = 0
+                while len(result) < bounded_limit:
+                    page = self._read_rows_page(safe_candidate, limit=page_size, offset=offset)
+                    if not page:
+                        break
+                    for item in _select(page):
+                        result.append(item)
+                        if len(result) >= bounded_limit:
+                            break
+                    if len(page) < page_size:
+                        break
+                    offset += page_size
+                return result
+            except (json.JSONDecodeError, OSError, sqlite3.DatabaseError, sqlite3.OperationalError):
+                return _select(self._fallback(safe_candidate, "profile_index_read_failed"))
 
     def get_run(self, run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Optional[Dict[str, Any]]:
         safe_candidate = sanitize_candidate_id(candidate_id)
