@@ -19,6 +19,10 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
+      - name: Fetch PR base ref (for changelog policy diff)
+        run: git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+      - name: Changelog policy
+        run: make changelog-policy
       - name: Restore venv cache
         id: venv-cache
         uses: actions/cache@v4
