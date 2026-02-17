@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Simulated UI proof: curl dashboard endpoints and print example responses.
 # Prereq: make dashboard (or equivalent) running on BASE_URL.
-# Usage: ./scripts/dev/curl_dashboard_proof.sh [BASE_URL]
+# Usage: ./scripts/dev/curl_dashboard_proof.sh [BASE_URL] [RUN_ID]
+#   RUN_ID: optional; if unset, uses RUN_ID env var or default 2026-01-22T00:00:00Z
 
 set -euo pipefail
 
 BASE_URL="${1:-http://localhost:8000}"
+RUN_ID="${2:-${RUN_ID:-2026-01-22T00:00:00Z}}"
 
 _show() {
   local url="$1"
@@ -35,7 +37,7 @@ echo "--- GET /runs?candidate_id=local ---"
 _show "${BASE_URL}/runs?candidate_id=local"
 
 echo "--- GET /v1/runs/{run_id}/artifacts?candidate_id=local ---"
-_show "${BASE_URL}/v1/runs/2026-01-22T00:00:00Z/artifacts?candidate_id=local"
+_show "${BASE_URL}/v1/runs/${RUN_ID}/artifacts?candidate_id=local"
 
 echo "--- GET /v1/runs/{run_id}/artifacts (404 example: nonexistent run) ---"
 _show "${BASE_URL}/v1/runs/nonexistent-run-99999/artifacts?candidate_id=local" "(expected: 404)"
