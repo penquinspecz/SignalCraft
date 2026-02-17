@@ -23,6 +23,7 @@ from ji_engine.config import (
     RUN_METADATA_DIR,
     STATE_DIR,
 )
+from ji_engine.run_repository import list_run_metadata_paths_from_dir
 
 
 @dataclass(frozen=True)
@@ -55,7 +56,7 @@ def _run_id_from_runs_file(path: Path) -> str:
 
 
 def _sorted_run_reports(runs_dir: Path) -> List[Path]:
-    reports = [p for p in runs_dir.glob("*.json") if p.is_file()]
+    reports = list_run_metadata_paths_from_dir(runs_dir)
     reports.sort(key=lambda p: _run_id_from_runs_file(p))
     return reports
 

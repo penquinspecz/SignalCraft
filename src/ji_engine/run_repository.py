@@ -96,6 +96,14 @@ def _sanitize_run_id(run_id: str) -> str:
     return run_id.replace(":", "").replace("-", "").replace(".", "")
 
 
+def list_run_metadata_paths_from_dir(runs_dir: Path) -> List[Path]:
+    """List *.json run metadata files in runs_dir. Used by prune_state and other scripts."""
+    if not runs_dir.exists():
+        return []
+    paths = sorted((p for p in runs_dir.glob("*.json") if p.is_file()), key=lambda p: p.name)
+    return paths
+
+
 class FileSystemRunRepository(RunRepository):
     def __init__(self, legacy_runs_dir: Path = RUN_METADATA_DIR) -> None:
         self._legacy_runs_dir = legacy_runs_dir
