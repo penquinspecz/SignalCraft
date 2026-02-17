@@ -73,7 +73,7 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-17 on commit `610d859a1f339cc2504e8f3a201677ce43a7f375` (mainline verification; see CI + proof receipts)
+Last verified: 2026-02-17 on commit `610d859a1f339cc2504e8f3a201677ce43a7f375` (we ran mainline verification checks on this SHA; `main` may have advanced since. See CI + proof receipts.)
 Latest release: v0.1.0
 
 Foundation exists:
