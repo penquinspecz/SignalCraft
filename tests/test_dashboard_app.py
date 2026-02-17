@@ -222,6 +222,138 @@ def test_dashboard_artifact_exfil_guard_rejects_oversized_name(tmp_path: Path, m
     assert "invalid artifact name" in resp.json()["detail"].lower()
 
 
+def test_dashboard_artifact_oversized_non_json_returns_413_without_body_read(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = run_dir / "notes.md"
+    artifact_path.write_text("x" * 512, encoding="utf-8")
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {"notes.md": "notes.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orig_read_bytes = Path.read_bytes
+    orig_read_text = Path.read_text
+
+    def _guard_read_bytes(self: Path) -> bytes:
+        if self == artifact_path:
+            raise AssertionError("Oversized artifact should be rejected before read_bytes")
+        return orig_read_bytes(self)
+
+    def _guard_read_text(self: Path, *args, **kwargs) -> str:
+        if self == artifact_path:
+            raise AssertionError("Oversized artifact should be rejected before read_text")
+        return orig_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_bytes", _guard_read_bytes)
+    monkeypatch.setattr(Path, "read_text", _guard_read_text)
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/artifact/notes.md")
+    assert resp.status_code == 413
+    detail = resp.json()["detail"]
+    assert detail["error"] == "artifact_too_large"
+    assert detail["max_bytes"] == 64
+
+
+def test_dashboard_artifact_oversized_json_returns_413_without_body_read(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = run_dir / "openai_ranked_jobs.cs.json"
+    artifact_path.write_text(json.dumps({"jobs": ["x" * 1024]}), encoding="utf-8")
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {"openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    orig_read_text = Path.read_text
+
+    def _guard_read_text(self: Path, *args, **kwargs) -> str:
+        if self == artifact_path:
+            raise AssertionError("Oversized JSON should be rejected before read_text")
+        return orig_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _guard_read_text)
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/artifact/openai_ranked_jobs.cs.json")
+    assert resp.status_code == 413
+    detail = resp.json()["detail"]
+    assert detail["error"] == "artifact_too_large"
+    assert detail["max_bytes"] == 64
+
+
+def test_dashboard_artifact_small_non_json_serves_successfully(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "4096")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = run_dir / "notes.md"
+    artifact_path.write_text("hello dashboard\n", encoding="utf-8")
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {"notes.md": "notes.md"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/runs/{run_id}/artifact/notes.md")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/markdown")
+    assert resp.text == "hello dashboard\n"
+
+
 def test_dashboard_runs_populated_namespaced_candidate(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 

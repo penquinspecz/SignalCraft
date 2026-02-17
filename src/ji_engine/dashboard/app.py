@@ -19,7 +19,7 @@ from botocore.exceptions import ClientError
 
 try:
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import Response
+    from fastapi.responses import FileResponse, Response
     from pydantic import BaseModel, ConfigDict, Field, ValidationError
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
@@ -459,30 +459,11 @@ def _enforce_artifact_model(
     run_id: str,
     path: Path,
     max_bytes: int,
-) -> bytes:
+) -> Optional[bytes]:
     """
     Enforce artifact model v2 at serving boundary.
     Returns bytes to serve. Raises HTTPException on fail-closed.
     """
-    if path.suffix.lower() != ".json":
-        category = get_artifact_category(artifact_key)
-        if category == ArtifactCategory.UNCATEGORIZED:
-            raise HTTPException(
-                status_code=503,
-                detail={
-                    "error": "artifact_uncategorized",
-                    "artifact_key": artifact_key,
-                    "run_id": run_id,
-                    "message": "Artifact not in catalog; fail-closed.",
-                },
-            )
-        return path.read_bytes()
-    size = path.stat().st_size
-    if size > max_bytes:
-        raise HTTPException(status_code=413, detail="Artifact payload too large")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise HTTPException(status_code=500, detail="Artifact invalid shape")
     category = get_artifact_category(artifact_key)
     if category == ArtifactCategory.UNCATEGORIZED:
         raise HTTPException(
@@ -494,6 +475,17 @@ def _enforce_artifact_model(
                 "message": "Artifact not in catalog; fail-closed.",
             },
         )
+    size = path.stat().st_size
+    if size > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail={"error": "artifact_too_large", "message": "Artifact payload too large", "max_bytes": max_bytes},
+        )
+    if path.suffix.lower() != ".json":
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=500, detail="Artifact invalid shape")
     try:
         validate_artifact_payload(payload, artifact_key, run_id, category)
     except ValueError as exc:
@@ -518,7 +510,9 @@ def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_I
     path = _resolve_artifact_path(run_id, candidate_id, index, name)
     max_bytes = _max_json_bytes()
     body = _enforce_artifact_model(name, safe_run_id, path, max_bytes)
-    return Response(body, media_type=_content_type(path))
+    if body is not None:
+        return Response(body, media_type=_content_type(path))
+    return FileResponse(path, media_type=_content_type(path))
 
 
 def _provider_profile_pairs_for_semantic(index: Dict[str, Any], run_dir: Path, profile: str) -> List[Tuple[str, str]]:
