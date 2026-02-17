@@ -71,6 +71,8 @@ data/state/*.json
 # data/openai_snapshots/
 
 # packaging/build artifacts
+build/
+dist/
 *.egg-info/
 
 # Local AI cache
@@ -99,6 +101,9 @@ ops/aws/infra/eks/local.auto.tfvars.json
 # Local proof artifacts (run receipts/logs)
 ops/proof/
 !ops/proof/PROOF_STORAGE.md
+
+# Generated Codex review queue (run scripts/dev/generate_codex_review_queue.sh)
+docs/proof/from-composer-codex-review-queue-*.md
 
 # Local Python venvs
 .venv*/

@@ -1,1 +1,0 @@
-"""JobIntel CLI package."""

@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signalcraft.dev/schemas/ui_safe_artifact.schema.v1.json",
+  "title": "UI-safe artifact schema v1",
+  "description": "Contract for artifacts safe to consume by UI/dashboard. Must NOT contain raw job description text (jd_text, description, description_text, descriptionHtml), secrets, or API keys. See docs/ARTIFACT_MODEL.md.",
+  "type": "object",
+  "required": ["ui_safe_artifact_schema_version"],
+  "properties": {
+    "ui_safe_artifact_schema_version": {
+      "type": "integer",
+      "enum": [1],
+      "description": "Schema version for UI-safe artifact contract."
+    },
+    "artifact_type": {
+      "type": "string",
+      "enum": ["ui_safe"],
+      "description": "Identifies this as a UI-safe artifact."
+    },
+    "jobs": {
+      "type": "array",
+      "description": "Job entries. Each item must NOT contain prohibited fields (jd_text, description, description_text, descriptionHtml). Validation enforced by tests.",
+      "items": {
+        "type": "object",
+        "description": "UI-safe job item. Prohibited: jd_text, description, description_text, descriptionHtml, job_description."
+      }
+    }
+  },
+  "additionalProperties": true
+}

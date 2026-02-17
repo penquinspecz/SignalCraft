@@ -384,6 +384,40 @@ def test_enable_sets_enabled_true_with_i_mean_it(tmp_path: Path, capsys: pytest.
     assert payload["providers"][0]["enabled"] is True
 
 
+def test_enable_refuses_when_provider_is_tombstoned(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    snapshot = tmp_path / "data" / "alpha_snapshots" / "index.html"
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    snapshot.write_text("alpha fixture", encoding="utf-8")
+    config_path = tmp_path / "providers.json"
+    _write_providers_config(config_path, [_provider_entry("alpha", snapshot, enabled=False)])
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload["providers"][0]["tombstone"] = {"enabled": True, "reason": "legal_takedown", "date": "2026-02-15"}
+    config_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    manifest_path = tmp_path / "snapshot_bytes.manifest.json"
+    manifest_path.write_text(
+        json.dumps({str(snapshot): _manifest_entry(snapshot)}, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    rc = provider_authoring.main(
+        [
+            "enable",
+            "--provider",
+            "alpha",
+            "--why",
+            "should fail when tombstoned",
+            "--providers-config",
+            str(config_path),
+            "--manifest-path",
+            str(manifest_path),
+            "--providers-schema",
+            str(Path("schemas/providers.schema.v1.json")),
+            "--i-mean-it",
+        ]
+    )
+    output = capsys.readouterr().out
+    assert rc == 1
+    assert "provider tombstoned: legal_takedown" in output
+
+
 def test_enable_output_is_deterministic_without_i_mean_it(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     snapshot = tmp_path / "data" / "alpha_snapshots" / "index.html"
     snapshot.parent.mkdir(parents=True, exist_ok=True)
@@ -445,6 +479,58 @@ def test_append_template_refuses_without_i_mean_it(tmp_path: Path, capsys: pytes
     assert "refusing to edit providers config without --i-mean-it" in output
     payload = json.loads(config_path.read_text(encoding="utf-8"))
     assert payload["providers"] == []
+
+
+def test_tombstone_command_sets_and_clears_provider_tombstone(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    snapshot = tmp_path / "data" / "alpha_snapshots" / "index.html"
+    snapshot.parent.mkdir(parents=True, exist_ok=True)
+    snapshot.write_text("fixture", encoding="utf-8")
+    config_path = tmp_path / "providers.json"
+    _write_providers_config(config_path, [_provider_entry("alpha", snapshot, enabled=True)])
+
+    rc_set = provider_authoring.main(
+        [
+            "tombstone",
+            "--provider",
+            "alpha",
+            "--providers-config",
+            str(config_path),
+            "--reason",
+            "tombstoned_by_policy",
+            "--date",
+            "2026-02-15",
+            "--i-mean-it",
+        ]
+    )
+    output_set = capsys.readouterr().out
+    assert rc_set == 0
+    assert "enabled tombstone" in output_set
+
+    after_set = json.loads(config_path.read_text(encoding="utf-8"))["providers"][0]
+    assert after_set["enabled"] is False
+    assert after_set["live_enabled"] is False
+    assert after_set["tombstone"]["enabled"] is True
+    assert after_set["tombstone"]["reason"] == "tombstoned_by_policy"
+    assert after_set["tombstone"]["date"] == "2026-02-15"
+
+    rc_clear = provider_authoring.main(
+        [
+            "tombstone",
+            "--provider",
+            "alpha",
+            "--providers-config",
+            str(config_path),
+            "--clear",
+            "--i-mean-it",
+        ]
+    )
+    output_clear = capsys.readouterr().out
+    assert rc_clear == 0
+    assert "cleared tombstone" in output_clear
+    after_clear = json.loads(config_path.read_text(encoding="utf-8"))["providers"][0]
+    assert after_clear["tombstone"]["enabled"] is False
 
 
 def test_append_template_refuses_if_provider_exists(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

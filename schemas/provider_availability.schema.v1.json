@@ -1,0 +1,226 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "provider_availability schema v1",
+  "type": "object",
+  "required": [
+    "provider_availability_schema_version",
+    "run_id",
+    "candidate_id",
+    "generated_at_utc",
+    "provider_registry_sha256",
+    "providers"
+  ],
+  "properties": {
+    "provider_availability_schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "provider_registry_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "providers": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provider_availability"
+      }
+    }
+  },
+  "$defs": {
+    "provider_availability": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "mode",
+        "enabled",
+        "snapshot_enabled",
+        "live_enabled",
+        "availability",
+        "reason_code",
+        "unavailable_reason",
+        "attempts_made",
+        "policy"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "snapshot",
+            "live",
+            "disabled"
+          ]
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "snapshot_enabled": {
+          "type": "boolean"
+        },
+        "live_enabled": {
+          "type": "boolean"
+        },
+        "availability": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ]
+        },
+        "reason_code": {
+          "type": "string"
+        },
+        "unavailable_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempts_made": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "policy": {
+          "type": "object",
+          "required": [
+            "robots",
+            "network_shield",
+            "canonical_url_policy"
+          ],
+          "properties": {
+            "robots": {
+              "type": "object",
+              "required": [
+                "url",
+                "fetched",
+                "status_code",
+                "allowed",
+                "reason",
+                "user_agent"
+              ],
+              "properties": {
+                "url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fetched": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "status_code": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "allowed": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "user_agent": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "network_shield": {
+              "type": "object",
+              "required": [
+                "allowlist_allowed",
+                "robots_final_allowed",
+                "live_error_reason",
+                "live_error_type"
+              ],
+              "properties": {
+                "allowlist_allowed": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "robots_final_allowed": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "live_error_reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "live_error_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "canonical_url_policy": {
+              "type": "object",
+              "required": [
+                "policy_snapshot",
+                "live_http_status",
+                "live_status_code"
+              ],
+              "properties": {
+                "policy_snapshot": {},
+                "live_http_status": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "live_status_code": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

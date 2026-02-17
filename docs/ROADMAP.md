@@ -169,16 +169,16 @@ Receipts Required
 ## Milestone 11 — Artifact Model v2 (Legal + UI-Safe by Design) ◐
 
 Goal: Legality + replayability enforced by shape.
-Status: ◐ Versioned run health/summary artifacts and redaction guardrails exist; full UI-safe vs replay-safe split is still incomplete.
-Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `tests/test_run_summary_artifact.py`, `tests/test_redaction_guard.py`, `tests/test_redaction_scan.py`.
+Status: ◐ UI-safe and replay-safe schema contracts scaffolded; pipeline emission of v2 artifacts is deferred.
+Evidence: `schemas/ui_safe_artifact.schema.v1.json`, `schemas/replay_safe_artifact.schema.v1.json`, `docs/ARTIFACT_MODEL.md`, `tests/test_artifact_model_v2.py`, `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `tests/test_redaction_guard.py`, `tests/test_redaction_scan.py`.
 
 Definition of Done
-- [ ] UI-safe artifact schema versioned
-- [ ] Replay-safe artifact schema versioned
+- [x] UI-safe artifact schema versioned
+- [x] Replay-safe artifact schema versioned
 - [x] UI-safe artifacts contain no raw JD text in run summary pointers
 - [x] Redaction boundaries enforced by tests (stdout/logs included)
 - [x] Retention policy documented (what is stored, for how long, why)
-- [ ] Artifact backward compatibility defined (and tested)
+- [x] Artifact backward compatibility defined (and tested)
 - [x] Artifact provenance includes provider policy decision + canonical URL (run report provenance by provider)
 
 Receipts Required
@@ -302,14 +302,14 @@ Receipts Required
 ## Milestone 17 — Dashboard Plumbing v2 (Backend-First UI Readiness) ◐
 
 Goal: Backend is UI-ready without becoming UI-first.
-Status: ◐ Candidate-aware run endpoints and bounded read-time validation exist; `/version` and broader API contract polish remain open.
-Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/proof/dashboard-artifact-serve-hardening-2026-02-13.md`.
+Status: ◐ `/version` endpoint and API contract documented; artifact index endpoints already stable.
+Evidence: `src/ji_engine/dashboard/app.py`, `tests/test_dashboard_app.py`, `docs/DASHBOARD_API.md`, `scripts/dev/curl_dashboard_proof.sh`, `docs/proof/m17-api-boring-pack-2026-02-15.md`.
 
 Definition of Done
-- [ ] `/version` endpoint
+- [x] `/version` endpoint
 - [x] `/runs/latest` endpoint is candidate-aware (implemented as `/v1/latest?candidate_id=...`)
-- [ ] Artifact index endpoint(s) are stable and documented
-- [ ] API contract documented
+- [x] Artifact index endpoint(s) are stable and documented
+- [x] API contract documented
 - [ ] Optional deps isolated cleanly
 - [x] Read-time validation is fail-closed and bounded
 

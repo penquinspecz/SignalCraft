@@ -37,6 +37,20 @@ def _validate_run_health_schema(payload: Dict[str, Any]) -> None:
     assert errors == [], f"run_health schema validation failed: {errors}"
 
 
+def _latest_provider_availability_path(run_daily: Any) -> Path:
+    paths = sorted(run_daily.RUN_METADATA_DIR.glob("*/artifacts/provider_availability_v1.json"))
+    assert paths, "provider availability artifact should exist"
+    return paths[-1]
+
+
+def _validate_provider_availability_schema(path: Path) -> Dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    schema = json.loads(resolve_named_schema_path("provider_availability", 1).read_text(encoding="utf-8"))
+    errors = validate_payload(payload, schema)
+    assert errors == [], f"provider_availability schema validation failed: {errors}"
+    return payload
+
+
 def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None:
     paths = _setup_env(monkeypatch, tmp_path)
     output_dir = paths["output_dir"]
@@ -80,6 +94,12 @@ def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None
     assert payload["status"] == "success"
     assert payload["phases"]["snapshot_fetch"]["status"] == "success"
     assert payload["phases"]["score"]["status"] == "success"
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    assert availability["run_id"]
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["mode"] in {"snapshot", "live", "disabled"}
 
 
 def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: Any) -> None:
@@ -111,8 +131,147 @@ def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: A
     assert payload["status"] == "failed"
     assert payload["failed_stage"] == "classify"
     assert "CLASSIFY_STAGE_FAILED" in payload["failure_codes"]
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    assert availability["run_id"]
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
 
     run_reports = sorted(run_daily.RUN_METADATA_DIR.glob("*.json"))
     assert run_reports, "run_report metadata should still be written on controlled failure"
     run_report_payload = json.loads(run_reports[-1].read_text(encoding="utf-8"))
     assert run_report_payload["run_report_schema_version"] == 1
+    artifact_pointer = run_report_payload.get("provider_availability_artifact")
+    assert isinstance(artifact_pointer, dict)
+    assert artifact_pointer.get("path")
+
+
+def test_run_health_written_on_forced_failure(tmp_path: Path, monkeypatch: Any) -> None:
+    """Forced failure via JOBINTEL_FORCE_FAIL_STAGE emits run_health with failed_stage and FORCED_FAILURE."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+
+    monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "scrape")
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    def fake_run(cmd: list[str], *, stage: str) -> None:
+        if stage == "scrape":
+            (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage == "classify":
+            (output_dir / "openai_labeled_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage == "enrich":
+            (output_dir / "openai_enriched_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage.startswith("score:"):
+            profile = stage.split(":", 1)[1]
+            for path in (
+                run_daily._provider_ranked_jobs_json("openai", profile),
+                run_daily._provider_ranked_jobs_csv("openai", profile),
+                run_daily._provider_ranked_families_json("openai", profile),
+                run_daily._provider_shortlist_md("openai", profile),
+                run_daily._provider_top_md("openai", profile),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if path.suffix == ".json":
+                    path.write_text("[]", encoding="utf-8")
+                else:
+                    path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(run_daily, "_run", fake_run)
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    rc = run_daily.main()
+    assert rc != 0
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["status"] == "failed"
+    assert payload["failed_stage"] == "scrape"
+    assert "FORCED_FAILURE" in payload["failure_codes"]
+
+
+def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: Any) -> None:
+    """On forced failure, run_health and run_summary are emitted; provider_availability is not a separate
+    artifact (fail-closed: runner builds it from provenance, which may be empty on early failure).
+    """
+    paths = _setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "classify")
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    output_dir = paths["output_dir"]
+
+    def fake_run(cmd: list[str], *, stage: str) -> None:
+        if stage == "scrape":
+            (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
+        elif stage == "classify":
+            pass  # forced fail before _run executes
+
+    monkeypatch.setattr(run_daily, "_run", fake_run)
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    rc = run_daily.main()
+    assert rc != 0
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["failed_stage"] == "classify"
+    assert "FORCED_FAILURE" in payload["failure_codes"]
+
+    run_summaries = sorted(run_daily.RUN_METADATA_DIR.glob("*/run_summary.v1.json"))
+    assert run_summaries, "run_summary should be emitted on forced failure"
+
+
+def test_forced_failure_e2e_artifact_paths(tmp_path: Path, monkeypatch: Any) -> None:
+    """E2E: forced failure emits run_health and run_summary at canonical paths; provider_availability optional."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("JOBINTEL_FORCE_FAIL_STAGE", "scrape")
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(run_daily, "_run", lambda *a, **k: None)
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    rc = run_daily.main()
+    assert rc != 0
+
+    run_dirs = sorted(
+        (p for p in run_daily.RUN_METADATA_DIR.iterdir() if p.is_dir()),
+        key=lambda p: p.name,
+    )
+    assert run_dirs, "run dir should exist"
+    run_dir = run_dirs[-1]
+
+    run_health_path = run_dir / "run_health.v1.json"
+    run_summary_path = run_dir / "run_summary.v1.json"
+    provider_availability_path = run_dir / "artifacts" / "provider_availability_v1.json"
+
+    assert run_health_path.exists(), f"run_health must exist at {run_health_path}"
+    assert run_summary_path.exists(), f"run_summary must exist at {run_summary_path}"
+
+    health = json.loads(run_health_path.read_text(encoding="utf-8"))
+    summary = json.loads(run_summary_path.read_text(encoding="utf-8"))
+
+    assert health["status"] == "failed"
+    assert health["failed_stage"] == "scrape"
+    assert "FORCED_FAILURE" in health["failure_codes"]
+    assert summary["status"] == "failed"
+    assert "run_health" in summary
+
+    # provider_availability: optional on early forced failure (fail-closed)
+    # If present, validate; if absent, acceptable per m12-forced-failure-receipts
