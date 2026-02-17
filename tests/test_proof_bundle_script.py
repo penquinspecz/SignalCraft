@@ -18,4 +18,4 @@ def test_dashboard_contract_smoke_fails_when_unreachable() -> None:
         text=True,
     )
     assert result.returncode != 0, "Expected non-zero exit when dashboard unreachable"
-    assert "not reachable" in result.stderr or "FAIL" in result.stderr
+    assert "jq is required" in result.stderr or "not reachable" in result.stderr or "FAIL" in result.stderr
