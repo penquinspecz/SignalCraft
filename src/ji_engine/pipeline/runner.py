@@ -164,6 +164,8 @@ RUN_HEALTH_SCHEMA_VERSION = 1
 RUN_SUMMARY_SCHEMA_VERSION = 1
 PROOF_RECEIPT_SCHEMA_VERSION = 1
 PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
+EARLY_FAILURE_UNKNOWN_REASON_CODE = "early_failure_unknown"
+EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON = "fail_closed:unknown_due_to_early_failure"
 try:
     CANDIDATE_ID = sanitize_candidate_id(os.environ.get("JOBINTEL_CANDIDATE_ID", DEFAULT_CANDIDATE_ID))
 except ValueError as exc:
@@ -816,7 +818,12 @@ def _provider_policy_details(meta: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _provider_reason_code(meta: Dict[str, Any], provider_cfg: Optional[Dict[str, Any]]) -> str:
+def _provider_reason_code(
+    meta: Dict[str, Any],
+    provider_cfg: Optional[Dict[str, Any]],
+    *,
+    availability: Optional[str] = None,
+) -> str:
     tombstone = provider_cfg.get("tombstone") if isinstance(provider_cfg, dict) else None
     if isinstance(tombstone, dict) and bool(tombstone.get("enabled", False)):
         return "tombstoned"
@@ -824,9 +831,12 @@ def _provider_reason_code(meta: Dict[str, Any], provider_cfg: Optional[Dict[str,
         return "not_enabled"
 
     reason_raw = str(meta.get("unavailable_reason") or "").strip().lower()
+    availability_value = str(availability or meta.get("availability") or "").strip().lower()
     if not reason_raw:
-        if str(meta.get("availability") or "").strip().lower() == "available":
+        if availability_value == "available":
             return "ok"
+        if availability_value == "unavailable":
+            return EARLY_FAILURE_UNKNOWN_REASON_CODE
         return "unknown"
     if "tombstone" in reason_raw:
         return "tombstoned"
@@ -869,6 +879,15 @@ def _write_provider_availability_artifact(
                 availability = "unavailable"
             else:
                 availability = "unavailable"
+        reason_code = _provider_reason_code(meta, provider_cfg, availability=availability)
+        unavailable_reason = meta.get("unavailable_reason")
+        if (
+            availability == "unavailable"
+            and reason_code == EARLY_FAILURE_UNKNOWN_REASON_CODE
+            and not str(unavailable_reason or "").strip()
+        ):
+            unavailable_reason = EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON
+
         providers_payload.append(
             {
                 "provider_id": provider_id,
@@ -881,8 +900,8 @@ def _write_provider_availability_artifact(
                 if isinstance(provider_cfg, dict)
                 else False,
                 "availability": availability,
-                "reason_code": _provider_reason_code(meta, provider_cfg),
-                "unavailable_reason": meta.get("unavailable_reason"),
+                "reason_code": reason_code,
+                "unavailable_reason": unavailable_reason,
                 "attempts_made": meta.get("attempts_made"),
                 "policy": _provider_policy_details(meta),
             }
@@ -4498,6 +4517,7 @@ def main() -> int:
             }
             _write_last_run(telemetry)
             logger.error("Cost guardrail violation: %s", telemetry["error"])
+        scoring_model_metadata: Optional[Dict[str, Any]] = None
         try:
             scoring_model_metadata = build_scoring_model_metadata(
                 config=scoring_config,
@@ -4514,14 +4534,41 @@ def main() -> int:
             telemetry["failed_stage"] = "scoring_model_metadata"
             telemetry["error"] = str(exc)
             _write_last_run(telemetry)
-            return final_status
-        provider_availability_path = _write_provider_availability_artifact(
-            run_id=run_id,
-            candidate_id=CANDIDATE_ID,
-            selected_providers=providers,
-            provenance_by_provider=provenance_by_provider,
-            providers_config_path=Path(args.providers_config),
-        )
+        providers_config_path = Path(args.providers_config)
+        try:
+            provider_availability_path = _write_provider_availability_artifact(
+                run_id=run_id,
+                candidate_id=CANDIDATE_ID,
+                selected_providers=providers,
+                provenance_by_provider=provenance_by_provider,
+                providers_config_path=providers_config_path,
+            )
+        except Exception as exc:
+            logger.error("Failed to write provider availability artifact; retrying fail-closed fallback: %r", exc)
+            fail_closed_provenance: Dict[str, Dict[str, Any]] = {}
+            for provider in providers:
+                existing_meta = (
+                    provenance_by_provider.get(provider)
+                    if isinstance(provenance_by_provider.get(provider), dict)
+                    else {}
+                )
+                meta = dict(existing_meta)
+                availability = str(meta.get("availability") or "").strip().lower()
+                if availability not in {"available", "unavailable"}:
+                    meta["availability"] = "unavailable"
+                if str(meta.get("availability") or "").strip().lower() != "available":
+                    if not str(meta.get("unavailable_reason") or "").strip():
+                        meta["unavailable_reason"] = EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON
+                    if meta.get("attempts_made") is None:
+                        meta["attempts_made"] = 0
+                fail_closed_provenance[provider] = meta
+            provider_availability_path = _write_provider_availability_artifact(
+                run_id=run_id,
+                candidate_id=CANDIDATE_ID,
+                selected_providers=providers,
+                provenance_by_provider=fail_closed_provenance,
+                providers_config_path=providers_config_path,
+            )
         provider_availability_pointer = _artifact_pointer(provider_availability_path)
         run_metadata_path = _persist_run_metadata(
             run_id,
