@@ -55,6 +55,15 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
+from ji_engine.pipeline.run_pathing import (
+    resolve_summary_path as _resolve_summary_path_impl,
+)
+from ji_engine.pipeline.run_pathing import (
+    sanitize_run_id as _sanitize_run_id,
+)
+from ji_engine.pipeline.run_pathing import (
+    summary_path_text as _summary_path_text_impl,
+)
 from ji_engine.pipeline.stages import (
     build_ai_augment_command,
     build_ai_insights_command,
@@ -1207,10 +1216,6 @@ def _run_health_path(run_id: str) -> Path:
     return _run_registry_dir(run_id) / "run_health.v1.json"
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
-
-
 def _run_health_schema() -> Dict[str, Any]:
     global _RUN_HEALTH_SCHEMA_CACHE
     if _RUN_HEALTH_SCHEMA_CACHE is None:
@@ -1256,17 +1261,11 @@ def _run_audit_schema() -> Dict[str, Any]:
 
 
 def _summary_path_text(path: Path) -> str:
-    try:
-        return path.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
-    except ValueError:
-        return path.as_posix()
+    return _summary_path_text_impl(path, repo_root=REPO_ROOT)
 
 
 def _resolve_summary_path(path_value: str) -> Path:
-    candidate = Path(path_value)
-    if candidate.is_absolute():
-        return candidate
-    return (REPO_ROOT / candidate).resolve()
+    return _resolve_summary_path_impl(path_value, repo_root=REPO_ROOT)
 
 
 def _artifact_pointer(path: Optional[Path], *, sha_hint: Optional[str] = None) -> Dict[str, Any]:
