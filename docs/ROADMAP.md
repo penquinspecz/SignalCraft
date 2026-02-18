@@ -348,15 +348,15 @@ Receipts Required
 ## Milestone 20 — On-Prem Migration Contract (AWS → k3s) ◐
 
 Goal: Migration is engineered, not improvised.
-Status: ◐ On-prem deploy runbooks + deterministic rehearsal are in place; formal AWS-vs-onprem dual-run diff contract is still pending.
-Evidence: `ops/onprem/RUNBOOK_DEPLOY.md`, `ops/onprem/RUNBOOK_DNS.md`, `scripts/onprem_rehearsal.py`, `schemas/onprem_rehearsal_receipt.schema.v1.json`.
+Status: ◐ On-prem deploy runbooks + deterministic rehearsal are in place, and the dual-run diff contract tool/receipt are landed; milestone remains incomplete until a real AWS-vs-onprem run pair is executed and receipted.
+Evidence: `ops/onprem/RUNBOOK_DEPLOY.md`, `ops/onprem/RUNBOOK_DNS.md`, `scripts/onprem_rehearsal.py`, `schemas/onprem_rehearsal_receipt.schema.v1.json`, `scripts/compare_run_artifacts.py`, `tests/test_compare_run_artifacts.py`, `docs/proof/m20-dual-run-diff-2026-02-17.md`.
 
 Definition of Done
 - [ ] Data migration plan documented
 - [ ] Artifact compatibility verified
 - [ ] Backwards compatibility test suite passes
 - [x] Rollback plan documented
-- [ ] Dual-run validation (AWS vs on-prem output diff)
+- [ ] Dual-run validation (AWS vs on-prem output diff) executed with a real run pair (tooling/contract is landed)
 - [ ] Zero artifact schema changes required
 - [ ] Migration dry run executed
 
@@ -391,23 +391,24 @@ Receipts Required
 
 # GOVERNANCE & PRODUCTIZATION PREREQS
 
-## Milestone 22 — Security Review Pack v1 (Audited Posture) ◐
+## Milestone 22 — Security Review Pack v1 (Audited Posture) ✅
 
 Goal: Security posture is audited, not assumed.
-Status: ◐ Security posture/runbooks and SSRF stance are documented; full formal threat-model + IAM review package remains incomplete.
-Evidence: `SECURITY.md`, `docs/LEGAL_POSITIONING.md`, `ops/onprem/RUNBOOK_DNS.md`, `tests/test_redaction_guard.py`.
+Status: ✅ Formal threat model, dependency audit receipt, IAM checklist, redaction-behavior tests, and CI dependency-audit guardrail are landed; follow-on hardening for runner redaction default mode is tracked in issue #167.
+Evidence: `docs/security/threat_model_v1.md`, `docs/proof/security-dependency-audit-2026-02-17.md`, `SECURITY.md`, `scripts/security_dependency_check.py`, `.github/workflows/ci.yml`, `tests/test_runner_redaction_enforcement.py`, `tests/test_redaction_guard.py`, `tests/test_run_summary_artifact.py`, `docs/LEGAL_POSITIONING.md`.
 
 Definition of Done
-- [ ] Threat model document created (multi-tenant aware)
-- [ ] Attack surface review performed
+- [x] Threat model document created (multi-tenant aware)
+- [x] Attack surface review performed
 - [x] Secrets handling reviewed + redaction tests enforced
   - Clarification: regex redaction is best-effort only, and is not the primary security control
   - Primary control: no secrets are written to artifacts/log bundles by construction
-- [ ] Dependency audit completed
-- [ ] Least-privilege IAM documented (AWS + on-prem)
+- [x] Dependency audit completed
+- [x] Least-privilege IAM documented (AWS + on-prem)
 - [x] Static analysis tool integrated
 - [x] SECURITY.md aligned with reality
 - [x] “User-supplied URL/provider” policy documented (SSRF/egress stance)
+  - Follow-on: runner redaction default fail-closed hardening tracked in `https://github.com/penquinspecz/SignalCraft/issues/167`
 
 Receipts Required
 - Threat model artifact
