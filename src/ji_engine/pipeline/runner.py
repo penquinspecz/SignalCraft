@@ -43,6 +43,7 @@ from ji_engine.config import (
     candidate_last_run_read_paths,
     candidate_last_success_pointer_path,
     candidate_last_success_read_paths,
+    candidate_profile_path,
     candidate_state_paths,
     ensure_dirs,
     ranked_families_json,
@@ -162,6 +163,7 @@ USE_SUBPROCESS = True
 RUN_REPORT_SCHEMA_VERSION = 1
 RUN_HEALTH_SCHEMA_VERSION = 1
 RUN_SUMMARY_SCHEMA_VERSION = 1
+RUN_AUDIT_SCHEMA_VERSION = 1
 PROOF_RECEIPT_SCHEMA_VERSION = 1
 PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
 EARLY_FAILURE_UNKNOWN_REASON_CODE = "early_failure_unknown"
@@ -199,6 +201,7 @@ RUN_HEALTH_FAILURE_CODES = (
 )
 _RUN_HEALTH_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_RUN_AUDIT_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _PROVIDER_AVAILABILITY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 StageStatus = Literal["success", "skipped", "error"]
@@ -928,6 +931,111 @@ def _write_provider_availability_artifact(
     return path
 
 
+def _resolve_trigger_type() -> str:
+    raw = str(os.environ.get("JOBINTEL_TRIGGER_TYPE") or "").strip().lower()
+    if raw in {"manual", "cron", "replay"}:
+        return raw
+    return "manual"
+
+
+def _resolve_actor() -> str:
+    candidates = [
+        os.environ.get("JOBINTEL_ACTOR"),
+        os.environ.get("USER"),
+        os.environ.get("USERNAME"),
+    ]
+    allowed_chars = {"-", "_", ".", "@"}
+    for raw in candidates:
+        if raw is None:
+            continue
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        normalized = "".join(ch for ch in stripped if ch.isalnum() or ch in allowed_chars)
+        if normalized:
+            return normalized[:128]
+    return "unknown"
+
+
+def _current_profile_hash(candidate_id: str) -> Optional[str]:
+    primary = candidate_profile_path(candidate_id)
+    digest = _hash_file(primary)
+    if digest is not None:
+        return digest
+    if candidate_id == DEFAULT_CANDIDATE_ID:
+        legacy = _workspace().data_dir / "candidate_profile.json"
+        return _hash_file(legacy)
+    return None
+
+
+def _previous_profile_hash(previous_run: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not isinstance(previous_run, dict):
+        return None
+    prev_run_id = previous_run.get("run_id")
+    if not isinstance(prev_run_id, str) or not prev_run_id:
+        return None
+    path = _run_audit_path(prev_run_id)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("candidate_id") != CANDIDATE_ID:
+        return None
+    value = payload.get("profile_hash")
+    if isinstance(value, str) and value:
+        return value
+    return None
+
+
+def _config_hashes(providers_config_path: Path, config_fingerprint: str) -> Dict[str, Optional[str]]:
+    return {
+        "scoring_v1_json_sha256": _hash_file(SCORING_CONFIG_PATH),
+        "profiles_json_sha256": _hash_file(PROFILES_CONFIG_PATH),
+        "providers_json_sha256": _hash_file(providers_config_path),
+        "config_fingerprint": config_fingerprint,
+    }
+
+
+def _write_run_audit_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    telemetry: Dict[str, Any],
+    providers_config_path: Path,
+    config_fingerprint: str,
+    previous_run: Optional[Dict[str, Any]],
+) -> Path:
+    profile_hash = _current_profile_hash(candidate_id)
+    previous_hash = _previous_profile_hash(previous_run)
+    payload: Dict[str, Any] = {
+        "run_audit_schema_version": RUN_AUDIT_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "trigger_type": _resolve_trigger_type(),
+        "actor": _resolve_actor(),
+        "profile_hash": profile_hash,
+        "config_hashes": _config_hashes(providers_config_path, config_fingerprint),
+        "timestamp_utc": telemetry.get("started_at") if isinstance(telemetry.get("started_at"), str) else None,
+    }
+    if previous_hash and previous_hash != profile_hash:
+        payload["profile_hash_previous"] = previous_hash
+    errors = validate_payload(payload, _run_audit_schema())
+    if errors:
+        raise RuntimeError(f"run_audit schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    path = _run_audit_path(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _redaction_guard_json(path, payload)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _get_env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
     if raw is None:
@@ -1127,12 +1235,24 @@ def _provider_availability_path(run_id: str) -> Path:
     return _run_registry_dir(run_id) / "artifacts" / "provider_availability_v1.json"
 
 
+def _run_audit_path(run_id: str) -> Path:
+    return _run_registry_dir(run_id) / "artifacts" / "run_audit_v1.json"
+
+
 def _provider_availability_schema() -> Dict[str, Any]:
     global _PROVIDER_AVAILABILITY_SCHEMA_CACHE
     if _PROVIDER_AVAILABILITY_SCHEMA_CACHE is None:
         schema_path = resolve_named_schema_path("provider_availability", PROVIDER_AVAILABILITY_SCHEMA_VERSION)
         _PROVIDER_AVAILABILITY_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
     return _PROVIDER_AVAILABILITY_SCHEMA_CACHE
+
+
+def _run_audit_schema() -> Dict[str, Any]:
+    global _RUN_AUDIT_SCHEMA_CACHE
+    if _RUN_AUDIT_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("run_audit", RUN_AUDIT_SCHEMA_VERSION)
+        _RUN_AUDIT_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _RUN_AUDIT_SCHEMA_CACHE
 
 
 def _summary_path_text(path: Path) -> str:
@@ -2124,6 +2244,7 @@ def _persist_run_metadata(
     scoring_model: Optional[Dict[str, Any]] = None,
     providers_config: Optional[str] = None,
     provider_availability_pointer: Optional[Dict[str, Any]] = None,
+    run_audit_pointer: Optional[Dict[str, Any]] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -2213,6 +2334,7 @@ def _persist_run_metadata(
         "selection": selection,
         "provider_availability_artifact": provider_availability_pointer
         or _artifact_pointer(_provider_availability_path(run_id)),
+        "run_audit_artifact": run_audit_pointer or _artifact_pointer(_run_audit_path(run_id)),
         "inputs": inputs,
         "scoring_inputs_by_profile": scoring_inputs_by_profile,
         "scoring_input_selection_by_profile": scoring_input_selection_by_profile,
@@ -4570,6 +4692,15 @@ def main() -> int:
                 providers_config_path=providers_config_path,
             )
         provider_availability_pointer = _artifact_pointer(provider_availability_path)
+        run_audit_path = _write_run_audit_artifact(
+            run_id=run_id,
+            candidate_id=CANDIDATE_ID,
+            telemetry=telemetry,
+            providers_config_path=providers_config_path,
+            config_fingerprint=config_fingerprint,
+            previous_run=prev_run if isinstance(prev_run, dict) else None,
+        )
+        run_audit_pointer = _artifact_pointer(run_audit_path)
         run_metadata_path = _persist_run_metadata(
             run_id,
             telemetry,
@@ -4603,6 +4734,7 @@ def main() -> int:
             scoring_model=scoring_model_metadata,
             providers_config=args.providers_config,
             provider_availability_pointer=provider_availability_pointer,
+            run_audit_pointer=run_audit_pointer,
         )
         if telemetry.get("success", False):
             try:

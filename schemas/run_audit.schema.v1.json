@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "run_audit schema v1",
+  "type": "object",
+  "required": [
+    "run_audit_schema_version",
+    "run_id",
+    "candidate_id",
+    "trigger_type",
+    "actor",
+    "profile_hash",
+    "config_hashes",
+    "timestamp_utc"
+  ],
+  "properties": {
+    "run_audit_schema_version": {
+      "type": "integer"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "trigger_type": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "cron",
+        "replay"
+      ]
+    },
+    "actor": {
+      "type": "string"
+    },
+    "profile_hash": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "profile_hash_previous": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "config_hashes": {
+      "type": "object",
+      "required": [
+        "scoring_v1_json_sha256",
+        "profiles_json_sha256",
+        "providers_json_sha256",
+        "config_fingerprint"
+      ],
+      "properties": {
+        "scoring_v1_json_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profiles_json_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "providers_json_sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "config_fingerprint": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "timestamp_utc": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
