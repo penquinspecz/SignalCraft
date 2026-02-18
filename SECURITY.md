@@ -57,6 +57,7 @@ SignalCraft is designed to minimize sensitive data handling:
 - **No secrets in the repo** (and we will remove any discovered secrets immediately)
 - Runs produce artifacts under `state/` and may include scraped **public** job posting text/metadata
 - The pipeline includes redaction/scanning guardrails to reduce accidental secret exposure risk
+- Current known risk (P1): runner redaction checks are warn-only unless `REDACTION_ENFORCE=1`; follow-up tracked in issue #167: https://github.com/penquinspecz/SignalCraft/issues/167
 
 If your report involves data handling concerns, include:
 - Which artifact(s) are impacted
@@ -67,6 +68,38 @@ If your report involves data handling concerns, include:
 - Dependencies are managed via the repo’s dependency contract (lock/pins where applicable)
 - We prioritize fixes based on severity, exploitability, and operational impact
 - We may temporarily mitigate by disabling a feature path (fail-closed) if that is the safest short-term option
+
+## IAM Baseline (Conceptual)
+
+This checklist is a policy baseline for infrastructure reviews. It does not change runtime behavior.
+
+### AWS (S3-focused least privilege)
+
+- Use separate principals for write paths (pipeline) and read paths (dashboard/replay tooling).
+- Scope `s3:ListBucket` with `s3:prefix` conditions to approved artifact prefixes only.
+- Scope `s3:GetObject` to required read prefixes only.
+- Scope `s3:PutObject` to required write prefixes only.
+- Do not grant `s3:DeleteObject` by default; allow only in explicitly documented retention/GC workflows.
+- Keep wildcard `Action: "*"`, `Resource: "*"`, and broad `iam:PassRole` out of runtime roles.
+- Prefer explicit deny statements for out-of-scope buckets/prefixes where feasible.
+
+### On-Prem file permissions model
+
+- Run services as a dedicated non-root account.
+- Keep state/artifact roots owner-writable only (`0700` directories minimum baseline).
+- Keep artifact/log/proof files non-world-readable (`0640` or stricter).
+- Keep dashboard/API process on read-only mounts where feasible for artifact serving paths.
+- Prevent symlink/path-escape reads by resolving through repository/path guards only.
+- Keep backup/export paths encrypted at rest and access-logged.
+
+### IAM Review Checklist (M22)
+
+- [ ] AWS write principal only has prefix-scoped `ListBucket` + `PutObject` (+ required multipart completes).
+- [ ] AWS read principal only has prefix-scoped `ListBucket` + `GetObject`.
+- [ ] No default delete permission on artifact buckets/prefixes.
+- [ ] No wildcard IAM permissions in runtime principals.
+- [ ] On-prem service account is non-root and directory/file modes are hardened.
+- [ ] Artifact serving path remains index-constrained (no arbitrary filesystem reads).
 
 ## Safe Harbor
 
