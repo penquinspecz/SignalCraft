@@ -73,7 +73,7 @@ Evidence expectations:
 
 # Current State
 
-Last verification run: 2026-02-17 on commit `9a6d4e492b15034790dd07143c7f541ba0ea43b3` (`make ci-fast` + `make gate` passed on this SHA; `main` may have advanced since. See CI + proof receipts.)
+Last verified: 2026-02-17 on commit `610d859a1f339cc2504e8f3a201677ce43a7f375` (we ran mainline verification checks on this SHA; `main` may have advanced since. See CI + proof receipts.)
 Latest release: v0.1.0
 
 Foundation exists:
@@ -172,16 +172,16 @@ Receipts Required
 
 ---
 
-## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability) ✅
+## Milestone 12 — Operations Hardening Pack v1 (Explicit Failure + Inspectability) ◐
 
 Goal: Failure is explicit and inspectable.
-Status: ✅ Run health taxonomy + summary + run inspection + failure playbook receipts are landed, and `provider_availability_v1.json` now emits fail-closed on every finalized run path (success and failure modes).
-Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `schemas/provider_availability.schema.v1.json`, `docs/OPS_RUNBOOK.md`, `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-provider-availability-every-run-2026-02-17.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `scripts/run_daily.py`, `tests/test_run_health_artifact.py`.
+Status: ◐ Run health taxonomy + summary + run inspection + failure playbook receipts are landed; strict “provider availability artifact generated every run” is still open.
+Evidence: `schemas/run_health.schema.v1.json`, `schemas/run_summary.schema.v1.json`, `schemas/provider_availability.schema.v1.json`, `docs/OPS_RUNBOOK.md`, `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `scripts/run_daily.py`, `tests/test_run_health_artifact.py`.
 
 Definition of Done
 - [x] `failed_stage` always populated on failure
 - [x] Cost telemetry always written (even on partial failure)
-- [x] Provider availability artifact generated every run
+- [ ] Provider availability artifact generated every run
 - [x] One-command run inspection tooling (human-friendly)
 - [x] CI smoke matches real run structure
 - [x] Failure playbook updated
@@ -303,18 +303,18 @@ Receipts Required
 
 ---
 
-## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ✅
+## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ◐
 
 Goal: Releases are evidence-backed.
-Status: ✅ Release checklist/process, changelog enforcement policy in CI, and reproducible build instructions verification receipts are in place.
-Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `docs/proof/m18-changelog-enforcement-2026-02-17.md`, `scripts/preflight_env.py`, `scripts/check_changelog_policy.py`, `.github/workflows/ci.yml`.
+Status: ◐ Release process and proof artifacts exist; changelog enforcement and full reproducible-build verification need explicit CI enforcement.
+Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `scripts/preflight_env.py`.
 
 Definition of Done
 - [x] Release checklist codified
 - [x] Preflight validation script exists
-- [x] Changelog enforcement policy
+- [ ] Changelog enforcement policy
 - [x] Every release includes proof bundle
-- [x] Reproducible build instructions verified
+- [ ] Reproducible build instructions verified
 
 Receipts Required
 - One full release dry-run proof bundle
@@ -348,15 +348,15 @@ Receipts Required
 ## Milestone 20 — On-Prem Migration Contract (AWS → k3s) ◐
 
 Goal: Migration is engineered, not improvised.
-Status: ◐ On-prem deploy runbooks + deterministic rehearsal are in place; formal AWS-vs-onprem dual-run diff contract is still pending.
-Evidence: `ops/onprem/RUNBOOK_DEPLOY.md`, `ops/onprem/RUNBOOK_DNS.md`, `scripts/onprem_rehearsal.py`, `schemas/onprem_rehearsal_receipt.schema.v1.json`.
+Status: ◐ On-prem deploy runbooks + deterministic rehearsal are in place, and the dual-run diff contract tool/receipt are landed; milestone remains incomplete until a real AWS-vs-onprem run pair is executed and receipted.
+Evidence: `ops/onprem/RUNBOOK_DEPLOY.md`, `ops/onprem/RUNBOOK_DNS.md`, `scripts/onprem_rehearsal.py`, `schemas/onprem_rehearsal_receipt.schema.v1.json`, `scripts/compare_run_artifacts.py`, `tests/test_compare_run_artifacts.py`, `docs/proof/m20-dual-run-diff-2026-02-17.md`.
 
 Definition of Done
 - [ ] Data migration plan documented
 - [ ] Artifact compatibility verified
 - [ ] Backwards compatibility test suite passes
 - [x] Rollback plan documented
-- [ ] Dual-run validation (AWS vs on-prem output diff)
+- [ ] Dual-run validation (AWS vs on-prem output diff) executed with a real run pair (tooling/contract is landed)
 - [ ] Zero artifact schema changes required
 - [ ] Migration dry run executed
 
@@ -391,23 +391,24 @@ Receipts Required
 
 # GOVERNANCE & PRODUCTIZATION PREREQS
 
-## Milestone 22 — Security Review Pack v1 (Audited Posture) ◐
+## Milestone 22 — Security Review Pack v1 (Audited Posture) ✅
 
 Goal: Security posture is audited, not assumed.
-Status: ◐ Security posture/runbooks and SSRF stance are documented; full formal threat-model + IAM review package remains incomplete.
-Evidence: `SECURITY.md`, `docs/LEGAL_POSITIONING.md`, `ops/onprem/RUNBOOK_DNS.md`, `tests/test_redaction_guard.py`.
+Status: ✅ Formal threat model, dependency audit receipt, IAM checklist, redaction-behavior tests, and CI dependency-audit guardrail are landed; follow-on hardening for runner redaction default mode is tracked in issue #167.
+Evidence: `docs/security/threat_model_v1.md`, `docs/proof/security-dependency-audit-2026-02-17.md`, `SECURITY.md`, `scripts/security_dependency_check.py`, `.github/workflows/ci.yml`, `tests/test_runner_redaction_enforcement.py`, `tests/test_redaction_guard.py`, `tests/test_run_summary_artifact.py`, `docs/LEGAL_POSITIONING.md`.
 
 Definition of Done
-- [ ] Threat model document created (multi-tenant aware)
-- [ ] Attack surface review performed
+- [x] Threat model document created (multi-tenant aware)
+- [x] Attack surface review performed
 - [x] Secrets handling reviewed + redaction tests enforced
   - Clarification: regex redaction is best-effort only, and is not the primary security control
   - Primary control: no secrets are written to artifacts/log bundles by construction
-- [ ] Dependency audit completed
-- [ ] Least-privilege IAM documented (AWS + on-prem)
+- [x] Dependency audit completed
+- [x] Least-privilege IAM documented (AWS + on-prem)
 - [x] Static analysis tool integrated
 - [x] SECURITY.md aligned with reality
 - [x] “User-supplied URL/provider” policy documented (SSRF/egress stance)
+  - Follow-on: runner redaction default fail-closed hardening tracked in `https://github.com/penquinspecz/SignalCraft/issues/167`
 
 Receipts Required
 - Threat model artifact
