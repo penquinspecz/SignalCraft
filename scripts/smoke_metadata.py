@@ -7,13 +7,9 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 RUN_REPORT_SCHEMA_VERSION = 1
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def _git_sha() -> str | None:
@@ -42,7 +38,7 @@ def build_metadata(providers: List[str], profiles: List[str]) -> Dict[str, Any]:
         "git_sha": _git_sha(),
         "providers": providers,
         "profiles": profiles,
-        "timestamp": _utcnow_iso(),
+        "timestamp": utc_now_iso(),
         # Keep smoke metadata dependency-light; CI smoke host intentionally avoids full app deps.
         "run_report_schema_version": RUN_REPORT_SCHEMA_VERSION,
         "smoke_contract_version": _smoke_contract_check.SMOKE_CONTRACT_VERSION,

@@ -11,17 +11,13 @@ from typing import Literal, Optional, Tuple
 
 from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.utils.network_shield import NetworkShieldError, safe_get_text, validate_url_destination
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 FetchMethod = Literal["requests", "playwright"]
 _FETCH_MAX_BYTES = 2_000_000
 _FETCH_MAX_REDIRECTS = 5
 _META_TEXT_LIMIT = 2048
 _META_ERROR_LIMIT = 512
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def _clip(value: Optional[str], *, limit: int) -> Optional[str]:
@@ -45,7 +41,7 @@ def fetch_html(
         "url": _clip(url, limit=_META_TEXT_LIMIT),
         "final_url": None,
         "status_code": None,
-        "fetched_at": _utcnow_iso(),
+        "fetched_at": utc_now_iso(),
         "bytes_len": 0,
         "error": None,
     }
