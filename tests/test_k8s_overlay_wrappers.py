@@ -17,3 +17,10 @@ def test_wrapper_overlays_exist_with_common_labels() -> None:
         assert "resources:" in text
         assert "commonLabels:" in text
         assert label in text
+
+
+def test_live_overlay_sets_redaction_enforce_fail_closed() -> None:
+    path = Path("ops/k8s/overlays/live/patch-configmap.yaml")
+    assert path.exists(), "missing live overlay configmap patch"
+    text = path.read_text(encoding="utf-8")
+    assert 'REDACTION_ENFORCE: "1"' in text
