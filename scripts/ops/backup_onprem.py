@@ -21,23 +21,11 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from ji_engine.utils.time import utc_now, utc_now_z  # noqa: E402
+from scripts.ops.dr_contract import parse_s3_uri  # noqa: E402
 
 
 def _utc_compact() -> str:
     return utc_now().strftime("%Y%m%dT%H%M%SZ")
-
-
-def _parse_s3_uri(uri: str) -> tuple[str, str]:
-    if not uri.startswith("s3://"):
-        raise ValueError("backup-uri must start with s3://")
-    payload = uri[len("s3://") :]
-    if "/" not in payload:
-        raise ValueError("backup-uri must include bucket and key prefix")
-    bucket, prefix = payload.split("/", 1)
-    prefix = prefix.strip("/")
-    if not bucket or not prefix:
-        raise ValueError("backup-uri bucket/prefix is empty")
-    return bucket, prefix
 
 
 def _sha256_file(path: Path) -> str:
@@ -136,7 +124,8 @@ def main(argv: list[str] | None = None) -> int:
             f.write(line + "\n")
 
     try:
-        bucket, prefix = _parse_s3_uri(args.backup_uri)
+        location = parse_s3_uri(args.backup_uri)
+        bucket, prefix = location.bucket, location.key_prefix
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
