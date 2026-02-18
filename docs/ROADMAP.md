@@ -395,7 +395,7 @@ Receipts Required
 
 Goal: Security posture is audited, not assumed.
 Status: ✅ Formal threat model, dependency audit receipt, IAM checklist, redaction-behavior tests, and CI dependency-audit guardrail are landed; follow-on hardening for runner redaction default mode is tracked in issue #167.
-Evidence: `docs/security/threat_model_v1.md`, `docs/proof/security-dependency-audit-2026-02-17.md`, `SECURITY.md`, `scripts/security_dependency_check.py`, `.github/workflows/ci.yml`, `tests/test_runner_redaction_enforcement.py`, `tests/test_redaction_guard.py`, `tests/test_run_summary_artifact.py`, `docs/LEGAL_POSITIONING.md`.
+Evidence: `docs/security/threat_model_v1.md`, `docs/proof/security-dependency-audit-2026-02-17.md`, `docs/proof/m22-redaction-mode-contract-2026-02-18.md`, `SECURITY.md`, `scripts/security_dependency_check.py`, `.github/workflows/ci.yml`, `tests/test_runner_redaction_enforcement.py`, `tests/test_redaction_guard.py`, `tests/test_run_summary_artifact.py`, `docs/LEGAL_POSITIONING.md`.
 
 Definition of Done
 - [x] Threat model document created (multi-tenant aware)
