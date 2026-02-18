@@ -42,6 +42,8 @@ jobs:
           .venv/bin/python -m pip install --upgrade pip==25.0.1 setuptools wheel pip-tools==7.4.1
           .venv/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
           .venv/bin/python -m pip install -e .
+      - name: Dependency vulnerability audit (runtime, non-flaky retries)
+        run: .venv/bin/python scripts/security_dependency_check.py --requirements requirements.txt
       - name: Fast feedback (ruff + pytest)
         run: make ci-fast
 
