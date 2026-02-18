@@ -15,6 +15,7 @@ def test_preflight_run_mode_no_required(monkeypatch, capsys) -> None:
     assert code == 0
     out = capsys.readouterr().out
     assert "MODE: run" in out
+    assert "DEPLOYMENT_ENV: dev" in out
     assert "REQUIRED" in out
 
 
@@ -45,3 +46,30 @@ def test_preflight_ai_requires_key(monkeypatch, capsys) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     code = preflight_env.main(["--mode", "run"])
     assert code == 0
+
+
+def test_preflight_prod_requires_redaction_enforce(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("REDACTION_ENFORCE", raising=False)
+    monkeypatch.delenv("AI_ENABLED", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    code = preflight_env.main(["--mode", "run", "--deployment-env", "prod"])
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "REDACTION_ENFORCE=1" in err
+
+    monkeypatch.setenv("REDACTION_ENFORCE", "1")
+    code = preflight_env.main(["--mode", "run", "--deployment-env", "prod"])
+    assert code == 0
+
+
+def test_preflight_prod_inferred_from_env(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("JOBINTEL_DEPLOY_ENV", "production")
+    monkeypatch.delenv("REDACTION_ENFORCE", raising=False)
+    monkeypatch.delenv("AI_ENABLED", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    code = preflight_env.main(["--mode", "verify"])
+    assert code == 2
+    out = capsys.readouterr().out
+    assert "DEPLOYMENT_ENV: prod" in out
