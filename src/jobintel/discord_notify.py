@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from ji_engine.providers.retry import evaluate_allowlist_policy
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -31,10 +31,6 @@ def resolve_webhook(profile: str) -> str:
     if override:
         return override
     return os.environ.get("DISCORD_WEBHOOK_URL", "").strip()
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def _load_ranked(path: Path) -> list[dict]:
@@ -70,7 +66,7 @@ def build_run_summary_message(
     diff_items: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     diff_top_n: int = 5,
 ) -> str:
-    ts = timestamp or _utcnow_iso()
+    ts = timestamp or utc_now_iso()
     jobs = _load_ranked(ranked_json)
     shortlist_count = _count_shortlist(jobs, min_score)
 

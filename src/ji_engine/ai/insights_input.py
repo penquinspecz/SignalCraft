@@ -15,7 +15,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 _TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9+#.-]*")
 _TRACKED_DIFF_FIELDS = ("title", "location", "team", "score", "final_score", "role_band")
@@ -44,10 +44,6 @@ _SKILL_KEYWORDS = {
     "go",
     "rust",
 }
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -281,7 +277,7 @@ def build_weekly_insights_input(
     previous_median = _median_score(prev_jobs)
     payload: Dict[str, Any] = {
         "schema_version": 1,
-        "generated_at": _utcnow_iso(),
+        "generated_at": utc_now_iso(),
         "run_id": run_id,
         "provider": provider,
         "profile": profile,
