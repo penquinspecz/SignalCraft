@@ -440,18 +440,18 @@ Receipts Required
 
 ---
 
-## Milestone 24 — Multi-User Plumbing v1 (Foundation + Isolation) ◐
+## Milestone 24 — Multi-User Plumbing v1 (Foundation + Isolation) ✅
 
 Goal: Prepare for product without UI complexity.
-Status: ◐ Candidate registry/schema/isolation are implemented with backward compatibility for `local`; audit trail depth is still partial.
-Evidence: `schemas/candidate_profile.schema.v1.json`, `src/ji_engine/candidates/registry.py`, `scripts/candidates.py`, `tests/test_candidate_namespace.py`, `tests/test_candidate_state_contract.py`.
+Status: ✅ Candidate registry/schema/isolation are implemented with backward compatibility for `local`, and run audit trail artifacts now emit on every finalized run path.
+Evidence: `schemas/candidate_profile.schema.v1.json`, `schemas/run_audit.schema.v1.json`, `src/ji_engine/candidates/registry.py`, `src/ji_engine/pipeline/runner.py`, `scripts/candidates.py`, `tests/test_candidate_namespace.py`, `tests/test_candidate_state_contract.py`, `tests/test_run_health_artifact.py`, `docs/proof/m24-audit-trail-artifact-v1-2026-02-18.md`.
 
 Definition of Done
 - [x] `candidate_profile.schema.json` defined
 - [x] candidate registry exists (CRUD via file/CLI only; no web UI required)
 - [x] Candidate isolation enforced end-to-end (paths, pointers, index)
 - [x] Cross-user leakage tests implemented
-- [ ] Audit trail artifacts exist (who/what triggered run; profile hash change record)
+- [x] Audit trail artifacts exist (who/what triggered run; profile hash change record)
 - [x] Backward compatibility maintained for `local`
 - [x] No authentication/UI implemented yet
 
