@@ -11,6 +11,8 @@ import os
 import sys
 from typing import Iterable, List, Set, Tuple
 
+_REDACTION_CONTRACT = "REDACTION_ENFORCE=1"
+
 
 def _truthy(value: str | None) -> bool:
     if value is None:
@@ -22,7 +24,14 @@ def _region_present() -> bool:
     return bool(os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or os.getenv("JOBINTEL_AWS_REGION"))
 
 
-def _required_for_mode(mode: str) -> Tuple[List[str], List[str]]:
+def _normalize_deployment_env(value: str | None) -> str:
+    raw = (value or "").strip().lower()
+    if raw in {"prod", "production", "live"}:
+        return "prod"
+    return "dev"
+
+
+def _required_for_mode(mode: str, deployment_env: str) -> Tuple[List[str], List[str]]:
     required: List[str] = []
     notes: List[str] = []
     if mode in {"publish", "verify"}:
@@ -30,6 +39,9 @@ def _required_for_mode(mode: str) -> Tuple[List[str], List[str]]:
         if not _region_present():
             required.append("AWS_REGION|AWS_DEFAULT_REGION|JOBINTEL_AWS_REGION")
             notes.append("missing region")
+    if deployment_env == "prod":
+        required.append(_REDACTION_CONTRACT)
+        notes.append("prod requires fail-closed redaction")
     return required, notes
 
 
@@ -45,6 +57,7 @@ def _optional_vars() -> List[str]:
         "DISCORD_WEBHOOK_URL",
         "AI_ENABLED",
         "OPENAI_API_KEY",
+        "REDACTION_ENFORCE",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_SESSION_TOKEN",
@@ -57,6 +70,10 @@ def _present_vars(candidates: Iterable[str]) -> Set[str]:
     for name in candidates:
         if name == "AWS_REGION|AWS_DEFAULT_REGION|JOBINTEL_AWS_REGION":
             if _region_present():
+                present.add(name)
+            continue
+        if name == _REDACTION_CONTRACT:
+            if os.getenv("REDACTION_ENFORCE", "").strip() == "1":
                 present.add(name)
             continue
         if os.getenv(name):
@@ -77,10 +94,18 @@ def main(argv: List[str] | None = None) -> int:
         default="run",
         help="Validation mode (run: no publish; publish: publish-enabled; verify: operator verify).",
     )
+    parser.add_argument(
+        "--deployment-env",
+        default=None,
+        help="Deployment environment hint (dev|prod). Also inferred from JOBINTEL_DEPLOY_ENV/JOBINTEL_ENV.",
+    )
     args = parser.parse_args(argv)
 
     try:
-        required, _notes = _required_for_mode(args.mode)
+        deployment_env = _normalize_deployment_env(
+            args.deployment_env or os.getenv("JOBINTEL_DEPLOY_ENV") or os.getenv("JOBINTEL_ENV")
+        )
+        required, _notes = _required_for_mode(args.mode, deployment_env)
         optional = _optional_vars()
 
         ai_enabled = _truthy(os.getenv("AI_ENABLED"))
@@ -92,6 +117,7 @@ def main(argv: List[str] | None = None) -> int:
         missing_optional = [name for name in optional if name not in present]
 
         print(f"MODE: {args.mode}")
+        print(f"DEPLOYMENT_ENV: {deployment_env}")
         print(f"REQUIRED: {_format_list(required)}")
         print(f"OPTIONAL: {_format_list(optional)}")
         print(f"PRESENT: {_format_list(present)}")

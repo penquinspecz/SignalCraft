@@ -2,6 +2,7 @@
 
 ## Happy path
 ```bash
+python scripts/preflight_env.py --mode verify --deployment-env prod
 ./scripts/deploy_ecs_rev.sh
 TASKDEF_REV=<newrev> bash ./scripts/run_ecs_once.sh
 BUCKET=jobintel-prod1 PREFIX=jobintel bash ./scripts/verify_ops.sh
@@ -9,6 +10,14 @@ BUCKET=jobintel-prod1 PREFIX=jobintel bash ./scripts/show_run_provenance.sh
 aws s3 ls s3://jobintel-prod1/jobintel/latest/openai/cs/
 ./scripts/print_taskdef_env.sh TASKDEF_REV=<newrev>
 ```
+
+## Redaction contract (prod)
+```bash
+export REDACTION_ENFORCE=1
+python scripts/preflight_env.py --mode verify --deployment-env prod
+```
+- Production preflight is non-zero unless `REDACTION_ENFORCE=1`.
+- Keep `REDACTION_ENFORCE=1` in production overlays/task definitions.
 
 ## Verify provenance
 ```bash
