@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict
@@ -12,13 +13,17 @@ from scripts.schema_validate import resolve_named_schema_path, validate_payload
 def _setup_env(monkeypatch: Any, tmp_path: Path) -> Dict[str, Path]:
     data_dir = tmp_path / "data"
     state_dir = tmp_path / "state"
+    candidate_id = os.environ.get("JOBINTEL_CANDIDATE_ID", "local")
     output_dir = data_dir / "ashby_cache"
     snapshot_dir = data_dir / "openai_snapshots"
+    candidate_profile_dir = state_dir / "candidates" / candidate_id / "inputs"
     output_dir.mkdir(parents=True, exist_ok=True)
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     state_dir.mkdir(parents=True, exist_ok=True)
+    candidate_profile_dir.mkdir(parents=True, exist_ok=True)
     (snapshot_dir / "index.html").write_text("<html>snapshot</html>", encoding="utf-8")
     (data_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}', encoding="utf-8")
+    (candidate_profile_dir / "candidate_profile.json").write_text('{"skills": [], "roles": []}', encoding="utf-8")
     monkeypatch.setenv("JOBINTEL_DATA_DIR", str(data_dir))
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(state_dir))
     monkeypatch.setenv("DISCORD_WEBHOOK_URL", "")
@@ -51,17 +56,24 @@ def _validate_provider_availability_schema(path: Path) -> Dict[str, Any]:
     return payload
 
 
-def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None:
-    paths = _setup_env(monkeypatch, tmp_path)
-    output_dir = paths["output_dir"]
+def _latest_run_audit_path(run_daily: Any) -> Path:
+    roots = [run_daily.candidate_state_paths(run_daily.CANDIDATE_ID).runs]
+    if run_daily.CANDIDATE_ID == run_daily.DEFAULT_CANDIDATE_ID:
+        roots.append(run_daily.RUN_METADATA_DIR)
+    paths = sorted(path for root in roots for path in root.glob("*/artifacts/run_audit_v1.json"))
+    assert paths, "run_audit artifact should exist"
+    return paths[-1]
 
-    import ji_engine.config as config
-    import scripts.run_daily as run_daily
 
-    config = importlib.reload(config)
-    run_daily = importlib.reload(run_daily)
-    run_daily.USE_SUBPROCESS = False
+def _validate_run_audit_schema(path: Path) -> Dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    schema = json.loads(resolve_named_schema_path("run_audit", 1).read_text(encoding="utf-8"))
+    errors = validate_payload(payload, schema)
+    assert errors == [], f"run_audit schema validation failed: {errors}"
+    return payload
 
+
+def _fake_success_run(run_daily: Any, output_dir: Path):
     def fake_run(cmd: list[str], *, stage: str) -> None:
         if stage == "scrape":
             (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
@@ -84,7 +96,21 @@ def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None
                 else:
                     path.write_text("", encoding="utf-8")
 
-    monkeypatch.setattr(run_daily, "_run", fake_run)
+    return fake_run
+
+
+def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None:
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(run_daily, "_run", _fake_success_run(run_daily, output_dir))
     monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
 
     assert run_daily.main() == 0
@@ -100,6 +126,12 @@ def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None
     providers = {entry["provider_id"]: entry for entry in availability["providers"]}
     assert "openai" in providers
     assert providers["openai"]["mode"] in {"snapshot", "live", "disabled"}
+    audit_path = _latest_run_audit_path(run_daily)
+    audit = _validate_run_audit_schema(audit_path)
+    assert audit["candidate_id"] == "local"
+    assert audit["trigger_type"] == "manual"
+    assert isinstance(audit["profile_hash"], str)
+    assert audit["profile_hash"]
 
 
 def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: Any) -> None:
@@ -144,6 +176,9 @@ def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: A
     artifact_pointer = run_report_payload.get("provider_availability_artifact")
     assert isinstance(artifact_pointer, dict)
     assert artifact_pointer.get("path")
+    audit_path = _latest_run_audit_path(run_daily)
+    audit = _validate_run_audit_schema(audit_path)
+    assert audit["candidate_id"] == "local"
 
 
 def test_run_health_written_on_forced_failure(tmp_path: Path, monkeypatch: Any) -> None:
@@ -234,6 +269,9 @@ def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: An
     assert "openai" in providers
     assert providers["openai"]["availability"] == "unavailable"
     assert providers["openai"]["reason_code"] in {"early_failure_unknown", "policy_denied"}
+    audit_path = _latest_run_audit_path(run_daily)
+    audit = _validate_run_audit_schema(audit_path)
+    assert audit["run_id"] == payload["run_id"]
 
 
 def test_forced_failure_e2e_artifact_paths(tmp_path: Path, monkeypatch: Any) -> None:
@@ -342,3 +380,79 @@ def test_provider_availability_written_on_provider_policy_failure(tmp_path: Path
     assert providers["openai"]["availability"] == "unavailable"
     assert providers["openai"]["reason_code"] == "policy_denied"
     assert providers["openai"]["policy"]["network_shield"]["allowlist_allowed"] is False
+
+
+def test_run_audit_written_for_non_local_candidate(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("JOBINTEL_CANDIDATE_ID", "alice")
+    monkeypatch.setenv("JOBINTEL_RUN_ID", "2026-02-18T00:00:10Z")
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+    (paths["state_dir"] / "candidates" / "alice" / "inputs" / "candidate_profile.json").write_text(
+        '{"skills": ["python"], "roles": ["csm"]}',
+        encoding="utf-8",
+    )
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+    monkeypatch.setattr(run_daily, "_run", _fake_success_run(run_daily, output_dir))
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    assert run_daily.main() == 0
+
+    audit_path = _latest_run_audit_path(run_daily)
+    audit = _validate_run_audit_schema(audit_path)
+    assert audit["candidate_id"] == "alice"
+    assert "/state/candidates/alice/runs/" in audit_path.as_posix()
+    assert isinstance(audit["profile_hash"], str)
+    assert audit["profile_hash"]
+
+
+def test_run_audit_no_cross_candidate_leakage(tmp_path: Path, monkeypatch: Any) -> None:
+    monkeypatch.setenv("JOBINTEL_RUN_ID", "2026-02-18T00:00:11Z")
+    # local run
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+    (paths["state_dir"] / "candidates" / "local" / "inputs" / "candidate_profile.json").write_text(
+        '{"skills": ["local-skill"], "roles": ["local-role"]}',
+        encoding="utf-8",
+    )
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+    monkeypatch.setattr(run_daily, "_run", _fake_success_run(run_daily, output_dir))
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+    assert run_daily.main() == 0
+    local_audit_path = _latest_run_audit_path(run_daily)
+    local_audit = _validate_run_audit_schema(local_audit_path)
+    run_daily.LOCK_PATH.unlink(missing_ok=True)
+
+    # alice run in same workspace/state tree should remain candidate-scoped.
+    monkeypatch.setenv("JOBINTEL_CANDIDATE_ID", "alice")
+    monkeypatch.setenv("JOBINTEL_RUN_ID", "2026-02-18T00:00:12Z")
+    _setup_env(monkeypatch, tmp_path)
+    (paths["state_dir"] / "candidates" / "alice" / "inputs" / "candidate_profile.json").write_text(
+        '{"skills": ["alice-skill"], "roles": ["alice-role"]}',
+        encoding="utf-8",
+    )
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+    monkeypatch.setattr(run_daily, "_run", _fake_success_run(run_daily, output_dir))
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+    assert run_daily.main() == 0
+    alice_audit_path = _latest_run_audit_path(run_daily)
+    alice_audit = _validate_run_audit_schema(alice_audit_path)
+
+    assert local_audit["candidate_id"] == "local"
+    assert alice_audit["candidate_id"] == "alice"
+    assert local_audit["profile_hash"] != alice_audit["profile_hash"]
+    assert "profile_hash_previous" not in alice_audit
+    assert "/state/candidates/alice/runs/" in alice_audit_path.as_posix()
