@@ -28,6 +28,7 @@ VOLATILE_VALUE_KEYS = {
     "started_at",
     "timestamp",
     "updated_at",
+    "duration_sec",
 }
 RUN_SUMMARY_DROP_KEYS = {"created_at_utc", "git_sha", "quicklinks"}
 RUN_HEALTH_DROP_KEYS = {"timestamps", "durations", "logs", "proof_bundle_path"}
@@ -69,6 +70,9 @@ def _normalize_run_summary(payload: Dict[str, Any], *, drop_run_id: bool) -> Dic
         node = value.get(section)
         if isinstance(node, dict):
             node.pop("path", None)
+            # Hash/byte values can drift when upstream artifacts include volatile metadata.
+            node.pop("sha256", None)
+            node.pop("bytes", None)
     ranked_outputs = value.get("ranked_outputs")
     if isinstance(ranked_outputs, dict):
         for kind in ("ranked_json", "ranked_csv", "ranked_families_json", "shortlist_md"):
@@ -77,11 +81,15 @@ def _normalize_run_summary(payload: Dict[str, Any], *, drop_run_id: bool) -> Dic
                 for entry in entries:
                     if isinstance(entry, dict):
                         entry.pop("path", None)
+                        entry.pop("sha256", None)
+                        entry.pop("bytes", None)
     primary = value.get("primary_artifacts")
     if isinstance(primary, list):
         for entry in primary:
             if isinstance(entry, dict):
                 entry.pop("path", None)
+                entry.pop("sha256", None)
+                entry.pop("bytes", None)
     return _normalize_recursive(value, drop_run_id=drop_run_id)
 
 

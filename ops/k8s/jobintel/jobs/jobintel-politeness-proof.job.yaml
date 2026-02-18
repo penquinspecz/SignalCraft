@@ -77,7 +77,7 @@ spec:
         runAsGroup: 1000
       containers:
         - name: jobintel
-          image: 048622080012.dkr.ecr.us-east-1.amazonaws.com/jobintel:live-snapshotdir-20260205-082950
+          image: 048622080012.dkr.ecr.us-east-1.amazonaws.com/jobintel:ea2dcb6
           imagePullPolicy: IfNotPresent
           workingDir: /app
           command:
