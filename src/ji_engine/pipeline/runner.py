@@ -55,6 +55,21 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
+from ji_engine.pipeline.artifact_paths import (
+    provider_availability_path as _provider_availability_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
+    run_audit_path as _run_audit_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
+    run_health_path as _run_health_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
+    run_metadata_path as _run_metadata_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
+    run_summary_path as _run_summary_path_impl,
+)
 from ji_engine.pipeline.redaction_guard import (
     redaction_enforce_enabled as _redaction_enforce_enabled_impl,
 )
@@ -1202,12 +1217,11 @@ def _apply_score_fallback_metadata(selection: Dict[str, Any], ranked_json: Path)
 
 
 def _run_metadata_path(run_id: str) -> Path:
-    safe_id = _sanitize_run_id(run_id)
-    return _workspace().run_metadata_dir / f"{safe_id}.json"
+    return _run_metadata_path_impl(_workspace().run_metadata_dir, run_id)
 
 
 def _run_health_path(run_id: str) -> Path:
-    return _run_registry_dir(run_id) / "run_health.v1.json"
+    return _run_health_path_impl(_run_registry_dir(run_id))
 
 
 def _run_health_schema() -> Dict[str, Any]:
@@ -1219,7 +1233,7 @@ def _run_health_schema() -> Dict[str, Any]:
 
 
 def _run_summary_path(run_id: str) -> Path:
-    return _run_registry_dir(run_id) / "run_summary.v1.json"
+    return _run_summary_path_impl(_run_registry_dir(run_id))
 
 
 def _run_summary_schema() -> Dict[str, Any]:
@@ -1231,11 +1245,11 @@ def _run_summary_schema() -> Dict[str, Any]:
 
 
 def _provider_availability_path(run_id: str) -> Path:
-    return _run_registry_dir(run_id) / "artifacts" / "provider_availability_v1.json"
+    return _provider_availability_path_impl(_run_registry_dir(run_id))
 
 
 def _run_audit_path(run_id: str) -> Path:
-    return _run_registry_dir(run_id) / "artifacts" / "run_audit_v1.json"
+    return _run_audit_path_impl(_run_registry_dir(run_id))
 
 
 def _provider_availability_schema() -> Dict[str, Any]:
