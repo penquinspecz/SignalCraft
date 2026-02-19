@@ -55,6 +55,15 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
+from ji_engine.pipeline.redaction_guard import (
+    redaction_enforce_enabled as _redaction_enforce_enabled_impl,
+)
+from ji_engine.pipeline.redaction_guard import (
+    redaction_guard_json as _redaction_guard_json_impl,
+)
+from ji_engine.pipeline.redaction_guard import (
+    redaction_guard_text as _redaction_guard_text_impl,
+)
 from ji_engine.pipeline.run_pathing import (
     resolve_summary_path as _resolve_summary_path_impl,
 )
@@ -97,7 +106,6 @@ from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
 from ji_engine.utils.dotenv import load_dotenv
 from ji_engine.utils.job_identity import job_identity
-from ji_engine.utils.redaction import scan_json_for_secrets, scan_text_for_secrets
 from ji_engine.utils.time import utc_now_naive, utc_now_z
 from ji_engine.utils.user_state import load_user_state_checked, normalize_user_status
 from ji_engine.utils.verification import (
@@ -535,29 +543,15 @@ def _write_canonical_json(path: Path, obj: Any) -> None:
 
 
 def _redaction_enforce_enabled() -> bool:
-    return os.environ.get("REDACTION_ENFORCE", "").strip() == "1"
+    return _redaction_enforce_enabled_impl()
 
 
 def _redaction_guard_text(path: Path, text: str) -> None:
-    findings = scan_text_for_secrets(text)
-    if not findings:
-        return
-    summary = ", ".join(sorted({f"{item.pattern}@{item.location}" for item in findings}))
-    msg = f"Potential secret-like content detected for {path}: {summary}"
-    if _redaction_enforce_enabled():
-        raise RuntimeError(msg)
-    logger.warning("%s (set REDACTION_ENFORCE=1 to fail closed)", msg)
+    _redaction_guard_text_impl(path, text)
 
 
 def _redaction_guard_json(path: Path, payload: Any) -> None:
-    findings = scan_json_for_secrets(payload)
-    if not findings:
-        return
-    summary = ", ".join(sorted({f"{item.pattern}@{item.location}" for item in findings}))
-    msg = f"Potential secret-like JSON content detected for {path}: {summary}"
-    if _redaction_enforce_enabled():
-        raise RuntimeError(msg)
-    logger.warning("%s (set REDACTION_ENFORCE=1 to fail closed)", msg)
+    _redaction_guard_json_impl(path, payload)
 
 
 _PROOF_PROVENANCE_FIELDS = [
