@@ -13,8 +13,6 @@ dependencies = [
     "boto3>=1.34,<2",
     "faiss-cpu",
     "openai",
-    "pandas",
-    "python-dotenv",
     "pydantic",
     "requests",
 ]
