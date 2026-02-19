@@ -1,0 +1,328 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ai insights input schema v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "run_id",
+    "candidate_id",
+    "provider",
+    "profile",
+    "window_days",
+    "input_hashes",
+    "job_counts",
+    "top_companies",
+    "top_titles",
+    "top_locations",
+    "top_skills",
+    "scoring_summary",
+    "trend_analysis",
+    "most_common_penalties",
+    "strongest_positive_signals",
+    "strongest_negative_signals",
+    "diffs",
+    "top_roles",
+    "top_families",
+    "score_distribution",
+    "top_recurring_skill_tokens"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["ai_insights_input.v1"]},
+    "generated_at": {"type": "string"},
+    "run_id": {"type": "string"},
+    "candidate_id": {"type": "string"},
+    "provider": {"type": "string"},
+    "profile": {"type": "string"},
+    "window_days": {
+      "type": "array",
+      "items": {"type": "integer"}
+    },
+    "input_hashes": {
+      "type": "object",
+      "required": ["ranked", "previous", "ranked_families"],
+      "properties": {
+        "ranked": {"type": ["string", "null"]},
+        "previous": {"type": ["string", "null"]},
+        "ranked_families": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "job_counts": {
+      "type": "object",
+      "required": ["new", "changed", "removed", "total", "previous_total"],
+      "properties": {
+        "new": {"type": "integer"},
+        "changed": {"type": "integer"},
+        "removed": {"type": "integer"},
+        "total": {"type": "integer"},
+        "previous_total": {"type": "integer"}
+      },
+      "additionalProperties": false
+    },
+    "top_companies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "count"],
+        "properties": {
+          "name": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "top_titles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "count"],
+        "properties": {
+          "name": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "top_locations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "count"],
+        "properties": {
+          "name": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "top_skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["token", "count"],
+        "properties": {
+          "token": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "scoring_summary": {
+      "type": "object",
+      "required": ["mean", "median", "top_n_scores"],
+      "properties": {
+        "mean": {"type": "number"},
+        "median": {"type": "number"},
+        "top_n_scores": {
+          "type": "array",
+          "items": {"type": "integer"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "trend_analysis": {
+      "type": "object",
+      "required": ["windows", "median_score_trend_delta"],
+      "properties": {
+        "windows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "window_days",
+              "runs_considered",
+              "job_counts",
+              "company_growth",
+              "title_growth",
+              "location_shift"
+            ],
+            "properties": {
+              "window_days": {"type": "integer"},
+              "runs_considered": {"type": "integer"},
+              "job_counts": {
+                "type": "object",
+                "required": ["new", "changed", "removed", "total"],
+                "properties": {
+                  "new": {"type": "integer"},
+                  "changed": {"type": "integer"},
+                  "removed": {"type": "integer"},
+                  "total": {"type": "integer"}
+                },
+                "additionalProperties": false
+              },
+              "company_growth": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "start_count", "end_count", "delta"],
+                  "properties": {
+                    "name": {"type": "string"},
+                    "start_count": {"type": "integer"},
+                    "end_count": {"type": "integer"},
+                    "delta": {"type": "integer"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "title_growth": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "start_count", "end_count", "delta"],
+                  "properties": {
+                    "name": {"type": "string"},
+                    "start_count": {"type": "integer"},
+                    "end_count": {"type": "integer"},
+                    "delta": {"type": "integer"}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "location_shift": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name", "start_count", "end_count", "delta"],
+                  "properties": {
+                    "name": {"type": "string"},
+                    "start_count": {"type": "integer"},
+                    "end_count": {"type": "integer"},
+                    "delta": {"type": "integer"}
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "median_score_trend_delta": {
+          "type": "object",
+          "required": ["current_median", "previous_median", "delta"],
+          "properties": {
+            "current_median": {"type": "number"},
+            "previous_median": {"type": "number"},
+            "delta": {"type": "number"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "most_common_penalties": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "count"],
+        "properties": {
+          "name": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "strongest_positive_signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "avg_contribution"],
+        "properties": {
+          "name": {"type": "string"},
+          "avg_contribution": {"type": "number"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "strongest_negative_signals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "avg_contribution"],
+        "properties": {
+          "name": {"type": "string"},
+          "avg_contribution": {"type": "number"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "diffs": {
+      "type": "object",
+      "required": ["counts", "top_new_titles", "top_changed_titles", "top_removed_titles"],
+      "properties": {
+        "counts": {
+          "type": "object",
+          "required": ["new", "changed", "removed"],
+          "properties": {
+            "new": {"type": "integer"},
+            "changed": {"type": "integer"},
+            "removed": {"type": "integer"}
+          },
+          "additionalProperties": false
+        },
+        "top_new_titles": {"type": "array", "items": {"type": "string"}},
+        "top_changed_titles": {"type": "array", "items": {"type": "string"}},
+        "top_removed_titles": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "top_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "score", "apply_url"],
+        "properties": {
+          "title": {"type": "string"},
+          "score": {"type": "integer"},
+          "apply_url": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "top_families": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["family", "count"],
+        "properties": {
+          "family": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "score_distribution": {
+      "type": "object",
+      "required": ["total", "buckets"],
+      "properties": {
+        "total": {"type": "integer"},
+        "buckets": {
+          "type": "object",
+          "required": ["gte90", "gte80", "gte70", "gte60", "lt60"],
+          "properties": {
+            "gte90": {"type": "integer"},
+            "gte80": {"type": "integer"},
+            "gte70": {"type": "integer"},
+            "gte60": {"type": "integer"},
+            "lt60": {"type": "integer"}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "top_recurring_skill_tokens": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["token", "count"],
+        "properties": {
+          "token": {"type": "string"},
+          "count": {"type": "integer"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

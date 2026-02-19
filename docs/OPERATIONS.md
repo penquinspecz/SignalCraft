@@ -515,7 +515,7 @@ Weekly insights inputs (deterministic):
   - score bucket distribution
   - deterministic top recurring skill tokens (`top_recurring_skill_tokens`)
   - median score trend delta (`median_score_trend_delta`)
-- Prompt contract version: `weekly_insights_v3`.
+- Prompt contract version: `weekly_insights_v4`.
 - Cache key includes structured input hash + prompt version/hash (deterministic).
 - No raw JD text is written into `insights_input.<profile>.json`; payload is summary-only.
 
