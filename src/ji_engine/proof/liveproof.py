@@ -11,16 +11,12 @@ import json
 import re
 from typing import Any, Dict, Optional
 
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 RUN_ID_REGEX = re.compile(r"JOBINTEL_RUN_ID=([^\s]+)")
 PROVENANCE_REGEX = re.compile(r"\[run_scrape\]\[provenance\]\s+(\{.*\})")
 S3_STATUS_REGEX = re.compile(r"s3_status=([a-z_]+)")
 PUBLISH_POINTER_REGEX = re.compile(r"PUBLISH_CONTRACT .*pointer_global=([a-z_]+)")
-
-
-def utc_now_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def extract_run_id(log_text: str) -> Optional[str]:
