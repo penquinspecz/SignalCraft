@@ -24,3 +24,7 @@ def provider_availability_path(run_dir: Path) -> Path:
 
 def run_audit_path(run_dir: Path) -> Path:
     return run_dir / "artifacts" / "run_audit_v1.json"
+
+
+def explanation_path(run_dir: Path) -> Path:
+    return run_dir / "artifacts" / "explanation_v1.json"
