@@ -16,16 +16,12 @@ from ji_engine.ai.accounting import estimate_cost_usd, estimate_tokens, resolve_
 from ji_engine.ai.insights_input import build_weekly_insights_input
 from ji_engine.config import DEFAULT_CANDIDATE_ID, REPO_ROOT, RUN_METADATA_DIR
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "weekly_insights_v3"
 PROMPT_PATH = REPO_ROOT / "docs" / "prompts" / "weekly_insights_v3.md"
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def _run_dir(run_id: str, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
@@ -227,7 +223,7 @@ def generate_insights(
         "model": model_name,
         "provider": provider,
         "profile": profile,
-        "timestamp": _utcnow_iso(),
+        "timestamp": utc_now_iso(),
         "input_hashes": input_hashes,
         "structured_input_hash": structured_input_hash,
         "cache_key": cache_key,

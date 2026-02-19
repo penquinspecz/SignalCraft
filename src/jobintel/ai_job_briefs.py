@@ -18,16 +18,12 @@ from ji_engine.config import DEFAULT_CANDIDATE_ID, REPO_ROOT, RUN_METADATA_DIR, 
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.job_identity import job_identity
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "job_briefs_v1"
 PROMPT_PATH = REPO_ROOT / "docs" / "prompts" / "job_briefs_v1.md"
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def _run_dir(run_id: str, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
@@ -197,7 +193,7 @@ def generate_job_briefs(
         "model": model_name,
         "provider": provider,
         "profile": profile,
-        "timestamp": _utcnow_iso(),
+        "timestamp": utc_now_iso(),
         "input_hashes": {"ranked": _sha256_path(ranked_path), "profile": profile_hash},
         "max_jobs": max_jobs,
         "max_tokens_per_job": max_tokens_per_job,

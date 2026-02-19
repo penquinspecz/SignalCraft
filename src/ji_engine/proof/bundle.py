@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Iterable
 
 from ji_engine.utils.redaction import scan_text_for_secrets
-from ji_engine.utils.time import utc_now_z
+from ji_engine.utils.time import utc_now_iso
 
 
 @dataclass(frozen=True)
@@ -39,10 +39,6 @@ _SECRET_RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"(?i)aws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+=]{20,}"),
     ),
 )
-
-
-def utc_now_iso() -> str:
-    return utc_now_z(seconds_precision=True)
 
 
 def find_secret_matches(text: str) -> list[SecretMatch]:

@@ -24,11 +24,7 @@ from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
 from ji_engine.providers.retry import evaluate_allowlist_policy
 from ji_engine.utils.job_id import extract_job_id_from_url
-from ji_engine.utils.time import utc_now_z
-
-
-def _utcnow_iso() -> str:
-    return utc_now_z(seconds_precision=True)
+from ji_engine.utils.time import utc_now_iso
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -92,7 +88,7 @@ def _build_meta(
     note: Optional[str],
 ) -> dict:
     return {
-        "fetched_at": _utcnow_iso(),
+        "fetched_at": utc_now_iso(),
         "url": url,
         "http_status": http_status,
         "bytes": bytes_count,
