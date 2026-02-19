@@ -56,6 +56,9 @@ from ji_engine.config import (
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
 from ji_engine.pipeline.artifact_paths import (
+    explanation_path as _explanation_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
     provider_availability_path as _provider_availability_path_impl,
 )
 from ji_engine.pipeline.artifact_paths import (
@@ -191,6 +194,7 @@ RUN_SUMMARY_SCHEMA_VERSION = 1
 RUN_AUDIT_SCHEMA_VERSION = 1
 PROOF_RECEIPT_SCHEMA_VERSION = 1
 PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
+EXPLANATION_SCHEMA_VERSION = 1
 EARLY_FAILURE_UNKNOWN_REASON_CODE = "early_failure_unknown"
 EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON = "fail_closed:unknown_due_to_early_failure"
 try:
@@ -228,6 +232,14 @@ _RUN_HEALTH_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_AUDIT_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _PROVIDER_AVAILABILITY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_EXPLANATION_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+
+_EXPLANATION_REASON_NOTES: Dict[str, str] = {
+    "penalty_irrelevant": "Role relevance penalty applied.",
+    "penalty_research_heavy": "Research-heavy role penalty applied.",
+    "penalty_low_level": "Low-level systems penalty applied.",
+    "penalty_strong_swe_only": "Strong SWE-only role penalty applied.",
+}
 
 StageStatus = Literal["success", "skipped", "error"]
 
@@ -1043,6 +1055,260 @@ def _write_run_audit_artifact(
     return path
 
 
+def _explanation_top_n() -> int:
+    raw = os.environ.get("JOBINTEL_EXPLANATION_TOP_N")
+    if raw is None:
+        return 25
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return 25
+    return max(1, min(200, parsed))
+
+
+def _explanation_reason_note(reason_code: str) -> str:
+    if reason_code in _EXPLANATION_REASON_NOTES:
+        return _EXPLANATION_REASON_NOTES[reason_code]
+    compact = reason_code.replace("_", " ").strip()
+    if not compact:
+        return "Penalty applied."
+    return f"Penalty applied ({compact})."
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _coerce_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _explanation_job_hash(job: Dict[str, Any]) -> str:
+    for key in ("content_fingerprint", "job_hash"):
+        value = job.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    identity = job_identity(job)
+    if identity:
+        return compute_sha256_bytes(identity.encode("utf-8"))
+    return content_fingerprint(job)
+
+
+def _explanation_signal_from_hit(hit: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    name = hit.get("rule")
+    if not isinstance(name, str) or not name.strip():
+        return None
+    contribution = _coerce_float(hit.get("delta"), 0.0)
+    value = max(0, _coerce_int(hit.get("count"), 0))
+    weight = contribution / value if value > 0 else contribution
+    return {
+        "name": name.strip(),
+        "value": value,
+        "weight": round(weight, 6),
+        "contribution": round(contribution, 6),
+    }
+
+
+def _collect_ranked_jobs_for_explanation(
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+) -> List[Dict[str, Any]]:
+    jobs: List[Dict[str, Any]] = []
+    for provider in sorted(provider_outputs):
+        profiles_payload = provider_outputs.get(provider)
+        if not isinstance(profiles_payload, dict):
+            continue
+        for profile in sorted(profiles_payload):
+            outputs = profiles_payload.get(profile)
+            if not isinstance(outputs, dict):
+                continue
+            ranked_meta = outputs.get("ranked_json")
+            if not isinstance(ranked_meta, dict):
+                continue
+            path_str = ranked_meta.get("path")
+            if not isinstance(path_str, str) or not path_str.strip():
+                continue
+            ranked_path = Path(path_str)
+            if not ranked_path.is_absolute():
+                ranked_path = (REPO_ROOT / ranked_path).resolve()
+            if not ranked_path.exists():
+                continue
+            try:
+                payload = json.loads(ranked_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(payload, list):
+                continue
+            for item in payload:
+                if isinstance(item, dict):
+                    jobs.append(item)
+    return jobs
+
+
+def _build_explanation_payload(
+    *,
+    run_id: str,
+    candidate_id: str,
+    generated_at: str,
+    scoring_config_sha256: Optional[str],
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+    top_n: int,
+) -> Dict[str, Any]:
+    prepared: List[Dict[str, Any]] = []
+    for job in _collect_ranked_jobs_for_explanation(provider_outputs):
+        score_total = _coerce_float(job.get("score"), _coerce_float(job.get("final_score"), 0.0))
+        hits = job.get("score_hits")
+        signal_rows: List[Dict[str, Any]] = []
+        if isinstance(hits, list):
+            for raw in hits:
+                if isinstance(raw, dict):
+                    signal = _explanation_signal_from_hit(raw)
+                    if signal is not None:
+                        signal_rows.append(signal)
+
+        positives = sorted(
+            (row for row in signal_rows if row["contribution"] > 0),
+            key=lambda row: (-float(row["contribution"]), str(row["name"])),
+        )[:5]
+        negatives = sorted(
+            (row for row in signal_rows if row["contribution"] < 0),
+            key=lambda row: (float(row["contribution"]), str(row["name"])),
+        )[:5]
+        penalties = [
+            {
+                "name": str(row["name"]),
+                "amount": round(abs(float(row["contribution"])), 6),
+                "reason_code": str(row["name"]),
+            }
+            for row in negatives
+        ]
+        notes = sorted({_explanation_reason_note(str(item["reason_code"])) for item in penalties})
+        prepared.append(
+            {
+                "job_hash": _explanation_job_hash(job),
+                "score_total": round(score_total, 6),
+                "top_positive_signals": positives,
+                "top_negative_signals": negatives,
+                "penalties": penalties,
+                "notes": notes,
+            }
+        )
+
+    prepared.sort(
+        key=lambda item: (
+            -float(item["score_total"]),
+            str(item["job_hash"]),
+        )
+    )
+
+    top_jobs: List[Dict[str, Any]] = []
+    for idx, item in enumerate(prepared[:top_n], start=1):
+        top_jobs.append(
+            {
+                "job_hash": item["job_hash"],
+                "rank": idx,
+                "score_total": item["score_total"],
+                "top_positive_signals": item["top_positive_signals"],
+                "top_negative_signals": item["top_negative_signals"],
+                "penalties": item["penalties"],
+                "notes": item["notes"],
+            }
+        )
+
+    penalty_counts: Dict[str, int] = {}
+    positive_stats: Dict[str, Dict[str, float]] = {}
+    negative_stats: Dict[str, Dict[str, float]] = {}
+    for job in top_jobs:
+        for penalty in job["penalties"]:
+            name = str(penalty["name"])
+            penalty_counts[name] = penalty_counts.get(name, 0) + 1
+        for signal in job["top_positive_signals"]:
+            name = str(signal["name"])
+            current = positive_stats.setdefault(name, {"sum": 0.0, "count": 0.0})
+            current["sum"] += float(signal["contribution"])
+            current["count"] += 1.0
+        for signal in job["top_negative_signals"]:
+            name = str(signal["name"])
+            current = negative_stats.setdefault(name, {"sum": 0.0, "count": 0.0})
+            current["sum"] += float(signal["contribution"])
+            current["count"] += 1.0
+
+    most_common_penalties = [
+        {"name": name, "count": count}
+        for name, count in sorted(penalty_counts.items(), key=lambda item: (-item[1], item[0]))
+    ][:10]
+
+    strongest_positive_signals = [
+        {
+            "name": name,
+            "avg_contribution": round(values["sum"] / values["count"], 6),
+        }
+        for name, values in sorted(
+            positive_stats.items(),
+            key=lambda item: (
+                -(item[1]["sum"] / item[1]["count"]),
+                item[0],
+            ),
+        )[:10]
+    ]
+    strongest_negative_signals = [
+        {
+            "name": name,
+            "avg_contribution": round(values["sum"] / values["count"], 6),
+        }
+        for name, values in sorted(
+            negative_stats.items(),
+            key=lambda item: (
+                item[1]["sum"] / item[1]["count"],
+                item[0],
+            ),
+        )[:10]
+    ]
+
+    return {
+        "schema_version": "explanation.v1",
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at": generated_at,
+        "scoring_config_sha256": scoring_config_sha256,
+        "top_jobs": top_jobs,
+        "aggregation": {
+            "most_common_penalties": most_common_penalties,
+            "strongest_positive_signals": strongest_positive_signals,
+            "strongest_negative_signals": strongest_negative_signals,
+        },
+    }
+
+
+def _write_explanation_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+    scoring_config_sha256: Optional[str],
+    generated_at: Optional[str],
+) -> Path:
+    payload = _build_explanation_payload(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        generated_at=generated_at if isinstance(generated_at, str) and generated_at else _utcnow_iso(),
+        scoring_config_sha256=scoring_config_sha256,
+        provider_outputs=provider_outputs,
+        top_n=_explanation_top_n(),
+    )
+    errors = validate_payload(payload, _explanation_schema())
+    if errors:
+        raise RuntimeError(f"explanation schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    path = _explanation_path(run_id)
+    _write_canonical_json(path, payload)
+    return path
+
+
 def _get_env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
     if raw is None:
@@ -1241,6 +1507,10 @@ def _run_audit_path(run_id: str) -> Path:
     return _run_audit_path_impl(_run_registry_dir(run_id))
 
 
+def _explanation_path(run_id: str) -> Path:
+    return _explanation_path_impl(_run_registry_dir(run_id))
+
+
 def _provider_availability_schema() -> Dict[str, Any]:
     global _PROVIDER_AVAILABILITY_SCHEMA_CACHE
     if _PROVIDER_AVAILABILITY_SCHEMA_CACHE is None:
@@ -1255,6 +1525,14 @@ def _run_audit_schema() -> Dict[str, Any]:
         schema_path = resolve_named_schema_path("run_audit", RUN_AUDIT_SCHEMA_VERSION)
         _RUN_AUDIT_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
     return _RUN_AUDIT_SCHEMA_CACHE
+
+
+def _explanation_schema() -> Dict[str, Any]:
+    global _EXPLANATION_SCHEMA_CACHE
+    if _EXPLANATION_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("explanation", EXPLANATION_SCHEMA_VERSION)
+        _EXPLANATION_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _EXPLANATION_SCHEMA_CACHE
 
 
 def _summary_path_text(path: Path) -> str:
@@ -2108,6 +2386,15 @@ def _write_run_registry(
     run_report_dest = run_dir / "run_report.json"
     _copy_artifact(run_metadata_path, run_report_dest)
     artifacts[run_report_dest.name] = run_report_dest.relative_to(run_dir).as_posix()
+    for src in (
+        _provider_availability_path(run_id),
+        _run_audit_path(run_id),
+        _explanation_path(run_id),
+    ):
+        if not src.exists():
+            continue
+        rel = src.relative_to(run_dir).as_posix()
+        artifacts[src.name] = rel
 
     providers_payload: Dict[str, Any] = {}
     for provider in providers:
@@ -2241,6 +2528,7 @@ def _persist_run_metadata(
     providers_config: Optional[str] = None,
     provider_availability_pointer: Optional[Dict[str, Any]] = None,
     run_audit_pointer: Optional[Dict[str, Any]] = None,
+    explanation_pointer: Optional[Dict[str, Any]] = None,
 ) -> Path:
     run_report_schema_version = RUN_REPORT_SCHEMA_VERSION
     inputs: Dict[str, Dict[str, Optional[str]]] = {
@@ -2331,6 +2619,7 @@ def _persist_run_metadata(
         "provider_availability_artifact": provider_availability_pointer
         or _artifact_pointer(_provider_availability_path(run_id)),
         "run_audit_artifact": run_audit_pointer or _artifact_pointer(_run_audit_path(run_id)),
+        "explanation_artifact": explanation_pointer or _artifact_pointer(_explanation_path(run_id)),
         "inputs": inputs,
         "scoring_inputs_by_profile": scoring_inputs_by_profile,
         "scoring_input_selection_by_profile": scoring_input_selection_by_profile,
@@ -4697,6 +4986,19 @@ def main() -> int:
             previous_run=prev_run if isinstance(prev_run, dict) else None,
         )
         run_audit_pointer = _artifact_pointer(run_audit_path)
+        scoring_config_sha256 = _hash_file(SCORING_CONFIG_PATH)
+        if isinstance(scoring_model_metadata, dict):
+            candidate_sha = scoring_model_metadata.get("config_sha256")
+            if isinstance(candidate_sha, str) and candidate_sha:
+                scoring_config_sha256 = candidate_sha
+        explanation_path = _write_explanation_artifact(
+            run_id=run_id,
+            candidate_id=CANDIDATE_ID,
+            provider_outputs=provider_outputs,
+            scoring_config_sha256=scoring_config_sha256,
+            generated_at=telemetry.get("started_at") if isinstance(telemetry.get("started_at"), str) else None,
+        )
+        explanation_pointer = _artifact_pointer(explanation_path)
         run_metadata_path = _persist_run_metadata(
             run_id,
             telemetry,
@@ -4731,6 +5033,7 @@ def main() -> int:
             providers_config=args.providers_config,
             provider_availability_pointer=provider_availability_pointer,
             run_audit_pointer=run_audit_pointer,
+            explanation_pointer=explanation_pointer,
         )
         if telemetry.get("success", False):
             try:

@@ -28,6 +28,7 @@ _ARTIFACT_CATALOG: Dict[str, str] = {
     "run_health.v1.json": "replay_safe",
     "run_report.json": "replay_safe",
     "provider_availability_v1.json": "ui_safe",
+    "explanation_v1.json": "ui_safe",
 }
 
 # Pattern -> category (checked in order; first match wins)
@@ -161,6 +162,8 @@ def _validate_against_schema(payload: Dict[str, Any], artifact_key: str) -> List
         schema = _load_schema_cached("run_health", 1)
     elif "run_summary" in artifact_key:
         schema = _load_schema_cached("run_summary", 1)
+    elif artifact_key == "explanation_v1.json":
+        schema = _load_schema_cached("explanation", 1)
     else:
         return []
     return validate_payload(payload, schema)
