@@ -418,20 +418,20 @@ Receipts Required
 
 ---
 
-## Milestone 23 — Code Surface & Bloat Review (Entropy Reduction) ⏸
+## Milestone 23 — Code Surface & Bloat Review (Entropy Reduction) ◐
 
 Goal: Eliminate entropy before adding product surfaces.
-Status: ⏸ Not yet run as a focused milestone; only opportunistic cleanup has landed with feature work.
-Evidence: no dedicated proof artifact yet.
+Status: ◐ Focused M23 cleanup PRs are landed (entropy reduction PR1/PR2 + runner seam extraction PR1/PR2); remaining DoD items require dead-code/dependency cleanup and API-boundary hardening.
+Evidence: `docs/proof/m23-entropy-reduction-pr1-2026-02-18.md`, `docs/proof/m23-entropy-reduction-pr2-2026-02-18.md`, `docs/proof/m23-runner-seam-extraction-pr1-2026-02-18.md`, `docs/proof/m23-runner-seam-extraction-pr2-2026-02-19.md`.
 
 Definition of Done
 - [ ] Dead code removed
 - [ ] Unused deps removed
-- [ ] Duplicate logic consolidated
-- [ ] File structure rationalized
+- [x] Duplicate logic consolidated
+- [x] File structure rationalized
 - [ ] Public API boundaries clarified
-- [ ] Complexity hotspots documented
-- [ ] Size diff documented
+- [x] Complexity hotspots documented
+- [x] Size diff documented
 
 Receipts Required
 - Before/after LOC diff
