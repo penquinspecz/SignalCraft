@@ -4,10 +4,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any
 
 PROVENANCE_LABELS = {"from-composer", "from-codex"}
+MILESTONE_LABEL_PREFIX = "milestone:"
+MILESTONE_LABEL_PATTERN = re.compile(r"^milestone:M\d+$")
 
 
 def required_label_for_branch(head_ref: str) -> str | None:
@@ -50,7 +53,16 @@ def load_event_payload(event_path: str | None) -> dict[str, Any]:
 def evaluate_label_policy(head_ref: str, labels: set[str]) -> list[str]:
     issues: list[str] = []
     required = required_label_for_branch(head_ref)
-    present_provenance = sorted(labels & PROVENANCE_LABELS)
+    invalid_milestones = sorted(
+        label
+        for label in labels
+        if label.startswith(MILESTONE_LABEL_PREFIX) and not MILESTONE_LABEL_PATTERN.fullmatch(label)
+    )
+    for label in invalid_milestones:
+        issues.append(
+            f"label '{label}' is invalid; milestone labels must match '{MILESTONE_LABEL_PREFIX}M<digits>' "
+            "(example: milestone:M23)"
+        )
 
     if required is None:
         return issues
@@ -62,8 +74,6 @@ def evaluate_label_policy(head_ref: str, labels: set[str]) -> list[str]:
     for name in wrong:
         issues.append(f"branch '{head_ref}' should not carry provenance label '{name}'")
 
-    if present_provenance and required in labels and not wrong:
-        return issues
     return issues
 
 
@@ -102,10 +112,11 @@ def main(argv: list[str] | None = None) -> int:
         print("Guidance:")
         print("- composer/* branches should use label from-composer")
         print("- codex/* branches should use label from-codex")
+        print("- milestone labels must match milestone:M<digits> (example: milestone:M23)")
         print("- fix labels in PR sidebar or via: gh pr edit <num> --add-label <label>")
         return 1 if args.strict else 0
 
-    print("LABEL_POLICY_OK: no provenance label issues detected.")
+    print("LABEL_POLICY_OK: no provenance or milestone label issues detected.")
     return 0
 
 
