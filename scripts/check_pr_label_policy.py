@@ -56,15 +56,11 @@ def evaluate_label_policy(head_ref: str, labels: set[str]) -> list[str]:
         return issues
 
     if required not in labels:
-        issues.append(
-            f"branch '{head_ref}' requires label '{required}'"
-        )
+        issues.append(f"branch '{head_ref}' requires label '{required}'")
 
     wrong = sorted((labels & PROVENANCE_LABELS) - {required})
     for name in wrong:
-        issues.append(
-            f"branch '{head_ref}' should not carry provenance label '{name}'"
-        )
+        issues.append(f"branch '{head_ref}' should not carry provenance label '{name}'")
 
     if present_provenance and required in labels and not wrong:
         return issues
