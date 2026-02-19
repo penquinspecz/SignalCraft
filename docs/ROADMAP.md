@@ -418,18 +418,18 @@ Receipts Required
 
 ---
 
-## Milestone 23 — Code Surface & Bloat Review (Entropy Reduction) ◐
+## Milestone 23 — Code Surface & Bloat Review (Entropy Reduction) ✅
 
 Goal: Eliminate entropy before adding product surfaces.
-Status: ◐ Focused M23 cleanup PRs are landed (entropy reduction PR1/PR2/PR4/PR5 + runner seam extraction PR1/PR2); `Public API boundaries clarified` remains open.
-Evidence: `docs/proof/m23-entropy-reduction-pr1-2026-02-18.md`, `docs/proof/m23-entropy-reduction-pr2-2026-02-18.md`, `docs/proof/m23-entropy-reduction-pr4-2026-02-19.md`, `docs/proof/m23-entropy-reduction-pr5-deps-2026-02-19.md`, `docs/proof/m23-runner-seam-extraction-pr1-2026-02-18.md`, `docs/proof/m23-runner-seam-extraction-pr2-2026-02-19.md`.
+Status: ✅ Focused cleanup, runner seam extraction, dead-code/dependency removals, and explicit public API boundary guardrails are landed.
+Evidence: `docs/proof/m23-entropy-reduction-pr1-2026-02-18.md`, `docs/proof/m23-entropy-reduction-pr2-2026-02-18.md`, `docs/proof/m23-entropy-reduction-pr4-2026-02-19.md`, `docs/proof/m23-entropy-reduction-pr5-deps-2026-02-19.md`, `docs/proof/m23-runner-seam-extraction-pr1-2026-02-18.md`, `docs/proof/m23-runner-seam-extraction-pr2-2026-02-19.md`, `docs/PUBLIC_API_BOUNDARIES.md`, `tests/test_public_api_boundaries.py`, `docs/proof/m23-public-api-boundaries-2026-02-19.md`.
 
 Definition of Done
 - [x] Dead code removed
 - [x] Unused deps removed
 - [x] Duplicate logic consolidated
 - [x] File structure rationalized
-- [ ] Public API boundaries clarified
+- [x] Public API boundaries clarified
 - [x] Complexity hotspots documented
 - [x] Size diff documented
 
