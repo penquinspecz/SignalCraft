@@ -30,3 +30,17 @@ def test_codex_branch_passes_with_from_codex_only() -> None:
 
 def test_non_prefixed_branch_has_no_requirement() -> None:
     assert evaluate_label_policy("feature/m23", set()) == []
+
+
+def test_allows_numeric_milestone_label() -> None:
+    assert evaluate_label_policy("codex/m23", {"from-codex", "milestone:M23"}) == []
+
+
+def test_disallows_placeholder_milestone_label() -> None:
+    issues = evaluate_label_policy("codex/m23", {"from-codex", "milestone:Mxx"})
+    assert "label 'milestone:Mxx' is invalid" in issues[0]
+
+
+def test_disallows_non_numeric_milestone_label() -> None:
+    issues = evaluate_label_policy("feature/no-provenance", {"milestone:release"})
+    assert "label 'milestone:release' is invalid" in issues[0]
