@@ -71,9 +71,6 @@ from ji_engine.pipeline.artifact_paths import (
     run_summary_path as _run_summary_path_impl,
 )
 from ji_engine.pipeline.redaction_guard import (
-    redaction_enforce_enabled as _redaction_enforce_enabled_impl,
-)
-from ji_engine.pipeline.redaction_guard import (
     redaction_guard_json as _redaction_guard_json_impl,
 )
 from ji_engine.pipeline.redaction_guard import (
@@ -184,10 +181,6 @@ def _unavailable_summary_for(provider: str) -> str:
     if not reasons:
         return ""
     return ", ".join(f"{k}={v}" for k, v in sorted(reasons.items()))
-
-
-def _unavailable_summary() -> str:
-    return _unavailable_summary_for("openai")
 
 
 logger = logging.getLogger(__name__)
@@ -555,10 +548,6 @@ def _write_canonical_json(path: Path, obj: Any) -> None:
     _redaction_guard_json(path, obj)
     payload = json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
     path.write_text(payload, encoding="utf-8")
-
-
-def _redaction_enforce_enabled() -> bool:
-    return _redaction_enforce_enabled_impl()
 
 
 def _redaction_guard_text(path: Path, text: str) -> None:
