@@ -4,6 +4,12 @@
 
 Tooling to prepare a Codex-friendly audit of merged PRs labeled `from-composer`. When Codex quota returns, run these scripts to generate a review queue and programmatically trigger reviews.
 
+This workflow is intentionally **composer-specific**. Do not reuse `from-composer` for Codex-authored or human-authored PRs.
+Use provenance labels consistently:
+- `from-composer`: Composer workflow/tooling output
+- `from-codex`: Codex-authored/executed changes
+- no provenance label required for other branch prefixes
+
 ## Scripts
 
 | Script | Purpose |
