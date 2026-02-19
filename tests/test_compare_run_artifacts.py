@@ -211,11 +211,14 @@ def test_compare_run_artifacts_passes_when_only_timestamp_and_environment_metada
     right_summary["created_at_utc"] = "2026-02-17T08:00:00Z"
     right_summary["git_sha"] = "def456"
     right_summary["quicklinks"]["run_dir"] = "/tmp/right"
+    right_summary["run_health"]["sha256"] = "different-health-hash"
+    right_summary["primary_artifacts"][3]["sha256"] = "different-provider-availability-hash"
     _write_json(right / "run_summary.v1.json", right_summary)
 
     right_health = json.loads((right / "run_health.v1.json").read_text(encoding="utf-8"))
     right_health["timestamps"]["started_at"] = "2026-02-17T08:00:00Z"
     right_health["durations"]["total_sec"] = 7.5
+    right_health["phases"]["normalize"]["duration_sec"] = 3.5
     _write_json(right / "run_health.v1.json", right_health)
 
     right_availability = json.loads((right / "artifacts" / "provider_availability_v1.json").read_text(encoding="utf-8"))
