@@ -47,6 +47,42 @@ _ARTIFACT_PATTERNS: List[Tuple[str, str]] = [
     ("*ai_job_briefs*.json", "ui_safe"),
 ]
 
+# Canonical representatives for pattern-based UI-safe artifact families.
+UI_SAFE_PATTERN_REPRESENTATIVE_KEYS: Dict[str, str] = {
+    "*ai_insights*.json": "ai_insights.cs.json",
+    "*ai_job_briefs*.json": "ai_job_briefs.cs.json",
+}
+
+# Canonical UI-safe artifacts that are schema-backed.
+UI_SAFE_SCHEMA_SPECS: Dict[str, Tuple[str, int]] = {
+    "run_summary.v1.json": ("run_summary", 1),
+    "provider_availability_v1.json": ("provider_availability", 1),
+    "explanation_v1.json": ("explanation", 1),
+    "ai_insights.cs.json": ("ai_insights_output", 1),
+    "ai_job_briefs.cs.json": ("ai_job_brief", 1),
+}
+
+# Canonical UI-safe artifacts without dedicated JSON Schema files.
+UI_SAFE_NONSCHEMA_CANONICAL_KEYS: Tuple[str, ...] = ("ai_job_briefs.cs.error.json",)
+
+# Dashboard schema-version exposure for indexed run artifacts.
+DASHBOARD_SCHEMA_VERSION_BY_ARTIFACT_KEY: Dict[str, int] = {
+    "run_summary.v1.json": 1,
+    "run_health.v1.json": 1,
+    "provider_availability_v1.json": 1,
+    "explanation_v1.json": 1,
+    "run_report.json": 1,
+}
+
+# Artifact keys whose payloads are schema-validated at serving/write boundaries.
+_SCHEMA_SPECS_BY_EXACT_ARTIFACT_KEY: Dict[str, Tuple[str, int]] = {
+    "run_report.json": ("run_report", 1),
+    "run_health.v1.json": ("run_health", 1),
+    "run_summary.v1.json": ("run_summary", 1),
+    "provider_availability_v1.json": ("provider_availability", 1),
+    "explanation_v1.json": ("explanation", 1),
+}
+
 
 class ArtifactCategory:
     """Artifact model v2 categories."""
@@ -73,6 +109,29 @@ def get_artifact_category(artifact_key: str) -> str:
 
 # Exported for tests and dashboard
 FORBIDDEN_JD_KEYS = frozenset(_UI_SAFE_PROHIBITED_KEYS)
+
+
+def ui_safe_catalog_exact_keys() -> List[str]:
+    """Return deterministic, sorted UI-safe exact keys from the artifact catalog."""
+    keys = [key for key, category in _ARTIFACT_CATALOG.items() if category == ArtifactCategory.UI_SAFE]
+    return sorted(keys)
+
+
+def ui_safe_catalog_patterns() -> List[str]:
+    """Return deterministic, sorted UI-safe patterns from the artifact catalog."""
+    patterns = [pattern for pattern, category in _ARTIFACT_PATTERNS if category == ArtifactCategory.UI_SAFE]
+    return sorted(patterns)
+
+
+def canonical_ui_safe_artifact_keys() -> List[str]:
+    """
+    Return deterministic canonical UI-safe artifact keys for contract checks.
+    Includes exact UI-safe keys, pattern representatives, and non-schema contract artifacts.
+    """
+    keys = set(ui_safe_catalog_exact_keys())
+    keys.update(UI_SAFE_PATTERN_REPRESENTATIVE_KEYS.values())
+    keys.update(UI_SAFE_NONSCHEMA_CANONICAL_KEYS)
+    return sorted(keys)
 
 
 def assert_no_forbidden_fields(obj: object, context: str = "") -> None:
@@ -152,20 +211,25 @@ def _load_schema_cached(schema_name: str, version: int) -> Dict[str, Any]:
     return _load_schema_cached._cache[cache_key]
 
 
+def schema_spec_for_artifact_key(artifact_key: str) -> Tuple[str, int] | None:
+    """Return schema spec (name, version) for artifacts that are schema-validated by contract."""
+    if artifact_key in _SCHEMA_SPECS_BY_EXACT_ARTIFACT_KEY:
+        return _SCHEMA_SPECS_BY_EXACT_ARTIFACT_KEY[artifact_key]
+    if "run_health" in artifact_key:
+        return ("run_health", 1)
+    if "run_summary" in artifact_key:
+        return ("run_summary", 1)
+    return None
+
+
 def _validate_against_schema(payload: Dict[str, Any], artifact_key: str) -> List[str]:
     """Validate artifact against its native schema. Returns list of errors."""
     from scripts.schema_validate import validate_payload
 
-    if artifact_key == "run_report.json":
-        schema = _load_schema_cached("run_report", 1)
-    elif "run_health" in artifact_key:
-        schema = _load_schema_cached("run_health", 1)
-    elif "run_summary" in artifact_key:
-        schema = _load_schema_cached("run_summary", 1)
-    elif artifact_key == "explanation_v1.json":
-        schema = _load_schema_cached("explanation", 1)
-    else:
+    schema_spec = schema_spec_for_artifact_key(artifact_key)
+    if schema_spec is None:
         return []
+    schema = _load_schema_cached(*schema_spec)
     return validate_payload(payload, schema)
 
 

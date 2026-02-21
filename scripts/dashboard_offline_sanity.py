@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from typing import Any, Dict, List, Sequence
+from typing import Any, Callable, Dict, List, Sequence
 
 from ji_engine.artifacts.catalog import (
+    UI_SAFE_NONSCHEMA_CANONICAL_KEYS,
+    UI_SAFE_SCHEMA_SPECS,
     ArtifactCategory,
     assert_no_forbidden_fields,
+    canonical_ui_safe_artifact_keys,
     get_artifact_category,
     validate_artifact_payload,
 )
@@ -81,6 +84,106 @@ def _explanation_payload() -> Dict[str, Any]:
             "strongest_positive_signals": [{"name": "boost_relevant", "avg_contribution": 5.0}],
             "strongest_negative_signals": [{"name": "penalty_low_level", "avg_contribution": -1.0}],
         },
+    }
+
+
+def _run_summary_payload() -> Dict[str, Any]:
+    return {
+        "run_summary_schema_version": 1,
+        "run_id": _RUN_ID,
+        "candidate_id": _CANDIDATE_ID,
+        "status": "ok",
+        "git_sha": "a" * 40,
+        "created_at_utc": _RUN_ID,
+        "run_health": {
+            "path": "run_health.v1.json",
+            "sha256": "b" * 64,
+            "status": "ok",
+        },
+        "run_report": {
+            "path": "run_report.json",
+            "sha256": "c" * 64,
+            "bytes": 128,
+        },
+        "ranked_outputs": {
+            "ranked_json": [],
+            "ranked_csv": [],
+            "ranked_families_json": [],
+            "shortlist_md": [],
+        },
+        "primary_artifacts": [],
+        "costs": {
+            "path": "costs.json",
+            "sha256": "d" * 64,
+            "bytes": 64,
+        },
+        "scoring_config": {
+            "source": "scoring/profiles/cs/defaults.json",
+            "config_sha256": "e" * 64,
+            "path": "scoring/profiles/cs/defaults.json",
+            "provider": "mock",
+            "profile": "cs",
+        },
+        "snapshot_manifest": {
+            "applicable": False,
+            "path": "snapshots/manifest.json",
+            "sha256": None,
+        },
+        "quicklinks": {
+            "run_dir": "state/candidates/local/runs/20260221T120000Z",
+            "run_report": "run_report.json",
+            "run_health": "run_health.v1.json",
+            "costs": "costs.json",
+            "provider_availability": "artifacts/provider_availability_v1.json",
+            "ranked_json": [],
+            "ranked_csv": [],
+            "ranked_families_json": [],
+            "shortlist_md": [],
+        },
+    }
+
+
+def _provider_availability_payload() -> Dict[str, Any]:
+    return {
+        "provider_availability_schema_version": 1,
+        "run_id": _RUN_ID,
+        "candidate_id": _CANDIDATE_ID,
+        "generated_at_utc": _RUN_ID,
+        "provider_registry_sha256": "f" * 64,
+        "providers": [
+            {
+                "provider_id": "mock",
+                "mode": "disabled",
+                "enabled": False,
+                "snapshot_enabled": False,
+                "live_enabled": False,
+                "availability": "unavailable",
+                "reason_code": "provider_disabled",
+                "unavailable_reason": "Provider disabled for sanity fixture",
+                "attempts_made": 0,
+                "policy": {
+                    "robots": {
+                        "url": None,
+                        "fetched": None,
+                        "status_code": None,
+                        "allowed": None,
+                        "reason": None,
+                        "user_agent": None,
+                    },
+                    "network_shield": {
+                        "allowlist_allowed": None,
+                        "robots_final_allowed": None,
+                        "live_error_reason": None,
+                        "live_error_type": None,
+                    },
+                    "canonical_url_policy": {
+                        "policy_snapshot": None,
+                        "live_http_status": None,
+                        "live_status_code": None,
+                    },
+                },
+            }
+        ],
     }
 
 
@@ -278,13 +381,22 @@ def _validate_ai_job_briefs_error_payload(payload: Dict[str, Any]) -> List[str]:
     return errors
 
 
-def _artifact_cases() -> Dict[str, Dict[str, Any]]:
-    return {
-        "explanation_v1.json": _explanation_payload(),
-        "ai_insights.cs.json": _ai_insights_payload(),
-        "ai_job_briefs.cs.json": _ai_job_briefs_payload(),
-        "ai_job_briefs.cs.error.json": _ai_job_briefs_error_payload(),
+def artifact_cases() -> Dict[str, Dict[str, Any]]:
+    builders: Dict[str, Callable[[], Dict[str, Any]]] = {
+        "run_summary.v1.json": _run_summary_payload,
+        "provider_availability_v1.json": _provider_availability_payload,
+        "explanation_v1.json": _explanation_payload,
+        "ai_insights.cs.json": _ai_insights_payload,
+        "ai_job_briefs.cs.json": _ai_job_briefs_payload,
+        "ai_job_briefs.cs.error.json": _ai_job_briefs_error_payload,
     }
+    cases: Dict[str, Dict[str, Any]] = {}
+    for artifact_key in canonical_ui_safe_artifact_keys():
+        builder = builders.get(artifact_key)
+        if builder is None:
+            raise RuntimeError(f"No offline sanity fixture builder registered for {artifact_key}")
+        cases[artifact_key] = builder()
+    return cases
 
 
 def run_checks() -> Dict[str, Any]:
@@ -294,9 +406,9 @@ def run_checks() -> Dict[str, Any]:
     schema_checks_passed = 0
     forbidden_field_checks_passed = 0
 
-    cases = _artifact_cases()
+    cases = artifact_cases()
 
-    for artifact_key, payload in cases.items():
+    for artifact_key, payload in sorted(cases.items()):
         category = get_artifact_category(artifact_key)
         if category != ArtifactCategory.UI_SAFE:
             errors.append(f"{artifact_key}: category mismatch expected={ArtifactCategory.UI_SAFE} actual={category}")
@@ -317,14 +429,17 @@ def run_checks() -> Dict[str, Any]:
         else:
             forbidden_field_checks_passed += 1
 
-        if artifact_key == "explanation_v1.json":
-            schema_errors = validate_payload(payload, _load_schema("explanation", 1))
-        elif artifact_key.startswith("ai_insights."):
-            schema_errors = validate_payload(payload, _load_schema("ai_insights_output", 1))
-        elif artifact_key == "ai_job_briefs.cs.json":
-            schema_errors = _validate_ai_job_briefs_payload(payload)
-        else:
+        schema_spec = UI_SAFE_SCHEMA_SPECS.get(artifact_key)
+        if schema_spec is not None:
+            schema_name, schema_version = schema_spec
+            if artifact_key == "ai_job_briefs.cs.json":
+                schema_errors = _validate_ai_job_briefs_payload(payload)
+            else:
+                schema_errors = validate_payload(payload, _load_schema(schema_name, schema_version))
+        elif artifact_key in UI_SAFE_NONSCHEMA_CANONICAL_KEYS:
             schema_errors = _validate_ai_job_briefs_error_payload(payload)
+        else:
+            schema_errors = [f"no schema contract registered for {artifact_key}"]
 
         if schema_errors:
             errors.extend(f"{artifact_key}: {err}" for err in schema_errors)
