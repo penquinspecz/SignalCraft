@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ai job brief schema v1",
+  "type": "object",
+  "required": [
+    "job_id",
+    "apply_url",
+    "title",
+    "score",
+    "why_fit",
+    "gaps",
+    "interview_focus",
+    "resume_tweaks"
+  ],
+  "properties": {
+    "job_id": {
+      "type": "string"
+    },
+    "apply_url": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "score": {
+      "type": "integer"
+    },
+    "why_fit": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "interview_focus": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "resume_tweaks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": false
+}
