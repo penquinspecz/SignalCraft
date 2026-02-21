@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -27,6 +27,15 @@ endef
 
 PROFILE ?= cs
 LIMIT ?= 15
+M21_DURATION_HOURS ?= 72
+M21_INTERVAL_MINUTES ?= 60
+M21_CANDIDATE_ID ?= local
+M21_PROVIDER ?= openai
+M21_PROFILE ?= cs
+M21_CONFIG ?= config/defaults.json
+M21_PROVIDERS_CONFIG ?= config/providers.json
+M21_NAMESPACE ?= jobintel
+M21_KUBE_CONTEXT ?=
 
 define check_buildkit
 	@if [ "$${DOCKER_BUILDKIT:-1}" = "0" ]; then \
@@ -59,6 +68,19 @@ changelog-policy:
 
 onprem-rehearsal:
 	PYTHONPATH=src $(PY) scripts/onprem_rehearsal.py
+
+m21-stability-harness:
+	PYTHONPATH=src $(PY) scripts/m21_onprem_stability_harness.py \
+		--duration-hours $(M21_DURATION_HOURS) \
+		--interval-minutes $(M21_INTERVAL_MINUTES) \
+		--candidate-id $(M21_CANDIDATE_ID) \
+		--provider $(M21_PROVIDER) \
+		--profile $(M21_PROFILE) \
+		--config $(M21_CONFIG) \
+		--providers-config $(M21_PROVIDERS_CONFIG) \
+		--namespace $(M21_NAMESPACE) \
+		--kube-context "$(M21_KUBE_CONTEXT)" \
+		--allow-run-id-drift
 
 gh-checks:
 	@if [ -z "$(PR)" ]; then echo "Usage: make gh-checks PR=<pr-number>"; exit 2; fi

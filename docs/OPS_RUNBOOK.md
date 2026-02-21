@@ -26,6 +26,35 @@ BUCKET=jobintel-prod1 PREFIX=jobintel PROVIDER=openai PROFILE=cs bash ./scripts/
 ```
 Note: ECS task ARN is resolved via ECS task metadata when available.
 
+## M21 on-prem 72h stability harness
+Single-command entrypoint (receipt-driven, non-interactive):
+```bash
+make m21-stability-harness \
+  M21_DURATION_HOURS=72 \
+  M21_INTERVAL_MINUTES=60 \
+  M21_CANDIDATE_ID=local \
+  M21_PROVIDER=openai \
+  M21_PROFILE=cs \
+  M21_KUBE_CONTEXT=<context>
+```
+
+Kubernetes-native monitoring commands during run:
+```bash
+kubectl --context <context> -n jobintel get cronjob,pods,jobs
+kubectl --context <context> -n jobintel top pods
+kubectl --context <context> top nodes
+kubectl --context <context> -n jobintel get events --sort-by=.metadata.creationTimestamp | tail -n 80
+```
+
+Harness receipts are written under `state/proofs/m21/<run_id>/`:
+- `start_receipt.json`
+- `checkpoints.jsonl`
+- `checkpoints/checkpoint-*/checkpoint.json`
+- `final_receipt.json`
+- `summary.json`
+
+Use template: `docs/proof/m21-72h-onprem-proof-template-2026-02-21.md`.
+
 ## Publish to S3
 ```bash
 PUBLISH_S3=1 JOBINTEL_S3_BUCKET=jobintel-prod1 JOBINTEL_S3_PREFIX=jobintel \
