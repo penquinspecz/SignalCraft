@@ -1,0 +1,201 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "explanation schema v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "candidate_id",
+    "generated_at",
+    "scoring_config_sha256",
+    "top_jobs",
+    "aggregation"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "explanation.v1"
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "scoring_config_sha256": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "top_jobs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/top_job"
+      }
+    },
+    "aggregation": {
+      "type": "object",
+      "required": [
+        "most_common_penalties",
+        "strongest_positive_signals",
+        "strongest_negative_signals"
+      ],
+      "properties": {
+        "most_common_penalties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/penalty_count"
+          }
+        },
+        "strongest_positive_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/avg_signal"
+          }
+        },
+        "strongest_negative_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/avg_signal"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "signal": {
+      "type": "object",
+      "required": [
+        "name",
+        "value",
+        "weight",
+        "contribution"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        },
+        "weight": {
+          "type": "number"
+        },
+        "contribution": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "penalty": {
+      "type": "object",
+      "required": [
+        "name",
+        "amount",
+        "reason_code"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "reason_code": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "top_job": {
+      "type": "object",
+      "required": [
+        "job_hash",
+        "rank",
+        "score_total",
+        "top_positive_signals",
+        "top_negative_signals",
+        "penalties",
+        "notes"
+      ],
+      "properties": {
+        "job_hash": {
+          "type": "string"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "score_total": {
+          "type": "number"
+        },
+        "top_positive_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signal"
+          }
+        },
+        "top_negative_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signal"
+          }
+        },
+        "penalties": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/penalty"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "penalty_count": {
+      "type": "object",
+      "required": [
+        "name",
+        "count"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "avg_signal": {
+      "type": "object",
+      "required": [
+        "name",
+        "avg_contribution"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "avg_contribution": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

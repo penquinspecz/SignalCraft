@@ -22,6 +22,7 @@ def test_get_artifact_category_exact() -> None:
     assert get_artifact_category("run_health.v1.json") == ArtifactCategory.REPLAY_SAFE
     assert get_artifact_category("run_report.json") == ArtifactCategory.REPLAY_SAFE
     assert get_artifact_category("provider_availability_v1.json") == ArtifactCategory.UI_SAFE
+    assert get_artifact_category("explanation_v1.json") == ArtifactCategory.UI_SAFE
 
 
 def test_get_artifact_category_patterns() -> None:
