@@ -137,6 +137,42 @@ Ordering:
 - Keep full run artifacts under `runs/<run_id>/` for as long as required by compliance (recommended: lifecycle rule).
 - `latest/` keys and `state/last_success.json` are overwritten each successful run and should be retained indefinitely.
 
+## M19 Phase A: S3 versioning + lifecycle hardening
+
+Buckets used in AWS DR posture:
+- Primary artifacts bucket (`JOBINTEL_S3_BUCKET`): canonical runtime publish target.
+  - Stores `runs/<run_id>/...`, `latest/<provider>/<profile>/...`, and `state/...` pointers.
+- Backup bucket (`JOBINTEL_S3_BACKUP_BUCKET`, optional but recommended): DR backup/archive target.
+  - Stores `backups/<backup_id>/{metadata.json,state.tar.zst,manifests.tar.zst}` and optional replicated run artifacts.
+
+Retention semantics:
+- Primary bucket lifecycle (applied by `scripts/aws_s3_hardening.py`):
+  - Prefix: `<prefix>/runs/`
+  - Current object transition: `STANDARD_IA` at day 30
+  - Current object expiration: day 365
+  - Noncurrent version transition: `STANDARD_IA` at day 30
+  - Noncurrent version expiration: day 180
+- Backup bucket lifecycle (applied when `JOBINTEL_S3_BACKUP_BUCKET` is set):
+  - Prefix: `<prefix>/backups/`
+  - Current object transition: `GLACIER_IR` at day 60
+  - Current object expiration: day 730
+  - Noncurrent version transition: `GLACIER_IR` at day 30
+  - Noncurrent version expiration: day 365
+
+Replication strategy (documented, optional to activate in Phase A):
+- Preferred: replicate immutable run artifacts (`<prefix>/runs/`) from primary to backup bucket.
+- Keep mutable pointers (`<prefix>/latest/`, `<prefix>/state/`) authoritative in primary; restore derives current pointers from replicated runs.
+- If replication is not yet configured, DR restore uses explicit backup artifacts under `<prefix>/backups/` and accepts a larger RPO until replication is enabled.
+
+Idempotent hardening command:
+```bash
+# Dry-run (default)
+make aws-s3-hardening
+
+# Apply changes
+APPLY=1 make aws-s3-hardening
+```
+
 ## Verify publish
 ```bash
 aws s3 ls "s3://$JOBINTEL_S3_BUCKET/$JOBINTEL_S3_PREFIX/runs/<run_id>/<provider>/<profile>/"
