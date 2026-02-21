@@ -416,13 +416,7 @@ explain-smoke:
 		--out_md_top_n /tmp/openai_top.cs.md
 
 dashboard:
-	@$(PY) - <<'PY'
-	import importlib.util, sys
-	missing = [name for name in ("fastapi", "uvicorn") if importlib.util.find_spec(name) is None]
-	if missing:
-	    print("Dashboard deps missing (%s). Install with: pip install -e '.[dashboard]'" % ", ".join(missing))
-	    sys.exit(2)
-	PY
+	@$(PY) -c "import importlib.util,sys;missing=[name for name in ('fastapi','uvicorn') if importlib.util.find_spec(name) is None];print(\"Dashboard deps missing (%s). Install with: pip install -e '.[dashboard]'\" % ', '.join(missing)) if missing else None;sys.exit(2 if missing else 0)"
 	$(PY) -m uvicorn ji_engine.dashboard.app:app --reload --port 8000
 
 weekly:
