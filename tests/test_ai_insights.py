@@ -56,7 +56,7 @@ def test_ai_insights_metadata_hashes(tmp_path: Path, monkeypatch) -> None:
     )
 
     meta = payload.get("metadata") or {}
-    assert meta.get("prompt_version") == "weekly_insights_v3"
+    assert meta.get("prompt_version") == "weekly_insights_v4"
     assert meta.get("prompt_sha256")
     assert meta.get("input_hashes", {}).get("ranked")
     assert meta.get("input_hashes", {}).get("insights_input")
@@ -104,3 +104,27 @@ def test_ai_insights_cache_key_changes_when_structured_input_changes(tmp_path: P
     assert first_cache_key
     assert second_cache_key
     assert first_cache_key != second_cache_key
+
+
+def test_ai_insights_includes_top_5_actions(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(ai_insights, "RUN_METADATA_DIR", tmp_path / "state" / "runs")
+    ranked = tmp_path / "ranked.json"
+    ranked.write_text(json.dumps([{"job_id": "a", "title": "Role A", "score": 80}]), encoding="utf-8")
+    prompt = tmp_path / "prompt.md"
+    prompt.write_text("prompt", encoding="utf-8")
+
+    _, _, payload = ai_insights.generate_insights(
+        provider="openai",
+        profile="cs",
+        ranked_path=ranked,
+        prev_path=None,
+        run_id="2026-01-22T00:00:00Z",
+        prompt_path=prompt,
+        ai_enabled=False,
+        ai_reason="ai_disabled",
+        model_name="stub",
+    )
+    assert payload.get("schema_version") == "ai_insights_output.v1"
+    actions = payload.get("actions") or []
+    assert len(actions) == 5
+    assert all("supporting_evidence_fields" in action for action in actions)
