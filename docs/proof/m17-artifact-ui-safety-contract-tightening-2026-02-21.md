@@ -32,10 +32,10 @@ No artifact filename/path contracts were changed.
 
 ## Validation Commands
 ```bash
-PATH=/Users/chris.menendez/Projects/signalcraft/.venv/bin:$PATH make format
-PATH=/Users/chris.menendez/Projects/signalcraft/.venv/bin:$PATH make lint
-PATH=/Users/chris.menendez/Projects/signalcraft/.venv/bin:$PATH make ci-fast
-PATH=/Users/chris.menendez/Projects/signalcraft/.venv/bin:$PATH make gate
+PATH=.venv/bin:$PATH make format
+PATH=.venv/bin:$PATH make lint
+PATH=.venv/bin:$PATH make ci-fast
+PATH=.venv/bin:$PATH make gate
 ```
 
 ## Validation Results
