@@ -41,6 +41,25 @@ If none of the above triggers, changelog update is not required.
 6. Create annotated tag and push.
 7. Publish release notes from the tag.
 
+## Reproducible Build Verification (Clean Room)
+
+Run this from a fresh clone directory with no pre-existing `.venv`:
+
+```bash
+git clone <repo-url> signalcraft-cleanroom
+cd signalcraft-cleanroom
+git checkout main
+make tooling-sync
+make lint
+make ci-fast
+make gate
+```
+
+Notes:
+- `make tooling-sync` creates `.venv` deterministically and pins tooling versions.
+- Dashboard extras are optional and not required for `make ci-fast` or `make gate`.
+- Use `make dashboard-sanity` for dashboard contract verification without installing extras.
+
 ## Copy/Paste Commands
 
 ```bash
