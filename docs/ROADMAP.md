@@ -306,13 +306,13 @@ Receipts Required
 ## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ◐
 
 Goal: Releases are evidence-backed.
-Status: ◐ Release process and proof artifacts exist; changelog enforcement and full reproducible-build verification need explicit CI enforcement.
-Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `scripts/preflight_env.py`.
+Status: ◐ Release process and proof artifacts exist; changelog enforcement is now CI-enforced for release-intent PRs, while reproducible-build verification remains open.
+Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `scripts/preflight_env.py`, `scripts/check_changelog_policy.py`, `tests/test_check_changelog_policy.py`, `tests/fixtures/github_event_pull_request_release.json`, `tests/fixtures/github_event_pull_request_nonrelease.json`, `Makefile` targets `changelog-policy` and `release-policy`, `.github/workflows/ci.yml`.
 
 Definition of Done
 - [x] Release checklist codified
 - [x] Preflight validation script exists
-- [ ] Changelog enforcement policy
+- [x] Changelog enforcement policy
 - [x] Every release includes proof bundle
 - [ ] Reproducible build instructions verified
 
