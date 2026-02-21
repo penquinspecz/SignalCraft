@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -556,3 +556,15 @@ aws-bootstrap-help:
 	@echo "Find cluster ARN: aws ecs list-clusters --region <region>"
 	@echo "Describe subnets: aws ec2 describe-subnets --region <region>"
 	@echo "Describe security groups: aws ec2 describe-security-groups --region <region>"
+
+aws-s3-hardening:
+	@if [ -z "$${JOBINTEL_S3_BUCKET:-}" ]; then \
+		echo "Missing JOBINTEL_S3_BUCKET"; exit 2; \
+	fi
+	@region="$${REGION:-$${JOBINTEL_AWS_REGION:-$${AWS_REGION:-$${AWS_DEFAULT_REGION:-}}}}"; \
+	backup="$${JOBINTEL_S3_BACKUP_BUCKET:-}"; \
+	args="--bucket $${JOBINTEL_S3_BUCKET} --prefix $${JOBINTEL_S3_PREFIX:-jobintel}"; \
+	if [ -n "$${backup}" ]; then args="$$args --backup-bucket $$backup"; fi; \
+	if [ -n "$${region}" ]; then args="$$args --region $$region"; fi; \
+	if [ "$${APPLY:-0}" = "1" ]; then args="$$args --apply"; fi; \
+	$(PY) scripts/aws_s3_hardening.py $$args

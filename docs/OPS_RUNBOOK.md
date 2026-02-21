@@ -69,6 +69,19 @@ aws s3 ls s3://jobintel-prod1/jobintel/runs/<run_id>/<provider>/<profile>/
 aws s3 ls s3://jobintel-prod1/jobintel/latest/openai/cs/
 ```
 
+## M19 Phase A: harden S3 retention controls
+```bash
+# Dry-run
+make aws-s3-hardening
+
+# Apply versioning + lifecycle changes (set backup bucket if available)
+JOBINTEL_S3_BACKUP_BUCKET=<backup-bucket> APPLY=1 make aws-s3-hardening
+
+# Validate controls
+aws s3api get-bucket-versioning --bucket "$JOBINTEL_S3_BUCKET"
+aws s3api get-bucket-lifecycle-configuration --bucket "$JOBINTEL_S3_BUCKET"
+```
+
 ## Failure modes
 ```bash
 # Pointers missing or access denied
