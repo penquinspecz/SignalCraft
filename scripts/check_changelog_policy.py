@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import subprocess
@@ -12,6 +13,11 @@ CHANGELOG_PATH = "CHANGELOG.md"
 VERSION_FILES = ("pyproject.toml",)
 RELEASE_LABEL = "release"
 RELEASE_PROCESS_DOC = "docs/RELEASE_PROCESS.md"
+SCHEMA_CHANGE_PATTERN = "schemas/*.schema.v*.json"
+ARTIFACT_CONTRACT_SURFACE_FILES = (
+    "src/ji_engine/pipeline/artifact_paths.py",
+    "src/ji_engine/artifacts/catalog.py",
+)
 
 
 def _run_git(args: Sequence[str]) -> str:
@@ -56,12 +62,23 @@ def _changed_files(base_ref: str, head_ref: str) -> Set[str]:
     return _normalize_files(changed.splitlines())
 
 
-def evaluate_policy(changed_files: Set[str], labels: Set[str]) -> Tuple[bool, str]:
-    reasons = []
+def _release_intent_reasons(changed_files: Set[str], labels: Set[str]) -> list[str]:
+    reasons: list[str] = []
     if RELEASE_LABEL in labels:
         reasons.append(f'PR has "{RELEASE_LABEL}" label')
     if any(version_file in changed_files for version_file in VERSION_FILES):
         reasons.append("version file changed (pyproject.toml)")
+    schema_changes = sorted(path for path in changed_files if fnmatch.fnmatch(path, SCHEMA_CHANGE_PATTERN))
+    if schema_changes:
+        reasons.append(f"schema contract changed ({', '.join(schema_changes)})")
+    surface_changes = sorted(path for path in changed_files if path in ARTIFACT_CONTRACT_SURFACE_FILES)
+    if surface_changes:
+        reasons.append(f"artifact contract surface changed ({', '.join(surface_changes)})")
+    return reasons
+
+
+def evaluate_policy(changed_files: Set[str], labels: Set[str]) -> Tuple[bool, str]:
+    reasons = _release_intent_reasons(changed_files, labels)
 
     if not reasons:
         return True, "skip: policy not triggered"
@@ -85,6 +102,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--event-path", default=os.environ.get("GITHUB_EVENT_PATH", ""))
     parser.add_argument("--changed-file", action="append", default=[])
     parser.add_argument("--label", action="append", default=[])
+    parser.add_argument(
+        "--strict-event-payload",
+        action="store_true",
+        help="Fail if --event-path is missing or unreadable (for deterministic local policy smoke).",
+    )
     return parser.parse_args(argv)
 
 
@@ -93,6 +115,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     labels = {label.strip().lower() for label in args.label if label.strip()}
 
     event_path = Path(args.event_path) if args.event_path else None
+    if args.strict_event_payload and (event_path is None or not event_path.exists()):
+        print("ERROR: strict event payload mode requires --event-path to an existing file")
+        return 2
     labels |= _labels_from_event(event_path)
 
     if args.changed_file:
