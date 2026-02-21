@@ -950,6 +950,90 @@ def _write_provider_availability_artifact(
     return path
 
 
+def _write_provider_availability_fallback_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    selected_providers: List[str],
+    provenance_by_provider: Dict[str, Dict[str, Any]],
+    providers_config_path: Path,
+) -> Path:
+    """
+    Last-resort fail-closed provider availability writer.
+    Uses the existing taxonomy and schema contract while avoiding non-essential logic.
+    """
+    provider_cfg_map = _provider_config_map(providers_config_path)
+    all_provider_ids = sorted(
+        set(selected_providers) | set(provider_cfg_map.keys()) | set(provenance_by_provider.keys())
+    )
+    generated_at = _utcnow_iso()
+    registry_sha = _provider_registry_hash(providers_config_path)
+    providers_payload: List[Dict[str, Any]] = []
+
+    for provider_id in all_provider_ids:
+        meta = (
+            provenance_by_provider.get(provider_id) if isinstance(provenance_by_provider.get(provider_id), dict) else {}
+        )
+        provider_cfg = provider_cfg_map.get(provider_id)
+        availability = str(meta.get("availability") or "").strip().lower()
+        if availability not in {"available", "unavailable"}:
+            availability = "unavailable"
+        reason_code = _provider_reason_code(meta, provider_cfg, availability=availability)
+        unavailable_reason = meta.get("unavailable_reason")
+        attempts_made = meta.get("attempts_made")
+        if availability == "unavailable":
+            if (
+                reason_code == "ok"
+                or str(reason_code).startswith("fail_closed:")
+                or str(unavailable_reason or "").strip() == EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON
+            ):
+                reason_code = EARLY_FAILURE_UNKNOWN_REASON_CODE
+            if not str(unavailable_reason or "").strip():
+                unavailable_reason = EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON
+            if attempts_made is None:
+                attempts_made = 0
+        providers_payload.append(
+            {
+                "provider_id": provider_id,
+                "mode": _provider_mode(provider_cfg),
+                "enabled": bool(provider_cfg.get("enabled", False)) if isinstance(provider_cfg, dict) else False,
+                "snapshot_enabled": bool(provider_cfg.get("snapshot_enabled", False))
+                if isinstance(provider_cfg, dict)
+                else False,
+                "live_enabled": bool(provider_cfg.get("live_enabled", False))
+                if isinstance(provider_cfg, dict)
+                else False,
+                "availability": availability,
+                "reason_code": reason_code,
+                "unavailable_reason": unavailable_reason,
+                "attempts_made": attempts_made,
+                "policy": _provider_policy_details(meta),
+            }
+        )
+
+    payload = {
+        "provider_availability_schema_version": PROVIDER_AVAILABILITY_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": generated_at,
+        "provider_registry_sha256": registry_sha,
+        "providers": providers_payload,
+    }
+    errors = validate_payload(payload, _provider_availability_schema())
+    if errors:
+        raise RuntimeError(
+            f"provider_availability fallback schema validation failed for run_id={run_id}: {'; '.join(errors)}"
+        )
+    path = _provider_availability_path(run_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _redaction_guard_json(path, payload)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _resolve_trigger_type() -> str:
     raw = str(os.environ.get("JOBINTEL_TRIGGER_TYPE") or "").strip().lower()
     if raw in {"manual", "cron", "replay"}:
@@ -4969,13 +5053,26 @@ def main() -> int:
                     if meta.get("attempts_made") is None:
                         meta["attempts_made"] = 0
                 fail_closed_provenance[provider] = meta
-            provider_availability_path = _write_provider_availability_artifact(
-                run_id=run_id,
-                candidate_id=CANDIDATE_ID,
-                selected_providers=providers,
-                provenance_by_provider=fail_closed_provenance,
-                providers_config_path=providers_config_path,
-            )
+            try:
+                provider_availability_path = _write_provider_availability_artifact(
+                    run_id=run_id,
+                    candidate_id=CANDIDATE_ID,
+                    selected_providers=providers,
+                    provenance_by_provider=fail_closed_provenance,
+                    providers_config_path=providers_config_path,
+                )
+            except Exception as fallback_exc:
+                logger.error(
+                    "Provider availability primary+fallback writer failed; using deterministic minimal fallback: %r",
+                    fallback_exc,
+                )
+                provider_availability_path = _write_provider_availability_fallback_artifact(
+                    run_id=run_id,
+                    candidate_id=CANDIDATE_ID,
+                    selected_providers=providers,
+                    provenance_by_provider=fail_closed_provenance,
+                    providers_config_path=providers_config_path,
+                )
         provider_availability_pointer = _artifact_pointer(provider_availability_path)
         run_audit_path = _write_run_audit_artifact(
             run_id=run_id,
