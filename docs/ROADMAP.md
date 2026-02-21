@@ -370,10 +370,11 @@ Receipts Required
 ## Milestone 21 — On-Prem Stability Proof (Post-Migration) ⏸
 
 Goal: On-prem becomes primary without chaos.
-Status: ⏸ Foundational runbooks and rehearsal receipts exist, but 72-hour continuous stability proof is not yet complete.
-Evidence: `ops/onprem/RUNBOOK_BORING_72H_PROOF.md`, `docs/proof/onprem-ops-hardening-2026-02-13.md`.
+Status: ⏸ Harness merged; awaiting 72h execution receipt on on-prem cluster.
+Evidence: `ops/onprem/RUNBOOK_BORING_72H_PROOF.md`, `docs/proof/onprem-ops-hardening-2026-02-13.md`, `docs/proof/m21-harness-implementation-2026-02-21.md`, `docs/proof/m21-72h-onprem-proof-template-2026-02-21.md`, `docs/proof/m21-72h-onprem-proof-executed-YYYY-MM-DD.md`.
 
 Definition of Done
+- [x] 72h harness + proof template merged and runnable (`make m21-stability-harness`)
 - [ ] 72-hour continuous k3s run
 - [ ] CronJob stability verified
 - [ ] Storage durability verified
