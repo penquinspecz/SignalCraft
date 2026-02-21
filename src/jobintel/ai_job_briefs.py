@@ -20,10 +20,17 @@ from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.job_identity import job_identity
 from ji_engine.utils.time import utc_now_iso
 
+try:
+    from scripts.schema_validate import resolve_named_schema_path, validate_payload
+except ModuleNotFoundError:  # pragma: no cover - direct script execution fallback
+    from schema_validate import resolve_named_schema_path, validate_payload  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 PROMPT_VERSION = "job_briefs_v1"
 PROMPT_PATH = REPO_ROOT / "docs" / "prompts" / "job_briefs_v1.md"
+JOB_BRIEF_SCHEMA_VERSION = 1
+_JOB_BRIEF_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 
 def _run_dir(run_id: str, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
@@ -42,6 +49,14 @@ def _sha256_path(path: Path) -> Optional[str]:
     if not path.exists():
         return None
     return _sha256_bytes(path.read_bytes())
+
+
+def _job_brief_schema() -> Dict[str, Any]:
+    global _JOB_BRIEF_SCHEMA_CACHE
+    if _JOB_BRIEF_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("ai_job_brief", JOB_BRIEF_SCHEMA_VERSION)
+        _JOB_BRIEF_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _JOB_BRIEF_SCHEMA_CACHE
 
 
 def _load_prompt(path: Path) -> Tuple[str, str]:
@@ -71,7 +86,7 @@ def _job_id(job: Dict[str, Any]) -> str:
     return str(job.get("job_id") or job.get("apply_url") or job_identity(job))
 
 
-def _jd_hash(job: Dict[str, Any]) -> str:
+def _job_hash(job: Dict[str, Any]) -> str:
     jd = job.get("jd_text") or ""
     if isinstance(jd, str) and jd:
         return _sha256_bytes(jd.encode("utf-8"))
@@ -87,13 +102,8 @@ def _brief_cache_dir(profile: str) -> Path:
 
 
 def _cache_key(job: Dict[str, Any], profile_hash: str, model: str) -> str:
-    parts = [
-        _job_id(job),
-        _jd_hash(job),
-        profile_hash,
-        PROMPT_VERSION,
-        model,
-    ]
+    del model
+    parts = [_job_hash(job), profile_hash, PROMPT_VERSION]
     return _sha256_bytes("|".join(parts).encode("utf-8"))
 
 
@@ -164,6 +174,16 @@ def _brief_payload(job: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _validate_brief_payload(brief: Dict[str, Any]) -> List[str]:
+    return validate_payload(brief, _job_brief_schema())
+
+
+def _write_error_artifact(*, run_dir: Path, profile: str, payload: Dict[str, Any]) -> Path:
+    path = run_dir / f"ai_job_briefs.{profile}.error.json"
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
 def generate_job_briefs(
     *,
     provider: str,
@@ -210,6 +230,8 @@ def generate_job_briefs(
     cache_hits = 0
     used_tokens = 0
     skipped_budget = 0
+    schema_errors: List[str] = []
+    invalid_job_id: Optional[str] = None
 
     for job in top_jobs:
         jd_text = job.get("jd_text") or ""
@@ -223,6 +245,11 @@ def generate_job_briefs(
         key = _cache_key(job, profile_hash, model_name)
         cached = _load_cache(profile, key)
         if cached:
+            cached_errors = _validate_brief_payload(cached)
+            if cached_errors:
+                schema_errors = [f"job_id={_job_id(job)}: " + "; ".join(cached_errors)]
+                invalid_job_id = _job_id(job)
+                break
             cache_hits += 1
             briefs.append(cached)
             continue
@@ -235,6 +262,12 @@ def generate_job_briefs(
             brief["gaps"] = []
             brief["interview_focus"] = []
             brief["resume_tweaks"] = []
+
+        brief_errors = _validate_brief_payload(brief)
+        if brief_errors:
+            schema_errors = [f"job_id={_job_id(job)}: " + "; ".join(brief_errors)]
+            invalid_job_id = _job_id(job)
+            break
 
         _save_cache(profile, key, brief)
         briefs.append(brief)
@@ -272,8 +305,40 @@ def generate_job_briefs(
             "ai_accounting": ai_accounting,
         },
     }
+    if schema_errors:
+        status = "error"
+        reason = "job_brief_schema_validation_failed"
+        error_payload = {
+            "error": reason,
+            "run_id": run_id,
+            "candidate_id": candidate_id,
+            "provider": provider,
+            "profile": profile,
+            "invalid_job_id": invalid_job_id,
+            "schema_errors": schema_errors,
+            "generated_at": utc_now_iso(),
+            "schema": "ai_job_brief.v1",
+        }
+        error_path = _write_error_artifact(run_dir=run_dir, profile=profile, payload=error_payload)
+        payload = {
+            "status": status,
+            "reason": reason,
+            "provider": provider,
+            "profile": profile,
+            "briefs": [],
+            "metadata": {
+                **metadata,
+                "cache_hits": cache_hits,
+                "estimated_tokens_used": used_tokens,
+                "skipped_due_to_budget": skipped_budget,
+                "ai_accounting": ai_accounting,
+                "error_artifact": str(error_path),
+                "schema_errors": schema_errors,
+                "invalid_job_id": invalid_job_id,
+            },
+        }
 
-    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     md_path.write_text(_briefs_markdown(payload), encoding="utf-8")
     return md_path, json_path, payload
 
