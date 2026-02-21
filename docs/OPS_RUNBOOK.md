@@ -26,6 +26,11 @@ BUCKET=jobintel-prod1 PREFIX=jobintel PROVIDER=openai PROFILE=cs bash ./scripts/
 ```
 Note: ECS task ARN is resolved via ECS task metadata when available.
 
+## Dashboard modes
+- Minimal/offline mode (CI-safe): `make dashboard-sanity`
+- Full dashboard mode (local dev): install extras then run `make dashboard`
+- See: `docs/DASHBOARD.md`
+
 ## M21 on-prem 72h stability harness
 Single-command entrypoint (receipt-driven, non-interactive):
 ```bash
