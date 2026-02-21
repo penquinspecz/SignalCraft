@@ -56,6 +56,13 @@ def _validate_provider_availability_schema(path: Path) -> Dict[str, Any]:
     return payload
 
 
+def _assert_provider_availability_ui_safe(payload: Dict[str, Any]) -> None:
+    from ji_engine.artifacts.catalog import ArtifactCategory, assert_no_forbidden_fields, get_artifact_category
+
+    assert get_artifact_category("provider_availability_v1.json") == ArtifactCategory.UI_SAFE
+    assert_no_forbidden_fields(payload, context="provider_availability_v1.json")
+
+
 def _latest_run_audit_path(run_daily: Any) -> Path:
     roots = [run_daily.candidate_state_paths(run_daily.CANDIDATE_ID).runs]
     if run_daily.CANDIDATE_ID == run_daily.DEFAULT_CANDIDATE_ID:
@@ -122,7 +129,10 @@ def test_run_health_written_on_success(tmp_path: Path, monkeypatch: Any) -> None
     assert payload["phases"]["score"]["status"] == "success"
     availability_path = _latest_provider_availability_path(run_daily)
     availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
     assert availability["run_id"]
+    provider_ids = [entry["provider_id"] for entry in availability["providers"]]
+    assert provider_ids == sorted(provider_ids)
     providers = {entry["provider_id"]: entry for entry in availability["providers"]}
     assert "openai" in providers
     assert providers["openai"]["mode"] in {"snapshot", "live", "disabled"}
@@ -165,7 +175,10 @@ def test_run_health_written_on_controlled_failure(tmp_path: Path, monkeypatch: A
     assert "CLASSIFY_STAGE_FAILED" in payload["failure_codes"]
     availability_path = _latest_provider_availability_path(run_daily)
     availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
     assert availability["run_id"]
+    provider_ids = [entry["provider_id"] for entry in availability["providers"]]
+    assert provider_ids == sorted(provider_ids)
     providers = {entry["provider_id"]: entry for entry in availability["providers"]}
     assert "openai" in providers
 
@@ -265,6 +278,7 @@ def test_provider_availability_on_forced_failure(tmp_path: Path, monkeypatch: An
     assert run_summaries, "run_summary should be emitted on forced failure"
     availability_path = _latest_provider_availability_path(run_daily)
     availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
     providers = {entry["provider_id"]: entry for entry in availability["providers"]}
     assert "openai" in providers
     assert providers["openai"]["availability"] == "unavailable"
@@ -380,6 +394,39 @@ def test_provider_availability_written_on_provider_policy_failure(tmp_path: Path
     assert providers["openai"]["availability"] == "unavailable"
     assert providers["openai"]["reason_code"] == "policy_denied"
     assert providers["openai"]["policy"]["network_shield"]["allowlist_allowed"] is False
+
+
+def test_provider_availability_written_when_primary_and_retry_writers_fail(tmp_path: Path, monkeypatch: Any) -> None:
+    """If the primary+retry availability writers raise, deterministic minimal fallback is still emitted."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(run_daily, "_run", _fake_success_run(run_daily, output_dir))
+    monkeypatch.setattr(
+        run_daily,
+        "_write_provider_availability_artifact",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("simulated availability writer failure")),
+    )
+    monkeypatch.setattr(sys, "argv", ["run_daily.py", "--no_subprocess", "--profiles", "cs", "--no_post"])
+
+    assert run_daily.main() == 0
+
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["availability"] == "unavailable"
+    assert providers["openai"]["reason_code"] == "early_failure_unknown"
+    assert providers["openai"]["unavailable_reason"] == "fail_closed:unknown_due_to_early_failure"
+    assert providers["openai"]["attempts_made"] == 0
 
 
 def test_run_audit_written_for_non_local_candidate(tmp_path: Path, monkeypatch: Any) -> None:
