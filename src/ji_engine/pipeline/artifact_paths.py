@@ -28,3 +28,15 @@ def run_audit_path(run_dir: Path) -> Path:
 
 def explanation_path(run_dir: Path) -> Path:
     return run_dir / "artifacts" / "explanation_v1.json"
+
+
+def ai_insights_path(run_dir: Path, profile: str) -> Path:
+    return run_dir / "artifacts" / f"ai_insights.{profile}.json"
+
+
+def ai_job_briefs_path(run_dir: Path, profile: str) -> Path:
+    return run_dir / "artifacts" / f"ai_job_briefs.{profile}.json"
+
+
+def ai_job_briefs_error_path(run_dir: Path, profile: str) -> Path:
+    return run_dir / "artifacts" / f"ai_job_briefs.{profile}.error.json"
