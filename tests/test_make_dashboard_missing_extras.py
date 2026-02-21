@@ -1,19 +1,24 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 def test_make_dashboard_missing_extras_prints_install_guidance(tmp_path: Path) -> None:
     repo_root = Path(__file__).resolve().parents[1]
+    if shutil.which("make") is None:
+        pytest.skip("make is unavailable in this environment")
 
     # Use python -S to disable site-packages and deterministically simulate
     # missing FastAPI/Uvicorn without network installs.
     wrapper = tmp_path / "python-noextras.sh"
-    wrapper.write_text(f"#!/bin/sh\nexec {sys.executable} -S \"$@\"\n", encoding="utf-8")
+    wrapper.write_text(f'#!/bin/sh\nexec {sys.executable} -S "$@"\n', encoding="utf-8")
     wrapper.chmod(wrapper.stat().st_mode | stat.S_IEXEC)
 
     env = os.environ.copy()
