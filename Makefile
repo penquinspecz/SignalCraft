@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -148,6 +148,8 @@ gate-fast:
 ci-fast:
 	@echo "==> ruff"
 	$(PY) -m ruff check src scripts tests
+	@echo "==> dashboard offline sanity"
+	PYTHONPATH=src $(PY) -m scripts.dashboard_offline_sanity
 	@echo "==> pytest"
 	$(PY) -m pytest -q
 
@@ -418,6 +420,9 @@ explain-smoke:
 dashboard:
 	@$(PY) -c "import importlib.util,sys;missing=[name for name in ('fastapi','uvicorn') if importlib.util.find_spec(name) is None];print(\"Dashboard deps missing (%s). Install with: pip install -e '.[dashboard]'\" % ', '.join(missing)) if missing else None;sys.exit(2 if missing else 0)"
 	$(PY) -m uvicorn ji_engine.dashboard.app:app --reload --port 8000
+
+dashboard-sanity:
+	PYTHONPATH=src $(PY) -m scripts.dashboard_offline_sanity
 
 weekly:
 	AI_ENABLED=1 AI_JOB_BRIEFS_ENABLED=1 $(PY) scripts/run_daily.py --profiles $(SMOKE_PROFILES) --providers $(SMOKE_PROVIDERS)
