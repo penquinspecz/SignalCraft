@@ -30,10 +30,11 @@ done
 
 [[ -n "${BACKUP_URI}" ]] || { usage; exit 2; }
 command -v aws >/dev/null || { echo "aws cli is required" >&2; exit 2; }
+command -v python3 >/dev/null || { echo "MISSING_BIN=python3" >&2; exit 2; }
 
 contract_json="$(${ROOT_DIR}/scripts/ops/dr_contract.py --backup-uri "${BACKUP_URI}")"
-bucket="$(echo "${contract_json}" | python -c 'import json,sys; print(json.load(sys.stdin)["bucket"])')"
-keys="$(echo "${contract_json}" | python -c 'import json,sys; print("\n".join(json.load(sys.stdin)["required_keys"]))')"
+bucket="$(echo "${contract_json}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["bucket"])')"
+keys="$(echo "${contract_json}" | python3 -c 'import json,sys; print("\n".join(json.load(sys.stdin)["required_keys"]))')"
 
 missing=0
 while IFS= read -r key; do
