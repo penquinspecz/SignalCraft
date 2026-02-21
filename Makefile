@@ -3,6 +3,7 @@
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
 DEPS_PY ?= .venv/bin/python
+BOOTSTRAP_PY ?= python3
 TOOLING_PIP_VERSION ?= 25.0.1
 TOOLING_PIPTOOLS_VERSION ?= 7.4.1
 JOBINTEL_IMAGE_TAG ?= jobintel:local
@@ -20,7 +21,7 @@ endif
 
 define ensure_deps_venv
 	@if [ ! -x "$(DEPS_PY)" ]; then \
-		echo "Missing .venv. Create it with: PYENV_VERSION=3.14.3 python -m venv .venv"; \
+		echo "Missing .venv. Create it with: $(BOOTSTRAP_PY) -m venv .venv"; \
 		exit 2; \
 	fi
 endef
@@ -141,12 +142,12 @@ deps:
 
 tooling-sync:
 	@if [ ! -x "$(DEPS_PY)" ]; then \
-		echo "Creating .venv with Python 3.14.3..."; \
-		PYENV_VERSION=3.14.3 python -m venv .venv; \
+		echo "Creating .venv with $(BOOTSTRAP_PY)..."; \
+		$(BOOTSTRAP_PY) -m venv .venv; \
 	fi
 	$(DEPS_PY) -m pip install --upgrade "pip==$(TOOLING_PIP_VERSION)" setuptools wheel \
 		"pip-tools==$(TOOLING_PIPTOOLS_VERSION)"
-	$(DEPS_PY) -m pip install -r requirements-dev.txt
+	$(DEPS_PY) -m pip install -r requirements.txt -r requirements-dev.txt
 
 deps-sync:
 	$(call ensure_deps_venv)
