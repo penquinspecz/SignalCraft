@@ -65,8 +65,9 @@ def test_insights_input_builder_is_deterministic(tmp_path: Path) -> None:
     assert p1 == p2
     assert path_one.read_text(encoding="utf-8").splitlines()[0] == "{"
     assert path_one == path_two
-    assert payload_one["rolling_diff_counts_7"]["window_size"] == 7
-    assert payload_one["median_score_trend_delta"]["delta"] == 6.0
+    assert payload_one["schema_version"] == "ai_insights_input.v1"
+    assert payload_one["window_days"] == [7, 14, 30]
+    assert payload_one["trend_analysis"]["median_score_trend_delta"]["delta"] == 6.0
 
 
 def test_insights_input_excludes_raw_jd_text(tmp_path: Path) -> None:
@@ -133,7 +134,7 @@ def test_insights_input_skill_tokens_deterministic(tmp_path: Path) -> None:
         run_metadata_dir=run_dir,
     )
     assert payload["top_recurring_skill_tokens"] == [
-        {"keyword": "python", "count": 4},
-        {"keyword": "sql", "count": 2},
-        {"keyword": "terraform", "count": 1},
+        {"token": "architect", "count": 1},
+        {"token": "customer", "count": 1},
+        {"token": "manager", "count": 1},
     ]

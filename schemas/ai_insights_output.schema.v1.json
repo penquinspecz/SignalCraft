@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ai insights output schema v1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "reason",
+    "provider",
+    "profile",
+    "run_id",
+    "candidate_id",
+    "themes",
+    "actions",
+    "top_roles",
+    "risks",
+    "structured_inputs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "enum": ["ai_insights_output.v1"]},
+    "status": {"type": "string", "enum": ["ok", "disabled", "error"]},
+    "reason": {"type": "string"},
+    "provider": {"type": "string"},
+    "profile": {"type": "string"},
+    "run_id": {"type": "string"},
+    "candidate_id": {"type": "string"},
+    "themes": {"type": "array", "items": {"type": "string"}},
+    "actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "rationale", "supporting_evidence_fields"],
+        "properties": {
+          "title": {"type": "string"},
+          "rationale": {"type": "string"},
+          "supporting_evidence_fields": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "top_roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "score", "apply_url"],
+        "properties": {
+          "title": {"type": "string"},
+          "score": {"type": "integer"},
+          "apply_url": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "risks": {"type": "array", "items": {"type": "string"}},
+    "structured_inputs": {
+      "type": "object",
+      "required": [
+        "job_counts",
+        "top_companies",
+        "top_titles",
+        "top_locations",
+        "top_skills",
+        "scoring_summary",
+        "trend_analysis",
+        "most_common_penalties",
+        "strongest_positive_signals",
+        "strongest_negative_signals",
+        "score_distribution",
+        "top_families",
+        "diffs"
+      ],
+      "properties": {
+        "job_counts": {"type": "object"},
+        "top_companies": {"type": "array"},
+        "top_titles": {"type": "array"},
+        "top_locations": {"type": "array"},
+        "top_skills": {"type": "array"},
+        "scoring_summary": {"type": "object"},
+        "trend_analysis": {"type": "array"},
+        "most_common_penalties": {"type": "array"},
+        "strongest_positive_signals": {"type": "array"},
+        "strongest_negative_signals": {"type": "array"},
+        "score_distribution": {"type": "object"},
+        "top_families": {"type": "array"},
+        "diffs": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "prompt_version",
+        "prompt_sha256",
+        "model",
+        "provider",
+        "profile",
+        "timestamp",
+        "input_hashes",
+        "structured_input_hash",
+        "cache_key"
+      ],
+      "properties": {
+        "prompt_version": {"type": "string"},
+        "prompt_sha256": {"type": "string"},
+        "model": {"type": "string"},
+        "provider": {"type": "string"},
+        "profile": {"type": "string"},
+        "timestamp": {"type": "string"},
+        "input_hashes": {"type": "object"},
+        "structured_input_hash": {"type": "string"},
+        "cache_key": {"type": "string"},
+        "ai_accounting": {"type": "object"},
+        "schema_errors": {"type": "array", "items": {"type": "string"}},
+        "error_artifact": {"type": "string"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}
