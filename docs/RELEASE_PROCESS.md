@@ -1,44 +1,67 @@
-# Release Process (CLI-first)
+# Release Process (Deterministic, Least-Annoying)
 
-This is the canonical lightweight process for SignalCraft releases.
+This is the canonical release discipline for SignalCraft.
 
-## Versioning policy
+## Release-Intent Policy
 
-- We use SemVer (`MAJOR.MINOR.PATCH`).
-- Pre-1.0 rule: breaking changes are allowed, but still require explicit changelog notes and deterministic validation.
+A PR is **release-intent** when any of the following is true:
+- PR has label `release`
+- `pyproject.toml` version changes
+- Contract-surface files change:
+  - `schemas/*.schema.v*.json`
+  - `src/ji_engine/pipeline/artifact_paths.py`
+  - `src/ji_engine/artifacts/catalog.py`
 
-## Release checklist
+For release-intent PRs, `CHANGELOG.md` must be updated in the same PR.
 
-1. Sync and verify `main` is clean.
-2. Run full hygiene locally.
-3. Update `CHANGELOG.md` (`[Unreleased]` and new version section).
-4. Ensure version source of truth is set correctly (currently `pyproject.toml`).
-5. Commit release prep and merge to `main`.
-6. Create and push the annotated git tag.
-7. Create GitHub release notes from the tag.
+If none of the above triggers, changelog update is not required.
 
-## Copy/paste commands
+## What Usually Does NOT Require CHANGELOG.md
+- Test-only refactors
+- Internal tooling/docs updates
+- CI-only adjustments without user-visible contract changes
+- Dashboard/offline sanity checks that do not change artifact contracts
+
+## What Usually DOES Require CHANGELOG.md
+- Breaking behavior changes
+- New artifact contract or schema changes
+- Changes to artifact catalog/pathing contract
+- New provider additions or provider contract changes
+- Version bump/tag prep
+
+## Required Release Steps (when doing a release)
+1. Sync `main` and ensure clean worktree.
+2. Run deterministic hygiene:
+   - `make lint`
+   - `make ci-fast`
+   - `make gate`
+3. Update `CHANGELOG.md` and ensure release-intent policy passes.
+4. Bump version source of truth (`pyproject.toml`) if applicable.
+5. Merge release prep PR to `main`.
+6. Create annotated tag and push.
+7. Publish release notes from the tag.
+
+## Copy/Paste Commands
 
 ```bash
 git fetch origin
 git checkout main
-git reset --hard origin/main
+git pull --ff-only origin main
 git status -sb
 
-make format
 make lint
-AWS_CONFIG_FILE=/dev/null AWS_SHARED_CREDENTIALS_FILE=/dev/null AWS_EC2_METADATA_DISABLED=true PYTHONPATH=src ./.venv/bin/python -m pytest -q
+make ci-fast
+make gate
 ```
 
 ```bash
 # Example for v0.1.0
-git tag -a v0.1.0 -m "SignalCraft v0.1.0: Deterministic Core + Guardrailed AI Foundation"
+git tag -a v0.1.0 -m "SignalCraft v0.1.0"
 git push origin v0.1.0
 gh release create v0.1.0 --generate-notes --title "v0.1.0"
 ```
 
-## Notes
-
-- Do not tag from a dirty worktree.
-- Do not skip the AWS-isolated pytest gate.
-- Keep release notes artifact-grounded (receipts/tests), not aspirational.
+## Determinism Notes
+- CI changelog policy runs in PR fast job only.
+- Policy uses local git diff + event payload only; no GitHub API/network calls.
+- Missing event payload is handled safely (non-strict mode); strict fixture mode is available via `make release-policy`.
