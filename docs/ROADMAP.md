@@ -303,18 +303,18 @@ Receipts Required
 
 ---
 
-## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ◐
+## Milestone 18 — Release Discipline v1 (Releases Are Proof Events) ✅
 
 Goal: Releases are evidence-backed.
-Status: ◐ Release process and proof artifacts exist; changelog enforcement is now CI-enforced for release-intent PRs, while reproducible-build verification remains open.
-Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `scripts/preflight_env.py`, `scripts/check_changelog_policy.py`, `tests/test_check_changelog_policy.py`, `tests/fixtures/github_event_pull_request_release.json`, `tests/fixtures/github_event_pull_request_nonrelease.json`, `Makefile` targets `changelog-policy` and `release-policy`, `.github/workflows/ci.yml`.
+Status: ✅ Release process and proof artifacts exist, changelog enforcement is CI-enforced for release-intent PRs, and reproducible build verification is now receipt-backed.
+Evidence: `docs/RELEASE_PROCESS.md`, `docs/proof/release-v0.1.0.md`, `docs/proof/m18-reproducible-build-verification-2026-02-21.md`, `scripts/preflight_env.py`, `scripts/check_changelog_policy.py`, `tests/test_check_changelog_policy.py`, `tests/fixtures/github_event_pull_request_release.json`, `tests/fixtures/github_event_pull_request_nonrelease.json`, `Makefile` targets `changelog-policy` and `release-policy`, `.github/workflows/ci.yml`.
 
 Definition of Done
 - [x] Release checklist codified
 - [x] Preflight validation script exists
 - [x] Changelog enforcement policy
 - [x] Every release includes proof bundle
-- [ ] Reproducible build instructions verified
+- [x] Reproducible build instructions verified
 
 Receipts Required
 - One full release dry-run proof bundle
