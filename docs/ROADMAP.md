@@ -223,20 +223,20 @@ Receipts Required
 
 ---
 
-## Milestone 14 — AI Insights v1 (Grounded Intelligence, Bounded) ◐
+## Milestone 14 — AI Insights v1 (Grounded Intelligence, Bounded) ✅
 
 Goal: Weekly insights are useful and bounded.
-Status: ◐ Structured AI insights pipeline exists with deterministic cache keys; full milestone contract (explicit schemas + complete trend surfaces) is still in progress.
-Evidence: `src/ji_engine/ai/insights_input.py`, `src/jobintel/ai_insights.py`, `tests/test_ai_insights.py`, `tests/test_insights_input.py`.
+Status: ✅ Input/output schemas, deterministic 7/14/30 trend aggregation, structured-only skill token extraction, strict fail-closed output validation, and deterministic Top 5 actions are landed.
+Evidence: `schemas/ai_insights_input.schema.v1.json`, `schemas/ai_insights_output.schema.v1.json`, `src/ji_engine/ai/insights_input.py`, `src/jobintel/ai_insights.py`, `tests/test_ai_insights.py`, `tests/test_insights_input.py`, `tests/test_ai_insights_schema_enforcement.py`, `tests/test_ai_insights_trends.py`, `docs/prompts/weekly_insights_v4.md`, `docs/proof/m14-ai-insights-schemas-trends-2026-02-19.md`.
 
 Definition of Done
-- [ ] Deterministic input schema versioned
-- [ ] 7/14/30 day trend analysis
-- [ ] Skill token extraction from structured fields (not raw JD)
-- [ ] Strict output schema enforcement
+- [x] Deterministic input schema versioned
+- [x] 7/14/30 day trend analysis
+- [x] Skill token extraction from structured fields (not raw JD)
+- [x] Strict output schema enforcement
 - [x] Cache keyed by input hash + prompt version
-- [ ] “Top 5 Actions” section included
-- [ ] No raw JD leakage
+- [x] “Top 5 Actions” section included
+- [x] No raw JD leakage
 
 Receipts Required
 - Two-run determinism proof
@@ -244,19 +244,19 @@ Receipts Required
 
 ---
 
-## Milestone 15 — AI Per-Job Briefs v1 (Coaching Per Job, Deterministic Cache) ◐
+## Milestone 15 — AI Per-Job Briefs v1 (Coaching Per Job, Deterministic Cache) ✅
 
 Goal: Profile-aware coaching per job.
-Status: ◐ Profile-hash + deterministic cache behavior is implemented; explicit standalone schema file contract is still pending.
-Evidence: `src/jobintel/ai_job_briefs.py`, `tests/test_ai_job_briefs.py`, `scripts/run_daily.py` (`ai_accounting` fields).
+Status: ✅ Job brief schema v1 is enforced with fail-closed behavior, deterministic cache keys are preserved, and CI tests validate valid/invalid paths.
+Evidence: `schemas/ai_job_brief.schema.v1.json`, `src/jobintel/ai_job_briefs.py`, `tests/test_ai_job_briefs.py`, `tests/test_ai_job_briefs_schema.py`, `docs/proof/m15-job-brief-schema-enforcement-2026-02-19.md`.
 
 Definition of Done
 - [x] Candidate profile hash contract defined
-- [ ] `ai_job_brief.schema.json` enforced
+- [x] `ai_job_brief.schema.v1.json` enforced
 - [x] Cache keyed by job_hash + profile_hash + prompt_version
 - [x] Cost accounting integrated
 - [x] Deterministic hash stability verified
-- [ ] Schema validation enforced in CI
+- [x] Schema validation enforced in CI
 
 Receipts Required
 - Deterministic diff proof
@@ -264,17 +264,17 @@ Receipts Required
 
 ---
 
-## Milestone 16 — Explainability v1 (Make Scores Interpretable) ◐
+## Milestone 16 — Explainability v1 (Make Scores Interpretable) ✅
 
 Goal: Scores are explainable and stable.
-Status: ◐ Explain-top outputs and penalty visibility exist in scorer output, but a formal `explanation_v1` artifact contract is not yet declared.
-Evidence: `scripts/score_jobs.py`, `tests/test_score_jobs_explain_top.py`, `tests/test_score_jobs_top_n.py`.
+Status: ✅ `explanation_v1` schema + artifact contract is landed with deterministic ordering, bounded surfaced signal/penalty contributions, UI-safe catalog enforcement, and receipt coverage.
+Evidence: `schemas/explanation.schema.v1.json`, `src/ji_engine/pipeline/runner.py`, `src/ji_engine/pipeline/artifact_paths.py`, `src/ji_engine/artifacts/catalog.py`, `src/ji_engine/dashboard/app.py`, `tests/test_explanation_artifact_v1.py`, `docs/proof/m16-explanation-artifact-v1-2026-02-19.md`.
 
 Definition of Done
-- [ ] `explanation_v1` structure implemented
+- [x] `explanation_v1` structure implemented
 - [x] Top contributing signals surfaced
 - [x] Penalties visible
-- [ ] Semantic contribution bounded + surfaced (if used)
+- [x] Semantic contribution bounded + surfaced (if used)
 - [x] Deterministic ordering enforced
 
 Receipts Required
