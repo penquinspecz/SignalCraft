@@ -279,6 +279,8 @@ def _schema_version_for_artifact_key(key: str) -> Optional[int]:
         return 1
     if key == "provider_availability_v1.json":
         return 1
+    if key == "explanation_v1.json":
+        return 1
     if key == "run_report.json":
         return 1
     return None
