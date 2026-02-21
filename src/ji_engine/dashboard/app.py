@@ -25,6 +25,7 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environmen
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
 from ji_engine.artifacts.catalog import (
+    DASHBOARD_SCHEMA_VERSION_BY_ARTIFACT_KEY,
     ArtifactCategory,
     assert_no_forbidden_fields,
     get_artifact_category,
@@ -273,17 +274,7 @@ def _schema_version_for_artifact_key(key: str) -> Optional[int]:
     """Derive schema version from artifact key where known. Returns None if unknown."""
     if not key:
         return None
-    if key == "run_summary.v1.json":
-        return 1
-    if key == "run_health.v1.json":
-        return 1
-    if key == "provider_availability_v1.json":
-        return 1
-    if key == "explanation_v1.json":
-        return 1
-    if key == "run_report.json":
-        return 1
-    return None
+    return DASHBOARD_SCHEMA_VERSION_BY_ARTIFACT_KEY.get(key)
 
 
 def _s3_bucket() -> str:
