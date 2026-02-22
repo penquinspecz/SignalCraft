@@ -1,7 +1,7 @@
 # Release Template (SignalCraft)
 
 > Use this template for GitHub Releases. Replace placeholders.
-> Include `[from-composer]` at the top when release is created from Cursor Composer.
+> See `docs/RELEASE_NOTES_STYLE.md` for milestone vs product style. Use `scripts/release/render_release_notes.py` for deterministic output.
 
 [from-composer]
 

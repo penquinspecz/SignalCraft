@@ -157,6 +157,32 @@ git push origin v0.1.0
 gh release create v0.1.0 --generate-notes --title "v0.1.0"
 ```
 
+## Release Notes Renderer
+
+Use `scripts/release/render_release_notes.py` for deterministic release bodies. See `docs/RELEASE_NOTES_STYLE.md`.
+
+**Milestone (m*):**
+```bash
+python scripts/release/render_release_notes.py --release-kind milestone \
+  --tag m19-20260222T201429Z \
+  --image-ref 123456789.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:abc123... \
+  --arch amd64 --arch arm64 \
+  --prs 213,214,215,216 \
+  --receipts docs/proof/m19-dr-rehearsal-20260221.md \
+  --why "DR cost discipline guardrails" --why "S3 versioning proof" \
+  --out /tmp/m19-notes.md
+```
+
+**Product (v*):**
+```bash
+python scripts/release/render_release_notes.py --release-kind product \
+  --tag v0.2.0 \
+  --image-ref 123456789.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:abc123... \
+  --prs 217,218,219 \
+  --highlights "Deterministic entrypoint" --highlights "Snapshot immutability" \
+  --out /tmp/v020-notes.md
+```
+
 ## Determinism Notes
 - CI changelog policy runs in PR fast job only.
 - Policy uses local git diff + event payload only; no GitHub API/network calls.
