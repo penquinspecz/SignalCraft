@@ -17,7 +17,7 @@ SignalCraft uses labels for PR governance: provenance, type, and area. **CI enfo
 - **At least one area:*** label: engine, providers, dr, release, infra, docs (multiple allowed)
 - **Milestone required:** Any milestone (roadmap or bucket: Infra & Tooling, Docs & Governance, Backlog Cleanup)
 
-**Provenance is label-only.** PR titles must NOT contain `[from-composer]`, `[from-codex]`, or `[from-human]`.
+**Provenance is label-only.** PR titles must NOT contain `[from-composer]`, `[from-codex]`, or `[from-human]`. Every PR must have exactly one provenance label; pick based on who authored the changes (Composer / Codex / human).
 
 See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 
@@ -28,6 +28,12 @@ See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 - **Labels:** `type:docs`, `area:docs`, `from-composer`
 - **Milestone:** Docs & Governance (bucket)
 - **Title:** `chore(governance): PR template + milestone policy (B)` — no `[from-composer]` in title
+
+### from-codex PR (DR fix)
+
+- **Labels:** `type:fix`, `area:dr`, `from-codex`
+- **Milestone:** Infra & Tooling (bucket)
+- **Title:** `fix(dr): correct terraform variable` — no `[from-codex]` in title
 
 ### Normal PR (human-authored)
 
