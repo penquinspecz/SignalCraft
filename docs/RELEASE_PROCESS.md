@@ -6,6 +6,38 @@ See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.m
 
 ---
 
+## When to Cut a Product Release (SemVer)
+
+Cut a product release when:
+
+- A user-facing capability is complete and stable at a milestone boundary.
+- Deterministic gates and policy checks pass.
+- No release is valid unless the proof requirements in `docs/VERSIONING.md` are met.
+
+---
+
+## How Product Releases Differ from Milestone Releases
+
+| Aspect | Product (SemVer) | Milestone (timestamped) |
+|--------|------------------|-------------------------|
+| Tags | `v0.2.0`, `v0.2.1` | `m19-20260222T201429Z` |
+| Purpose | User-facing capability; contract stability | Operational proof; DR drills; infra audit |
+| Frequency | At milestone boundaries | As needed to anchor proof |
+| Body | CHANGELOG-driven; optional IMAGE_REF | IMAGE_REF, digest, archs, PRs, receipts required |
+
+---
+
+## v0.2.0 Definition of Done
+
+- [ ] canonical deterministic entrypoint stable
+- [ ] snapshot immutability + replay smoke enforced
+- [ ] multi-arch digest-pinned image build + metadata exists
+- [ ] DR operator workflow cost discipline + explicit full-drill allow guardrail exists
+- [ ] DR validate proves job runs in restored cluster without manual auth/patching
+- [ ] runbooks and doc lint match reality (guardrails + docs checks pass)
+
+---
+
 ## Branch Lifecycle
 
 - Short-lived branches only; auto-delete on merge (repo setting).
