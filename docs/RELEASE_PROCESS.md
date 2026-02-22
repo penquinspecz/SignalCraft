@@ -2,6 +2,35 @@
 
 This is the canonical release discipline for SignalCraft.
 
+See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.md` (release body template).
+
+---
+
+## PR Governance
+
+### Titles and Provenance
+
+- **PR titles never contain `[from-composer]`.** Provenance is tracked via labels only.
+- **Required labels for merge:** `type:*`, `area:*`, and `from-composer` when the PR was authored via Composer.
+
+### Milestone B Rule
+
+- **Milestones are REQUIRED** for roadmap/MXX work.
+- **Milestones are OPTIONAL** for ad hoc work **only if** the PR is assigned to one of these bucket milestones:
+  - **Infra & Tooling**
+  - **Docs & Governance**
+  - **Backlog Cleanup**
+- For ad hoc work: use a bucket milestone, or justify in the PR description why no milestone applies.
+- **Recommendation:** Add a Milestone only when work is roadmap/MXX; otherwise use a bucket milestone.
+
+### Release Notes vs PR Titles
+
+- Release notes may include `[from-composer]` as a header line or in PR lists.
+- PR titles must not contain `[from-composer]`.
+- PRs may be listed in releases regardless of provenance label.
+
+---
+
 ## Release-Intent Policy
 
 A PR is **release-intent** when any of the following is true:
