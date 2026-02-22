@@ -2,7 +2,14 @@
 
 This is the canonical release discipline for SignalCraft.
 
-See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.md` (release body template).
+See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.md` (release body template), `docs/BRANCHING.md` (branch lifecycle).
+
+---
+
+## Branch Lifecycle
+
+- Short-lived branches only; auto-delete on merge (repo setting).
+- Exceptions: none for now; revisit for marketing/product release workflows.
 
 ---
 
