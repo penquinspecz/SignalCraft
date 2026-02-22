@@ -1,0 +1,40 @@
+{
+  "payload": {
+    "input": {
+      "action": "notify",
+      "execution_id": "m19b-success-20260222T214638Z",
+      "expected_account_id": "048622080012",
+      "notification_topic_arn": "arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "status": "dr_orchestrator_phase_failed",
+      "summary": {
+        "failure_error": "CodeBuild.AccountLimitExceededException",
+        "failure_reason": "Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 5955a5fb-172d-44cb-a74f-b0bc850781b8; Proxy: null)",
+        "phase_name": "bringup"
+      }
+    },
+    "result": {
+      "account_id": "048622080012",
+      "message": {
+        "details": {
+          "failure_error": "CodeBuild.AccountLimitExceededException",
+          "failure_reason": "Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 5955a5fb-172d-44cb-a74f-b0bc850781b8; Proxy: null)",
+          "phase_name": "bringup"
+        },
+        "execution_id": "m19b-success-20260222T214638Z",
+        "kind": "dr_orchestrator_status",
+        "status": "dr_orchestrator_phase_failed",
+        "timestamp_utc": "2026-02-22T21:46:43Z"
+      },
+      "message_id": "7a209e5d-0bba-5148-9903-fc4870397111",
+      "published": true,
+      "region": "us-east-1"
+    }
+  },
+  "phase": "notify",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-22T21:46:43Z"
+}

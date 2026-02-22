@@ -278,11 +278,7 @@ resource "aws_lambda_function" "runner" {
   memory_size      = var.lambda_memory_mb
   tags             = local.common_tags
 
-  environment {
-    variables = {
-      AWS_REGION = var.region
-    }
-  }
+  # Lambda reserves AWS_REGION; region is passed via event payload
 }
 
 resource "aws_iam_role" "codebuild" {
@@ -492,14 +488,22 @@ resource "aws_iam_role_policy" "sfn" {
         Effect = "Allow"
         Action = [
           "logs:CreateLogDelivery",
+          "logs:CreateLogStream",
           "logs:GetLogDelivery",
           "logs:UpdateLogDelivery",
           "logs:DeleteLogDelivery",
           "logs:ListLogDeliveries",
+          "logs:PutLogEvents",
           "logs:PutResourcePolicy",
           "logs:DescribeResourcePolicies",
           "logs:DescribeLogGroups"
         ]
+        Resource = "*"
+      },
+      {
+        Sid      = "EventBridgeManagedRule"
+        Effect   = "Allow"
+        Action   = ["events:PutRule", "events:PutTargets", "events:DescribeRule"]
         Resource = "*"
       }
     ]

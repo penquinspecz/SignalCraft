@@ -97,6 +97,10 @@ ops/dr/terraform/tfplan
 ops/dr/terraform/tfplan-destroy
 ops/dr/terraform/.terraform.lock.hcl
 
+# DR orchestrator local state (uses remote backend for DR runner tfstate)
+ops/dr/orchestrator/terraform.tfstate*
+ops/dr/orchestrator/.terraform/
+
 # Terraform (local)
 ops/aws/infra/eks/.terraform/
 ops/aws/infra/eks/*.tfstate*
