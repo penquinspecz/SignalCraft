@@ -14,7 +14,7 @@ SignalCraft uses labels for PR governance: provenance, type, and area. **CI enfo
 
 - **Exactly one provenance label:** `from-composer`, `from-codex`, or `from-human`
 - **Exactly one type:*** label: feat, fix, chore, docs, refactor, test
-- **Exactly one area:*** label: engine, providers, dr, release, infra, docs
+- **At least one area:*** label: engine, providers, dr, release, infra, docs (multiple allowed)
 - **Milestone required:** Any milestone (roadmap or bucket: Infra & Tooling, Docs & Governance, Backlog Cleanup)
 
 **Provenance is label-only.** PR titles must NOT contain `[from-composer]`, `[from-codex]`, or `[from-human]`.
@@ -37,4 +37,4 @@ See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 
 ## Auto-Labeling
 
-The `.github/workflows/labeler.yml` workflow adds `area:*` labels based on changed paths (see `.github/labeler.yml`). Authors may need to remove extra area labels if a PR touches multiple domains.
+The `.github/workflows/labeler.yml` workflow adds `area:*` labels based on changed paths (see `.github/labeler.yml`). Multiple area labels are allowed when a PR touches multiple domains.

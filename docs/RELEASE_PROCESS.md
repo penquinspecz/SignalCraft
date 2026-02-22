@@ -16,7 +16,7 @@ See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.m
 - **Required labels for merge (enforced):**
   - Exactly one provenance: `from-composer`, `from-codex`, or `from-human`
   - Exactly one `type:*` (feat, fix, chore, docs, refactor, test)
-  - Exactly one `area:*` (engine, providers, dr, release, infra, docs)
+  - At least one `area:*` (engine, providers, dr, release, infra, docs; multiple allowed)
   - Milestone must be set (any milestone)
 
 ### Milestone B Rule
