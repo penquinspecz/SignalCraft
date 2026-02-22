@@ -10,7 +10,6 @@ Usage:
 
 Manually start a DR orchestrator Step Functions execution with force_run=true.
 Requires env: PUBLISH_BUCKET, BACKUP_URI, RECEIPT_BUCKET, NOTIFICATION_TOPIC_ARN, DR_VPC_ID, DR_SUBNET_ID
-(or pass via --publish-bucket, --backup-uri, etc.)
 
 Example:
   export PUBLISH_BUCKET=jobintel-prod1
