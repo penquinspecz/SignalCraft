@@ -32,9 +32,19 @@ RECEIPT_DIR="${RECEIPT_DIR:-/tmp/signalcraft-m19-phasea-20260221/ops/proof/bundl
 export AWS_REGION AWS_DEFAULT_REGION AWS_PAGER
 
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
+command -v grep >/dev/null 2>&1 || fail "grep is required (POSIX)"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required"
 
 mkdir -p "${RECEIPT_DIR}" || fail "cannot create receipt dir: ${RECEIPT_DIR}"
 touch "${RECEIPT_DIR}/.write-test" || fail "receipt dir not writable: ${RECEIPT_DIR}"
+
+# Record deps preflight (grep used instead of rg for POSIX portability).
+{
+  echo "kubectl=$(command -v kubectl 2>/dev/null || echo 'missing')"
+  echo "grep=$(command -v grep 2>/dev/null || echo 'missing')"
+  echo "python3=$(command -v python3 2>/dev/null || echo 'missing')"
+  echo "state_write_check=grep -q (replaces rg -q for portability)"
+} > "${RECEIPT_DIR}/dr_validate.deps.env"
 
 # Safe AWS env preflight receipt (no secret material).
 {
@@ -322,7 +332,7 @@ EOF_MANIFEST
   kubectl label --local -f "${manifest_path}" app=jobintel purpose=dr-validate "run_id=${run_label}" -o yaml > "${manifest_path}.tmp"
   mv "${manifest_path}.tmp" "${manifest_path}"
   kubectl patch --local -f "${manifest_path}" --type=json \
-    -p "[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/resources\",\"value\":{\"requests\":{\"cpu\":\"${VALIDATE_REQUEST_CPU}\",\"memory\":\"${VALIDATE_REQUEST_MEMORY}\"},\"limits\":{\"cpu\":\"${VALIDATE_LIMIT_CPU}\",\"memory\":\"${VALIDATE_LIMIT_MEMORY}\"}}}]" \
+    -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/resources\",\"value\":{\"requests\":{\"cpu\":\"${VALIDATE_REQUEST_CPU}\",\"memory\":\"${VALIDATE_REQUEST_MEMORY}\"},\"limits\":{\"cpu\":\"${VALIDATE_LIMIT_CPU}\",\"memory\":\"${VALIDATE_LIMIT_MEMORY}\"}}}]" \
     -o yaml > "${manifest_path}.tmp"
   mv "${manifest_path}.tmp" "${manifest_path}"
   kubectl patch --local -f "${manifest_path}" --type=merge \
@@ -344,7 +354,10 @@ EOF_MANIFEST
       echo "aws identity unavailable; skipping image arch precheck for runtime validate" \
         > "${RECEIPT_DIR}/dr_validate.image_override_precheck.log"
     fi
-    kubectl set image --local -f "${manifest_path}" jobintel="${resolved_image_ref}" -o yaml > "${manifest_path}.tmp"
+    # kubectl set image does not support Job; use patch instead
+    kubectl patch --local -f "${manifest_path}" --type=json \
+      -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/image\",\"value\":\"${resolved_image_ref}\"}]" \
+      -o yaml > "${manifest_path}.tmp"
     mv "${manifest_path}.tmp" "${manifest_path}"
   fi
   state_test_image="$(kubectl create --dry-run=client -f "${manifest_path}" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)"
@@ -474,7 +487,7 @@ PY
     kubectl -n "${NAMESPACE}" describe "pod/${pod_name}" > "${RECEIPT_DIR}/dr_validate.describe_pod.txt" 2>&1 || true
     fail "unable to read state write preflight logs; see ${RECEIPT_DIR}/dr_validate.state_write_test.log"
   fi
-  if [[ "${init_state}" != "Completed" ]] || ! rg -q "state_write_test=ok" "${RECEIPT_DIR}/dr_validate.state_write_test.log"; then
+  if [[ "${init_state}" != "Completed" ]] || ! grep -q "state_write_test=ok" "${RECEIPT_DIR}/dr_validate.state_write_test.log"; then
     kubectl -n "${NAMESPACE}" describe "pod/${pod_name}" > "${RECEIPT_DIR}/dr_validate.describe_pod.txt" 2>&1 || true
     fail "validate state write preflight failed; see ${RECEIPT_DIR}/dr_validate.state_write_test.log"
   fi
