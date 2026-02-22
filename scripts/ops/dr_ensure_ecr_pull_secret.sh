@@ -54,7 +54,14 @@ command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
 command -v python3 >/dev/null 2>&1 || fail "python3 is required for .dockerconfigjson generation"
 
 AWS_REGION="${AWS_REGION:-us-east-1}"
-export AWS_REGION
+AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-${AWS_REGION}}"
+AWS_PAGER=""
+EXPECTED_ACCOUNT_ID="${EXPECTED_ACCOUNT_ID:-048622080012}"
+export AWS_REGION AWS_DEFAULT_REGION AWS_PAGER
+
+actual_account="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || true)"
+[[ -n "${actual_account}" ]] || fail "AWS credentials unavailable; ensure env creds or profile"
+[[ "${actual_account}" == "${EXPECTED_ACCOUNT_ID}" ]] || fail "AWS account mismatch: expected=${EXPECTED_ACCOUNT_ID} actual=${actual_account}"
 
 # Resolve ECR registry (server) from image-ref or ecr-registry
 if [[ -n "${ECR_REGISTRY}" ]]; then
@@ -68,9 +75,7 @@ elif [[ -n "${IMAGE_REF}" ]]; then
   fi
   DOCKER_SERVER="${DOCKER_SERVER%%/*}"
 else
-  ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text 2>/dev/null || true)"
-  [[ -n "${ACCOUNT_ID}" ]] || fail "cannot resolve ECR registry: pass --image-ref or --ecr-registry, or ensure aws sts works"
-  DOCKER_SERVER="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+  DOCKER_SERVER="${actual_account}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 fi
 
 [[ -n "${DOCKER_SERVER}" ]] || fail "DOCKER_SERVER empty"
