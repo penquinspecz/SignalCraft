@@ -1,0 +1,40 @@
+{
+  "payload": {
+    "input": {
+      "action": "notify",
+      "execution_id": "m19b-failure-20260222T214946Z",
+      "expected_account_id": "048622080012",
+      "notification_topic_arn": "arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "status": "dr_orchestrator_phase_failed",
+      "summary": {
+        "failure_error": "RuntimeError",
+        "failure_reason": "{\"errorMessage\":\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"3207c293-bf32-4570-8675-0ac92030747e\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}",
+        "phase_name": "check_health"
+      }
+    },
+    "result": {
+      "account_id": "048622080012",
+      "message": {
+        "details": {
+          "failure_error": "RuntimeError",
+          "failure_reason": "{\"errorMessage\":\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"3207c293-bf32-4570-8675-0ac92030747e\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}",
+          "phase_name": "check_health"
+        },
+        "execution_id": "m19b-failure-20260222T214946Z",
+        "kind": "dr_orchestrator_status",
+        "status": "dr_orchestrator_phase_failed",
+        "timestamp_utc": "2026-02-22T21:49:54Z"
+      },
+      "message_id": "0001cb14-b7ec-5855-ad83-a901cbae0891",
+      "published": true,
+      "region": "us-east-1"
+    }
+  },
+  "phase": "notify",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-22T21:49:54Z"
+}

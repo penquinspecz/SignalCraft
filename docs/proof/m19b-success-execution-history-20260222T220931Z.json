@@ -1,0 +1,302 @@
+{
+    "events": [
+        {
+            "timestamp": "2026-02-22T17:09:36.523000-05:00",
+            "type": "ExecutionStarted",
+            "id": 1,
+            "previousEventId": 0,
+            "executionStartedEventDetails": {
+                "input": "{\n  \"expected_account_id\": \"048622080012\",\n  \"region\": \"us-east-1\",\n  \"project\": \"signalcraft\",\n  \"publish_bucket\": \"jobintel-prod1\",\n  \"publish_prefix\": \"jobintel\",\n  \"backup_bucket\": \"jobintel-prod1\",\n  \"backup_uri\": \"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\n  \"backup_required_keys\": [\n    \"metadata.json\",\n    \"state.tar.zst\",\n    \"manifests.tar.zst\"\n  ],\n  \"receipt_bucket\": \"jobintel-prod1\",\n  \"receipt_prefix\": \"jobintel/dr-orchestrator/receipts\",\n  \"notification_topic_arn\": \"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\n  \"provider\": \"openai\",\n  \"profile\": \"cs\",\n  \"expected_marker_file\": \"openai_top.cs.md\",\n  \"max_freshness_hours\": 6,\n  \"metric_namespace\": \"SignalCraft/DR\",\n  \"dr_runner_name\": \"jobintel-dr-runner\",\n  \"dr_vpc_id\": \"vpc-4362fc3e\",\n  \"dr_subnet_id\": \"subnet-11001d5c\",\n  \"dr_allowed_cidr\": \"10.0.0.0/8\",\n  \"dr_key_name\": \"\",\n  \"dr_instance_type\": \"t4g.small\",\n  \"dr_ami_id\": \"\",\n  \"namespace\": \"jobintel\",\n  \"validate_timeout_seconds\": 300,\n  \"force_run\": true\n}",
+                "inputDetails": {
+                    "truncated": false
+                },
+                "roleArn": "arn:aws:iam::048622080012:role/signalcraft-dr-orchestrator-sfn-role"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:36.559000-05:00",
+            "type": "PassStateEntered",
+            "id": 2,
+            "previousEventId": 0,
+            "stateEnteredEventDetails": {
+                "name": "SetPhaseCheckHealth",
+                "input": "{\n  \"expected_account_id\": \"048622080012\",\n  \"region\": \"us-east-1\",\n  \"project\": \"signalcraft\",\n  \"publish_bucket\": \"jobintel-prod1\",\n  \"publish_prefix\": \"jobintel\",\n  \"backup_bucket\": \"jobintel-prod1\",\n  \"backup_uri\": \"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\n  \"backup_required_keys\": [\n    \"metadata.json\",\n    \"state.tar.zst\",\n    \"manifests.tar.zst\"\n  ],\n  \"receipt_bucket\": \"jobintel-prod1\",\n  \"receipt_prefix\": \"jobintel/dr-orchestrator/receipts\",\n  \"notification_topic_arn\": \"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\n  \"provider\": \"openai\",\n  \"profile\": \"cs\",\n  \"expected_marker_file\": \"openai_top.cs.md\",\n  \"max_freshness_hours\": 6,\n  \"metric_namespace\": \"SignalCraft/DR\",\n  \"dr_runner_name\": \"jobintel-dr-runner\",\n  \"dr_vpc_id\": \"vpc-4362fc3e\",\n  \"dr_subnet_id\": \"subnet-11001d5c\",\n  \"dr_allowed_cidr\": \"10.0.0.0/8\",\n  \"dr_key_name\": \"\",\n  \"dr_instance_type\": \"t4g.small\",\n  \"dr_ami_id\": \"\",\n  \"namespace\": \"jobintel\",\n  \"validate_timeout_seconds\": 300,\n  \"force_run\": true\n}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:36.559000-05:00",
+            "type": "PassStateExited",
+            "id": 3,
+            "previousEventId": 2,
+            "stateExitedEventDetails": {
+                "name": "SetPhaseCheckHealth",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"check_health\"}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:36.559000-05:00",
+            "type": "TaskStateEntered",
+            "id": 4,
+            "previousEventId": 3,
+            "stateEnteredEventDetails": {
+                "name": "CheckHealth",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"check_health\"}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:36.559000-05:00",
+            "type": "TaskScheduled",
+            "id": 5,
+            "previousEventId": 4,
+            "taskScheduledEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "region": "us-east-1",
+                "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:048622080012:function:signalcraft-dr-orchestrator-runner\",\"Payload\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"}}"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:36.632000-05:00",
+            "type": "TaskStarted",
+            "id": 6,
+            "previousEventId": 5,
+            "taskStartedEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.185000-05:00",
+            "type": "TaskSucceeded",
+            "id": 7,
+            "previousEventId": 6,
+            "taskSucceededEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "output": "{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"check_health\",\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"7cdf9dbf-9c51-4f69-b501-f595e94bb69c\"],\"Content-Length\":[\"1175\"],\"Date\":[\"Sun, 22 Feb 2026 22:09:39 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7ea0-7353218551b55c62513ceaa0;Parent=0ef39f0315125b50;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1175\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 22:09:39 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"7cdf9dbf-9c51-4f69-b501-f595e94bb69c\",\"X-Amzn-Trace-Id\":\"Root=1-699b7ea0-7353218551b55c62513ceaa0;Parent=0ef39f0315125b50;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"7cdf9dbf-9c51-4f69-b501-f595e94bb69c\"},\"StatusCode\":200}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "TaskStateExited",
+            "id": 8,
+            "previousEventId": 7,
+            "stateExitedEventDetails": {
+                "name": "CheckHealth",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"check_health\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "ChoiceStateEntered",
+            "id": 9,
+            "previousEventId": 8,
+            "stateEnteredEventDetails": {
+                "name": "ShouldRunDR",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"check_health\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "ChoiceStateExited",
+            "id": 10,
+            "previousEventId": 9,
+            "stateExitedEventDetails": {
+                "name": "ShouldRunDR",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"check_health\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "PassStateEntered",
+            "id": 11,
+            "previousEventId": 10,
+            "stateEnteredEventDetails": {
+                "name": "SetPhaseBringup",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"check_health\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "PassStateExited",
+            "id": 12,
+            "previousEventId": 11,
+            "stateExitedEventDetails": {
+                "name": "SetPhaseBringup",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"bringup\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "TaskStateEntered",
+            "id": 13,
+            "previousEventId": 12,
+            "stateEnteredEventDetails": {
+                "name": "BringupInfra",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"bringup\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.210000-05:00",
+            "type": "TaskScheduled",
+            "id": 14,
+            "previousEventId": 13,
+            "taskScheduledEventDetails": {
+                "resourceType": "codebuild",
+                "resource": "startBuild.sync",
+                "region": "us-east-1",
+                "parameters": "{\"EnvironmentVariablesOverride\":[{\"Name\":\"ACTION\",\"Type\":\"PLAINTEXT\",\"Value\":\"bringup\"},{\"Name\":\"EXECUTION_ID\",\"Type\":\"PLAINTEXT\",\"Value\":\"m19b-success-true-20260222T220931Z\"},{\"Name\":\"EXPECTED_ACCOUNT_ID\",\"Type\":\"PLAINTEXT\",\"Value\":\"048622080012\"},{\"Name\":\"AWS_REGION\",\"Type\":\"PLAINTEXT\",\"Value\":\"us-east-1\"},{\"Name\":\"RECEIPT_BUCKET\",\"Type\":\"PLAINTEXT\",\"Value\":\"jobintel-prod1\"},{\"Name\":\"RECEIPT_PREFIX\",\"Type\":\"PLAINTEXT\",\"Value\":\"jobintel/dr-orchestrator/receipts\"},{\"Name\":\"TF_BUNDLE_BUCKET\",\"Type\":\"PLAINTEXT\",\"Value\":\"jobintel-prod1\"},{\"Name\":\"TF_BUNDLE_KEY\",\"Type\":\"PLAINTEXT\",\"Value\":\"jobintel/dr-orchestrator/artifacts/dr-terraform-module.zip\"},{\"Name\":\"TF_STATE_BUCKET\",\"Type\":\"PLAINTEXT\",\"Value\":\"signalcraft-dr-tfstate-048622080012-us-east-1\"},{\"Name\":\"TF_STATE_KEY\",\"Type\":\"PLAINTEXT\",\"Value\":\"jobintel/dr/terraform/dr-runner.tfstate\"},{\"Name\":\"TF_STATE_DYNAMODB_TABLE\",\"Type\":\"PLAINTEXT\",\"Value\":\"signalcraft-dr-tf-lock\"},{\"Name\":\"TF_VAR_region\",\"Type\":\"PLAINTEXT\",\"Value\":\"us-east-1\"},{\"Name\":\"TF_VAR_vpc_id\",\"Type\":\"PLAINTEXT\",\"Value\":\"vpc-4362fc3e\"},{\"Name\":\"TF_VAR_subnet_id\",\"Type\":\"PLAINTEXT\",\"Value\":\"subnet-11001d5c\"},{\"Name\":\"TF_VAR_allowed_cidr\",\"Type\":\"PLAINTEXT\",\"Value\":\"10.0.0.0/8\"},{\"Name\":\"TF_VAR_key_name\",\"Type\":\"PLAINTEXT\",\"Value\":\"\"},{\"Name\":\"TF_VAR_instance_type\",\"Type\":\"PLAINTEXT\",\"Value\":\"t4g.small\"},{\"Name\":\"TF_VAR_ami_id\",\"Type\":\"PLAINTEXT\",\"Value\":\"\"}],\"ProjectName\":\"signalcraft-dr-orchestrator-dr-infra\"}"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.288000-05:00",
+            "type": "TaskStarted",
+            "id": 15,
+            "previousEventId": 14,
+            "taskStartedEventDetails": {
+                "resourceType": "codebuild",
+                "resource": "startBuild.sync"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.418000-05:00",
+            "type": "TaskFailed",
+            "id": 16,
+            "previousEventId": 15,
+            "taskFailedEventDetails": {
+                "resourceType": "codebuild",
+                "resource": "startBuild.sync",
+                "error": "CodeBuild.AccountLimitExceededException",
+                "cause": "Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.446000-05:00",
+            "type": "TaskStateExited",
+            "id": 17,
+            "previousEventId": 16,
+            "stateExitedEventDetails": {
+                "name": "BringupInfra",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"bringup\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}},\"failure\":{\"Error\":\"CodeBuild.AccountLimitExceededException\",\"Cause\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\"}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.446000-05:00",
+            "type": "TaskStateEntered",
+            "id": 18,
+            "previousEventId": 17,
+            "stateEnteredEventDetails": {
+                "name": "HandlePhaseFailure",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"bringup\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}},\"failure\":{\"Error\":\"CodeBuild.AccountLimitExceededException\",\"Cause\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\"}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.446000-05:00",
+            "type": "TaskScheduled",
+            "id": 19,
+            "previousEventId": 18,
+            "taskScheduledEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "region": "us-east-1",
+                "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:048622080012:function:signalcraft-dr-orchestrator-runner\",\"Payload\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"}}"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:39.536000-05:00",
+            "type": "TaskStarted",
+            "id": 20,
+            "previousEventId": 19,
+            "taskStartedEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:40.927000-05:00",
+            "type": "TaskSucceeded",
+            "id": 21,
+            "previousEventId": 20,
+            "taskSucceededEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "output": "{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"notify\",\"phase_inputs\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"published\":true,\"message_id\":\"fda1198a-7568-5bd0-bea3-7b9ff58cc1c5\",\"message\":{\"kind\":\"dr_orchestrator_status\",\"timestamp_utc\":\"2026-02-22T22:09:40Z\",\"status\":\"dr_orchestrator_phase_failed\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"details\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"}},\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/notify.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"8beece89-a985-4a59-8bb2-32bf3d81cadc\"],\"Content-Length\":[\"1532\"],\"Date\":[\"Sun, 22 Feb 2026 22:09:40 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7ea3-08a67713519202724b58d0fa;Parent=03147c1c784a3cf6;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1532\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 22:09:40 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"8beece89-a985-4a59-8bb2-32bf3d81cadc\",\"X-Amzn-Trace-Id\":\"Root=1-699b7ea3-08a67713519202724b58d0fa;Parent=03147c1c784a3cf6;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"8beece89-a985-4a59-8bb2-32bf3d81cadc\"},\"StatusCode\":200}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:40.949000-05:00",
+            "type": "TaskStateExited",
+            "id": 22,
+            "previousEventId": 21,
+            "stateExitedEventDetails": {
+                "name": "HandlePhaseFailure",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"bringup\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}},\"failure\":{\"Error\":\"CodeBuild.AccountLimitExceededException\",\"Cause\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\"},\"failure_notification\":{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"notify\",\"phase_inputs\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"published\":true,\"message_id\":\"fda1198a-7568-5bd0-bea3-7b9ff58cc1c5\",\"message\":{\"kind\":\"dr_orchestrator_status\",\"timestamp_utc\":\"2026-02-22T22:09:40Z\",\"status\":\"dr_orchestrator_phase_failed\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"details\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"}},\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/notify.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"8beece89-a985-4a59-8bb2-32bf3d81cadc\"],\"Content-Length\":[\"1532\"],\"Date\":[\"Sun, 22 Feb 2026 22:09:40 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7ea3-08a67713519202724b58d0fa;Parent=03147c1c784a3cf6;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1532\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 22:09:40 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"8beece89-a985-4a59-8bb2-32bf3d81cadc\",\"X-Amzn-Trace-Id\":\"Root=1-699b7ea3-08a67713519202724b58d0fa;Parent=03147c1c784a3cf6;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"8beece89-a985-4a59-8bb2-32bf3d81cadc\"},\"StatusCode\":200}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:40.949000-05:00",
+            "type": "FailStateEntered",
+            "id": 23,
+            "previousEventId": 22,
+            "stateEnteredEventDetails": {
+                "name": "FailWorkflow",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":6,\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":true,\"current_phase\":{\"name\":\"bringup\"},\"phase_results\":{\"check_health\":{\"phase_inputs\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":6,\"force_run\":true,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"},\"failure_reason\":\"\",\"phase_name\":\"check_health\",\"phase_outputs\":{\"needs_dr\":true,\"pipeline_freshness_hours\":21.776,\"pipeline_freshness_ok\":false,\"publish_correctness_ok\":true,\"run_id\":\"2026-02-22T00:22:30.918278+00:00\",\"global_pointer_key\":\"jobintel/state/last_success.json\",\"provider_pointer_key\":\"jobintel/state/openai/cs/last_success.json\",\"expected_marker_key\":\"jobintel/latest/openai/cs/openai_top.cs.md\",\"reasons\":[\"stale_pipeline:21.78h>6.00h\"],\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json\"}},\"failure\":{\"Error\":\"CodeBuild.AccountLimitExceededException\",\"Cause\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\"},\"failure_notification\":{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"notify\",\"phase_inputs\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"published\":true,\"message_id\":\"fda1198a-7568-5bd0-bea3-7b9ff58cc1c5\",\"message\":{\"kind\":\"dr_orchestrator_status\",\"timestamp_utc\":\"2026-02-22T22:09:40Z\",\"status\":\"dr_orchestrator_phase_failed\",\"execution_id\":\"m19b-success-true-20260222T220931Z\",\"details\":{\"failure_error\":\"CodeBuild.AccountLimitExceededException\",\"failure_reason\":\"Cannot have more than 0 builds in queue for the account (Service: AWSCodeBuild; Status Code: 400; Error Code: AccountLimitExceededException; Request ID: 8f24895c-8ddb-4918-a29d-a6f93ae26abd; Proxy: null)\",\"phase_name\":\"bringup\"}},\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/notify.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"8beece89-a985-4a59-8bb2-32bf3d81cadc\"],\"Content-Length\":[\"1532\"],\"Date\":[\"Sun, 22 Feb 2026 22:09:40 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7ea3-08a67713519202724b58d0fa;Parent=03147c1c784a3cf6;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1532\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 22:09:40 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"8beece89-a985-4a59-8bb2-32bf3d81cadc\",\"X-Amzn-Trace-Id\":\"Root=1-699b7ea3-08a67713519202724b58d0fa;Parent=03147c1c784a3cf6;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"8beece89-a985-4a59-8bb2-32bf3d81cadc\"},\"StatusCode\":200}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T17:09:40.976000-05:00",
+            "type": "ExecutionFailed",
+            "id": 24,
+            "previousEventId": 23,
+            "executionFailedEventDetails": {
+                "error": "DRPhaseFailed",
+                "cause": "See phase failure receipt and notification payload"
+            }
+        }
+    ]
+}
