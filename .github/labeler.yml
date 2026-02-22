@@ -1,0 +1,28 @@
+# Auto-label area:* based on changed paths.
+# Labeler adds labels; pr-governance enforces exactly one area:*.
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file: docs/**
+
+"area:dr":
+  - changed-files:
+      - any-glob-to-any-file: ops/dr/**
+
+"area:release":
+  - changed-files:
+      - any-glob-to-any-file: scripts/release/**
+
+"area:infra":
+  - changed-files:
+      - any-glob-to-any-file: scripts/ops/**
+
+"area:providers":
+  - changed-files:
+      - any-glob-to-any-file: src/ji_engine/providers/**
+
+"area:engine":
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/ji_engine/**
+          - scripts/run_daily.py
