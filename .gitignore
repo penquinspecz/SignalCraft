@@ -92,6 +92,11 @@ ops/aws/infra/.terraform.lock.hcl
 # local caches
 .cache/
 
+# DR Terraform plan artifacts (never commit)
+ops/dr/terraform/tfplan
+ops/dr/terraform/tfplan-destroy
+ops/dr/terraform/.terraform.lock.hcl
+
 # Terraform (local)
 ops/aws/infra/eks/.terraform/
 ops/aws/infra/eks/*.tfstate*

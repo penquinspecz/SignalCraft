@@ -136,7 +136,38 @@ summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", en
 PY
 
 if [[ "${RENDER_ONLY}" -eq 0 ]]; then
-  KUBECONFIG="${KUBECONFIG_PATH}" kubectl apply -f "${OUTPUT_YAML}" > "${RECEIPT_DIR}/apply.kubectl.log"
+  KUBECONFIG="${KUBECONFIG_PATH}" kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | KUBECONFIG="${KUBECONFIG_PATH}" kubectl apply -f - > "${RECEIPT_DIR}/apply.namespace.log" 2>&1 || true
+  KUBECONFIG="${KUBECONFIG_PATH}" kubectl apply -f - <<EOF > "${RECEIPT_DIR}/apply.sa.log" 2>&1 || true
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jobintel
+  namespace: ${NAMESPACE}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jobintel-config
+  namespace: ${NAMESPACE}
+data:
+  CAREERS_MODE: "SNAPSHOT"
+  EMBED_PROVIDER: "stub"
+  ENRICH_MAX_WORKERS: "1"
+  JOBINTEL_S3_PREFIX: "jobintel"
+  JOBINTEL_AWS_REGION: "us-east-1"
+  PUBLISH_S3: "1"
+  PUBLISH_S3_DRY_RUN: "0"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jobintel-secrets
+  namespace: ${NAMESPACE}
+type: Opaque
+stringData:
+  DR_VALIDATE_PLACEHOLDER: "1"
+EOF
+  KUBECONFIG="${KUBECONFIG_PATH}" kubectl apply -f "${OUTPUT_YAML}" > "${RECEIPT_DIR}/apply.kubectl.log" 2>&1
   note "applied control-plane ConfigMaps to namespace=${NAMESPACE}"
 else
   note "render-only mode: generated ${OUTPUT_YAML}"

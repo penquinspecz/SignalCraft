@@ -13,10 +13,11 @@ CONTROL_PLANE_PREFIX=""
 CONTROL_PLANE_BUNDLE_URI=""
 CONTROL_PLANE_BUNDLE_SHA256=""
 SKIP_CONTROL_PLANE=0
+IMAGE_REF=""
 
 usage() {
   cat <<USAGE
-Usage: $0 --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> [--kubeconfig <path>] [--namespace <ns>] [--control-plane-bucket <bucket>] [--control-plane-prefix <prefix>] [--control-plane-bundle-uri <uri>] [--control-plane-bundle-sha256 <sha>] [--skip-control-plane]
+Usage: $0 --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> [--kubeconfig <path>] [--namespace <ns>] [--image-ref <ref>] [--control-plane-bucket <bucket>] [--control-plane-prefix <prefix>] [--control-plane-bundle-uri <uri>] [--control-plane-bundle-sha256 <sha>] [--skip-control-plane]
 USAGE
 }
 
@@ -24,6 +25,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --backup-uri)
       BACKUP_URI="${2:-}"
+      shift 2
+      ;;
+    --image-ref)
+      IMAGE_REF="${2:-}"
       shift 2
       ;;
     --kubeconfig)
