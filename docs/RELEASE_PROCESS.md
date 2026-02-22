@@ -52,11 +52,18 @@ Cut a product release when:
 ### Titles and Provenance
 
 - **PR titles never contain `[from-composer]`, `[from-codex]`, or `[from-human]`.** Provenance is label-only.
+- **Every PR must have exactly one provenance label.** Pick based on who authored the changes: `from-composer` (Composer), `from-codex` (Codex), or `from-human` (human).
 - **Required labels for merge (enforced):**
   - Exactly one provenance: `from-composer`, `from-codex`, or `from-human`
   - Exactly one `type:*` (feat, fix, chore, docs, refactor, test)
   - At least one `area:*` (engine, providers, dr, release, infra, docs; multiple allowed)
   - Milestone must be set (any milestone)
+
+### How to label quickly
+
+```bash
+gh pr edit <PR> --add-label from-codex --add-label type:fix --add-label area:dr --milestone "Infra & Tooling"
+```
 
 ### Milestone B Rule
 
