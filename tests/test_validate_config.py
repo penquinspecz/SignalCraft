@@ -39,5 +39,5 @@ def test_validate_config_requires_ai_for_ai_only():
         log_json=False,
     )
     with pytest.raises(SystemExit) as exc:
-        run_daily.validate_config(args, "https://discord.com/api/webhooks/__REDACTED__/__REDACTED__")
+        run_daily.validate_config(args, "https://discord.invalid/webhook/__REDACTED__")
     assert exc.value.code == 2

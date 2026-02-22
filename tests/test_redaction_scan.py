@@ -6,13 +6,13 @@ from ji_engine.utils.redaction import scan_json_for_secrets, scan_text_for_secre
 def test_scan_text_for_secrets_detects_known_patterns() -> None:
     text = "\n".join(
         [
-            "AWS_ACCESS_KEY_ID=AKIA_REDACTED",
+            "AWS_ACCESS_KEY_ID=AKIA_TEST_NOT_A_REAL_KEY_0000",
             "Authorization: Bearer token_abcdefghijklmnopqrstuvwxyz12345",
-            "https://discord.com/api/webhooks/__REDACTED__/__REDACTED__",
-            "github_pat_REDACTED",
-            "ghp_REDACTED",
-            "OPENAI_API_KEY=sk-REDACTED",
-            "aws_secret_access_key=__REDACTED__",
+            "https://discord.invalid/webhook/__REDACTED__",
+            "GITHUB_PAT_TEST_PLACEHOLDER",
+            "GITHUB_TOKEN_TEST_PLACEHOLDER",
+            "OPENAI_API_KEY=OPENAI_TEST_KEY_PLACEHOLDER",
+            "aws_secret_access_key = AWS_SECRET_TEST_PLACEHOLDER",
         ]
     )
     findings = scan_text_for_secrets(text)
@@ -34,7 +34,7 @@ def test_scan_text_for_secrets_does_not_flag_random_strings() -> None:
 
 
 def test_aws_secret_heuristic_requires_access_key_pairing() -> None:
-    text = "aws_secret_access_key=__REDACTED__"
+    text = "aws_secret_access_key=AWS_SECRET_TEST_PLACEHOLDER"
     assert scan_text_for_secrets(text) == []
 
 
@@ -44,7 +44,7 @@ def test_scan_json_for_secrets_reports_deterministic_locations() -> None:
             "token": "Bearer token_abcdefghijklmnopqrstuvwxyz12345",
         },
         "items": [
-            {"url": "https://discord.com/api/webhooks/__REDACTED__/__REDACTED__"},
+            {"url": "https://discord.invalid/webhook/__REDACTED__"},
             {"note": "safe"},
         ],
     }

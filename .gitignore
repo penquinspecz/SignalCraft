@@ -108,3 +108,4 @@ docs/proof/from-composer-codex-review-queue-*.md
 # Local Python venvs
 .venv*/
 data/xai_snapshots/
+docs/proof/stash0-archive-2026-02-13.patch
