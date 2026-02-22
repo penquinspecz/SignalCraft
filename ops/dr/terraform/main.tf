@@ -22,6 +22,44 @@ locals {
   selected_ami = var.ami_id != "" ? var.ami_id : data.aws_ami.ubuntu_arm64[0].id
 }
 
+data "aws_iam_policy_document" "dr_runner_assume_role" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "dr_runner_ssm" {
+  name               = "${var.name_prefix}-runner-ssm-role"
+  assume_role_policy = data.aws_iam_policy_document.dr_runner_assume_role.json
+
+  tags = {
+    Name      = "${var.name_prefix}-runner-ssm-role"
+    ManagedBy = "terraform"
+    Purpose   = "jobintel-dr"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "dr_runner_ssm_core" {
+  role       = aws_iam_role.dr_runner_ssm.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "dr_runner" {
+  name = "${var.name_prefix}-runner-instance-profile"
+  role = aws_iam_role.dr_runner_ssm.name
+
+  tags = {
+    Name      = "${var.name_prefix}-runner-instance-profile"
+    ManagedBy = "terraform"
+    Purpose   = "jobintel-dr"
+  }
+}
+
 resource "aws_security_group" "dr_runner" {
   name        = "${var.name_prefix}-sg"
   description = "JobIntel DR runner access"
@@ -61,6 +99,7 @@ resource "aws_instance" "dr_runner" {
   ami                         = local.selected_ami
   instance_type               = var.instance_type
   subnet_id                   = var.subnet_id
+  iam_instance_profile        = aws_iam_instance_profile.dr_runner.name
   vpc_security_group_ids      = [aws_security_group.dr_runner.id]
   key_name                    = var.key_name != "" ? var.key_name : null
   associate_public_ip_address = true
