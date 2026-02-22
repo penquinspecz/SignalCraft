@@ -47,6 +47,9 @@ scripts/ops/dr_drill.sh \
 
 - Confirm AWS account is `048622080012` and region is `us-east-1`.
 - Confirm `enable_triggers=false` unless explicitly testing automatic trigger paths.
+- Confirm DR runner sizing defaults are in place:
+  - `TF_VAR_instance_type` default is `t4g.medium` (ARM, reliable for restore+validate).
+  - Override is allowed, but keep `t4g.*` family for ARM parity.
 - Confirm digest-pinned `IMAGE_REF` is available in ECR and multi-arch metadata exists.
 - Confirm backup contract objects exist at `BACKUP_URI`.
 - Confirm `control-plane/current.json` exists (or bootstrap once from primary).
@@ -196,7 +199,61 @@ scripts/ops/dr_validate.sh
 `dr_restore.sh` now enforces control-plane continuity before validate by:
 - fetching `control-plane/current.json`
 - verifying bundle hash
+- ensuring the target namespace exists (no manual pre-create step required)
+- ensuring ECR pull auth secret `ecr-pull` is created/refreshed and linked to ServiceAccount `jobintel`
 - applying control-plane ConfigMaps into DR namespace
+- applying baseline workloads from `ops/k8s/jobintel`
+- gating on `cronjob.batch/jobintel-daily` existence before restore can pass
+
+Validate reliability defaults:
+- Validate job resources are pinned deterministically:
+  - requests: `cpu=250m`, `memory=512Mi`
+  - limits: `cpu=1`, `memory=2Gi`
+- Validate retry policy is bounded:
+  - retries only for `ErrImagePull`/pull-auth or `Insufficient memory`
+  - max retries default: `2` (`DR_VALIDATE_MAX_RETRIES`)
+  - short backoff default: `15s` base (`DR_VALIDATE_RETRY_BACKOFF_SECONDS`)
+
+Safe override knobs:
+
+```bash
+# Infra sizing override (keep ARM family)
+export TF_VAR_instance_type=t4g.large
+
+# Validate resource overrides (only if required by workload profile)
+export VALIDATE_REQUEST_CPU=300m
+export VALIDATE_REQUEST_MEMORY=640Mi
+export VALIDATE_LIMIT_CPU=1
+export VALIDATE_LIMIT_MEMORY=2Gi
+
+# Retry behavior override
+export DR_VALIDATE_MAX_RETRIES=2
+export DR_VALIDATE_RETRY_BACKOFF_SECONDS=15
+```
+
+ECR pull secret helper (manual/operator verification path):
+
+```bash
+scripts/ops/dr_ensure_ecr_pull_secret.sh \
+  --namespace jobintel \
+  --aws-region us-east-1 \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --secret-name ecr-pull \
+  --service-account jobintel \
+  --kubeconfig /tmp/.../k3s.public.yaml \
+  --receipt-dir /tmp/.../ecr-pull-secret
+```
+
+Dry-run preflight (no cluster mutation):
+
+```bash
+scripts/ops/dr_ensure_ecr_pull_secret.sh \
+  --namespace jobintel \
+  --aws-region us-east-1 \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --kubeconfig /tmp/.../k3s.public.yaml \
+  --dry-run
+```
 
 ---
 
@@ -293,6 +350,105 @@ Flow:
 
 Teardown verification (when `--teardown=true`):
 - DR runner count must return to zero.
+
+Iteration modes (cost-control, deterministic stop boundaries):
+
+> [!WARNING]
+> Full drill (`start-at=bringup` with no `--stop-after` and `--teardown=true`) is for release validation only.
+> Day-to-day iteration should use `--validate-only` or explicit `--stop-after restore|validate`.
+> `dr_drill` now requires `--allow-full-drill` (or `ALLOW_FULL_DRILL=1`) for full drills.
+
+```bash
+# 1) Bringup-only, capture kubeconfig into a stable receipt path.
+BRINGUP_RUN_ID="m19-dr-bringup-$(date -u +%Y%m%dT%H%M%SZ)"
+RUN_ID="${BRINGUP_RUN_ID}" \
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --start-at bringup \
+  --stop-after bringup \
+  --teardown false \
+  --max-attempts 1
+# kubeconfig saved at:
+# /tmp/signalcraft-m19-phasea-20260221/ops/proof/bundles/${BRINGUP_RUN_ID}/kubeconfig.yaml
+
+# 2) Restore-only (DR already up), auto-loading kubeconfig from prior receipt.
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --start-at restore \
+  --stop-after restore \
+  --receipt-dir /tmp/signalcraft-m19-phasea-20260221/ops/proof/bundles/${BRINGUP_RUN_ID} \
+  --teardown false
+
+# 3) Validate-only (restore already done), auto-loading kubeconfig from receipt.
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --validate-only \
+  --receipt-dir /tmp/signalcraft-m19-phasea-20260221/ops/proof/bundles/${BRINGUP_RUN_ID} \
+  --teardown false
+```
+
+Retry controls:
+- `--no-retry` disables retries for all phases.
+- `--max-attempts N` caps attempts per phase (validate still bounded by `DR_VALIDATE_MAX_RETRIES + 1`).
+
+Receipts include per-phase execution status (`success|failed|skipped`) and skip reason:
+- `<receipt>/phases/*.json`
+- `<receipt>/drill.summary.json`
+
+---
+
+## Cost Discipline (Primary Operator Workflow)
+
+Primary low-cost execution pattern (default for day-to-day operations):
+- Bring up DR once, then iterate without recreating infra:
+  - `--start-at bringup --stop-after bringup --teardown false`
+- Run restore-only while DR infra stays up:
+  - `--start-at restore --stop-after restore --receipt-dir <bringup_receipt> --teardown false`
+- Iterate validate-only:
+  - `--validate-only --receipt-dir <bringup_receipt> --teardown false`
+- Final teardown when iteration is complete:
+  - `--start-at teardown --teardown true`
+
+Full drills are release-only proof runs:
+- Full drill requires `--allow-full-drill` (or `ALLOW_FULL_DRILL=1`) explicitly.
+- Use teardown on release proof drills to return runner count to zero.
+
+Reference commands:
+
+```bash
+# bringup-only once
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --start-at bringup \
+  --stop-after bringup \
+  --teardown false
+
+# restore-only using prior receipt-dir kubeconfig
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --start-at restore \
+  --stop-after restore \
+  --receipt-dir /tmp/signalcraft-m19-phasea-20260221/ops/proof/bundles/<bringup_run_id> \
+  --teardown false
+
+# validate-only iteration using prior receipt-dir kubeconfig
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --validate-only \
+  --receipt-dir /tmp/signalcraft-m19-phasea-20260221/ops/proof/bundles/<bringup_run_id> \
+  --teardown false
+
+# final teardown after iteration completes
+scripts/ops/dr_drill.sh \
+  --start-at teardown \
+  --teardown true
+```
 
 ---
 
