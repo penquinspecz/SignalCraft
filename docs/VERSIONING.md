@@ -106,3 +106,9 @@ Before tagging either release type:
 - Title format:
   - `SignalCraft vX.Y.Z — <theme>`
   - Example: `SignalCraft v0.2.0 — Deterministic Releases + DR-Proven Operator Workflow`
+
+---
+
+## 6) Release Notes Generator
+
+`scripts/release/render_release_notes.py` produces deterministic release body markdown from the required fields. Use it to generate GitHub release notes that conform to `docs/RELEASE_TEMPLATE.md`. Set `FROM_COMPOSER=1` to include the `[from-composer]` marker.
