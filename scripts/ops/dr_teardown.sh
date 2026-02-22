@@ -45,7 +45,7 @@ tf_init() {
     : "${TF_BACKEND_BUCKET:?TF_BACKEND_BUCKET is required when TF_BACKEND_MODE=remote}"
     : "${TF_BACKEND_KEY:?TF_BACKEND_KEY is required when TF_BACKEND_MODE=remote}"
     : "${TF_BACKEND_DYNAMODB_TABLE:?TF_BACKEND_DYNAMODB_TABLE is required when TF_BACKEND_MODE=remote}"
-    terraform init -input=false \
+    terraform init -input=false -reconfigure \
       -backend-config="bucket=${TF_BACKEND_BUCKET}" \
       -backend-config="key=${TF_BACKEND_KEY}" \
       -backend-config="region=${AWS_REGION}" \

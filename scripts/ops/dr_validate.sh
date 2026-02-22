@@ -289,7 +289,7 @@ spec:
             - --no_post
           env:
             - name: PUBLISH_S3_REQUIRE
-              value: "1"
+              value: "0"
             - name: JOBINTEL_SNAPSHOT_WRITE_DIR
               value: "/work/jobintel_snapshots"
             - name: CAREERS_MODE
