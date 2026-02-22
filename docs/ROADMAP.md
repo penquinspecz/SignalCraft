@@ -386,6 +386,7 @@ Definition of Done
 - [x] Deterministic promote decision path exists in DR drill (`--auto-promote=true` + explicit bypass gate)
 - [x] DR Determinism Audit Complete (`scripts/audit_determinism.sh` passes; no committed local state/cache artifacts; DR guardrails enforced)
 - [x] DR Docs Coherence Gate: PASS (Definition: a new operator can run a drill from docs only, including trigger semantics, digest image selection, control-plane continuity, and promotion/failback commands.)
+- [x] Cost guardrails: PASS (default iteration is bringup-only once + restore-only + validate-only; full drill requires explicit `--allow-full-drill` and receipts)
 - [ ] Deterministic failback command path exists (dry-run + apply)
 - [ ] Rehearsed failback proves no pointer drift and no artifact loss
 
@@ -393,6 +394,7 @@ Receipts Required
 - Promote decision receipt with operator identity + ticket reference
 - Pointer/state verification receipts pre/post promote and pre/post failback
 - Artifact diff receipt proving deterministic reconciliation before switchback
+- Cost receipts for drill runs (`drill.cost.inputs.json`, `drill.cost.actual.json`, `drill.phase_timestamps.json`)
 
 ---
 
