@@ -48,4 +48,4 @@ Ensure branch is deletable; do not use permanent branch names. Head branches are
 
 ## Provenance
 
-**from-composer** is tracked via label, not PR title. Do not put `[from-composer]` in the PR title.
+**Provenance is labels only (never in title).** Every PR must have exactly one provenance label. Pick based on who authored the changes: `from-composer` (Composer), `from-codex` (Codex), or `from-human` (human). Do not put `[from-composer]`, `[from-codex]`, or `[from-human]` in the PR title.
