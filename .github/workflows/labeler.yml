@@ -1,0 +1,20 @@
+# Auto-label PRs by changed paths (area:*).
+# Uses pull_request_target: labeler needs pull-requests: write to add labels.
+# Safe: we only run actions/labeler (no checkout of PR code).
+name: labeler
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  labeler:
+    name: labeler
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/labeler@v6
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
