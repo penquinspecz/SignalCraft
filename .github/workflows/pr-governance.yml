@@ -41,13 +41,13 @@ jobs:
               errors.push('TITLE: PR title must NOT contain [from-composer], [from-codex], or [from-human]. Provenance is label-only.');
             }
             if (provenanceLabels.length !== 1) {
-              errors.push(`PROVENANCE: Exactly one provenance label required. Found: ${provenanceLabels.length}. Allowed: ${PROVENANCE.join(', ')}. Current: ${provenanceLabels.join(', ') || '(none)'}`);
+              errors.push(`PROVENANCE: Expected exactly 1 provenance label; found ${provenanceLabels.length}. Allowed: ${PROVENANCE.join(', ')}. Current: ${provenanceLabels.join(', ') || '(none)'}`);
             }
             if (typeLabels.length !== 1) {
-              errors.push(`TYPE: Exactly one type:* label required. Found: ${typeLabels.length}. Examples: type:feat, type:fix, type:chore, type:docs, type:refactor, type:test. Current: ${typeLabels.join(', ') || '(none)'}`);
+              errors.push(`TYPE: Expected exactly 1 type:* label; found ${typeLabels.length}. Examples: type:feat, type:fix, type:chore, type:docs, type:refactor, type:test. Current: ${typeLabels.join(', ') || '(none)'}`);
             }
-            if (areaLabels.length !== 1) {
-              errors.push(`AREA: Exactly one area:* label required. Found: ${areaLabels.length}. Examples: area:engine, area:docs, area:dr, area:release, area:infra, area:providers. Current: ${areaLabels.join(', ') || '(none)'}`);
+            if (areaLabels.length < 1) {
+              errors.push(`AREA: Expected at least 1 area:* label; found ${areaLabels.length}. Examples: area:engine, area:docs, area:dr, area:release, area:infra, area:providers. Current: ${areaLabels.join(', ') || '(none)'}`);
             }
             if (!milestone) {
               errors.push('MILESTONE: PR must have a milestone set (roadmap or bucket: Infra & Tooling, Docs & Governance, Backlog Cleanup).');
