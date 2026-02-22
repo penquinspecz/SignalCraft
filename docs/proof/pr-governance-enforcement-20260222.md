@@ -2,7 +2,7 @@
 
 ## Files Changed
 
-- `.github/workflows/pr-governance.yml` — new: validates title, labels, milestone
+- `.github/workflows/pr-governance.yml` — new: validates title, labels, milestone (fetches PR via API for fresh data on re-run)
 - `.github/workflows/labeler.yml` — new: auto-labels area:* from paths
 - `.github/labeler.yml` — new: path → area mappings
 - `docs/LABELS.md` — new: taxonomy, enforcement rules, auto-labeling note
