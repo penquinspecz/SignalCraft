@@ -1,6 +1,7 @@
 # Cold-Standby DR (On-Demand)
 
 This DR path is intentionally **cold-standby** and **teardown-friendly**.
+Canonical operator runbook: `ops/dr/RUNBOOK_DISASTER_RECOVERY.md`.
 
 ## Architecture (default)
 
@@ -27,6 +28,30 @@ BACKUP_URI=s3://<bucket>/<prefix>/backups/<backup_id> make dr-validate
 CONFIRM_DESTROY=1 make dr-destroy
 ```
 
+Full deterministic rehearsal entrypoint (recommended):
+
+```bash
+scripts/ops/dr_drill.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --image-ref <account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  --auto-promote false \
+  --teardown true
+```
+
+Release-safe validation (digest-pinned image, preferred):
+
+```bash
+IMAGE_REF=<account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
+  RUN_JOB=1 NAMESPACE=jobintel scripts/ops/dr_validate.sh
+```
+
+Tag-based image refs are accepted for development only:
+
+```bash
+IMAGE_REF=<account>.dkr.ecr.us-east-1.amazonaws.com/jobintel:<tag> \
+  RUN_JOB=1 NAMESPACE=jobintel scripts/ops/dr_validate.sh
+```
+
 Milestone 4 deterministic plan bundle:
 
 ```bash
@@ -51,7 +76,10 @@ Required backup layout:
 Validation command:
 
 ```bash
-scripts/ops/dr_restore.sh --backup-uri s3://<bucket>/<prefix>/backups/<backup_id>
+scripts/ops/dr_restore.sh \
+  --backup-uri s3://<bucket>/<prefix>/backups/<backup_id> \
+  --kubeconfig /tmp/.../k3s.public.yaml \
+  --namespace jobintel
 ```
 
 ## Notes
@@ -59,3 +87,4 @@ scripts/ops/dr_restore.sh --backup-uri s3://<bucket>/<prefix>/backups/<backup_id
 - This scaffold is cloud-specific in implementation, but Kubernetes-native in runtime shape (k3s + CronJob).
 - EKS can still be used as an explicit alternative path; this DR baseline does not require it.
 - DR rehearsal runbook: `ops/dr/RUNBOOK_DISASTER_RECOVERY.md`.
+- DR orchestrator (auto-detect -> auto-validate -> manual promote): `docs/dr_orchestrator.md` and `ops/dr/orchestrator/`.

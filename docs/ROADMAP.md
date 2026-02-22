@@ -323,25 +323,76 @@ Receipts Required
 
 # INFRASTRUCTURE EVOLUTION
 
-## Milestone 19 — AWS DR & Failover Hardening ◐
+## Milestone 19A — Release Integrity for DR Deployments ◐
 
-Goal: Cloud execution survives failure.
-Status: ◐ AWS operational scripts/runbooks exist, but milestone-level DR receipts (versioning/lifecycle/rehearsal metrics) are not fully captured.
-Evidence: `scripts/aws_*.py`, `ops/aws/`, `docs/OPS_RUNBOOK.md`.
+Goal: Every DR deploy uses deterministic, architecture-safe release units.
+Status: ◐ Multi-arch build/publish and metadata tooling are landed; production adoption and receipts are still incomplete.
+Evidence: `scripts/release/build_and_push_ecr.sh`, `scripts/release/write_release_metadata.py`, `scripts/release/verify_ecr_image_arch.py`, `.github/workflows/release-ecr.yml`, `scripts/ops/dr_validate.sh`, `ops/aws/EKS_ECR_GOLDEN_PATH.md`.
 
 Definition of Done
-- [ ] S3 versioning enabled
-- [ ] S3 lifecycle policy defined
-- [ ] Backup bucket replication strategy documented
-- [ ] Disaster recovery restore rehearsal executed
-- [ ] RTO + RPO explicitly defined
-- [ ] Infrastructure config versioned
-- [ ] Recovery playbook tested
+- [x] ECR image publish is multi-arch per commit SHA (`linux/amd64` + `linux/arm64`) under one tag
+- [x] Release metadata persisted with `git_sha`, `image_repo`, `image_tag`, `image_digest`, build timestamp, and supported architectures
+- [x] DR validate path accepts `IMAGE_REF` as digest (preferred) or tag (dev fallback)
+- [x] CI gate fails when required architecture (`arm64`) is missing
+- [x] CI gate fails when DR image precheck cannot validate arm64 compatibility
+- [ ] Non-dev deployment paths default to digest pinning (tag opt-in for development only)
+- [ ] Release proof bundle always includes metadata artifact + CI gate evidence
 
 Receipts Required
-- Restore rehearsal proof
-- Recovery time measurement
-- Backup verification artifact
+- Release metadata artifact (`release-<sha>.json`)
+- CI receipt showing multi-arch manifest verification
+- DR validate receipt showing digest-pinned `IMAGE_REF`
+
+---
+
+## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ◐
+
+Goal: DR detection and Kubernetes DR validation run unattended in AWS, with human-controlled promotion.
+Status: ◐ Terraform + Lambda + Step Functions orchestration is landed; deterministic operator drill command is landed; production rehearsal receipts are still incomplete.
+Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`.
+
+Definition of Done
+- [x] Batch-first health signals emitted: pipeline freshness and publish correctness
+- [x] CloudWatch alarms exist for freshness breach and publish correctness failure
+- [x] Step Functions flow executes: `check_health -> bringup -> restore -> validate -> notify`
+- [x] Validation proves DR runner Kubernetes control plane health before any promotion decision
+- [x] Manual approval gate is mandatory before promote
+- [x] Auto-promote is explicitly disabled
+- [x] Every orchestration phase writes a receipt object to S3
+- [x] Deterministic non-production drill command exists for bringup -> restore -> validate -> optional promote -> teardown
+- [x] Control Plane Bundle continuity implemented (`publish_bundle.sh`, `fetch_bundle.sh`, `apply_bundle_k8s.sh`)
+- [x] DR restore applies same control-plane bundle as primary before validation
+- [x] Restore receipts include `bundle_uri`, `bundle_sha256`, and applied config counts
+- [ ] At least one full success-path rehearsal receipt bundle captured
+- [ ] At least one failure-path rehearsal receipt bundle captured
+
+Receipts Required
+- Step Functions execution history export
+- S3 phase receipts (`check_health`, `bringup`, `restore`, `validate`, `notify`, `request_manual_approval`, `record_manual_decision`)
+- Alarm transition proof (`OK -> ALARM -> OK`)
+
+---
+
+## Milestone 19C — Promote Semantics & Failback v1 (Batch-First, Endpoint-Ready) ◐
+
+Goal: “Promote” and “failback” are explicit, deterministic operations rather than tribal knowledge.
+Status: ◐ Semantics are documented; deterministic promote decision path for DR drills is landed; failback command path and rehearsal receipts are still pending.
+Evidence: `docs/dr_orchestrator.md`, `docs/dr_promote_failback.md`, `scripts/ops/dr_drill.sh`, `scripts/verify_published_s3.py`, `scripts/compare_run_artifacts.py`.
+
+Definition of Done
+- [x] Batch-mode promote semantics documented (what changes today, and what does not)
+- [x] Future UI/API promote semantics documented (DNS/endpoint cutover contract)
+- [x] Failback safety contract documented (freeze, verify, reconcile, switchback, monitor)
+- [x] Deterministic promote decision path exists in DR drill (`--auto-promote=true` + explicit bypass gate)
+- [x] DR Determinism Audit Complete (`scripts/audit_determinism.sh` passes; no committed local state/cache artifacts; DR guardrails enforced)
+- [x] DR Docs Coherence Gate: PASS (Definition: a new operator can run a drill from docs only, including trigger semantics, digest image selection, control-plane continuity, and promotion/failback commands.)
+- [ ] Deterministic failback command path exists (dry-run + apply)
+- [ ] Rehearsed failback proves no pointer drift and no artifact loss
+
+Receipts Required
+- Promote decision receipt with operator identity + ticket reference
+- Pointer/state verification receipts pre/post promote and pre/post failback
+- Artifact diff receipt proving deterministic reconciliation before switchback
 
 ---
 
