@@ -73,8 +73,9 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-17 on commit `610d859a1f339cc2504e8f3a201677ce43a7f375` (we ran mainline verification checks on this SHA; `main` may have advanced since. See CI + proof receipts.)
-Latest release: v0.1.0
+Last verified: 2026-02-22 on commit `72c3eaa7d726b551d1eb7b058a0158cb087acf73` (we ran mainline verification checks on this SHA; `main` may have advanced since. See CI + proof receipts.)
+Latest product release: v0.1.0
+Latest milestone release: m19-20260222T201429Z
 
 Foundation exists:
 - Deterministic scoring contract (versioned config + schema + replay checks).
@@ -100,6 +101,9 @@ Foundation exists:
 - Operations hardening receipts expanded with provider availability artifact and failure playbook receipts. Verified by `docs/proof/m12-provider-availability-artifact-2026-02-15.md`, `docs/proof/m12-failure-playbook-receipts-2026-02-14.md`, `docs/OPS_RUNBOOK.md`, `tests/test_run_health_artifact.py`.
 - Run indexing/read-path migration advanced: RunRepository-only run resolution and SQLite-backed history read path landed. Verified by `docs/proof/m13-no-run-filesystem-scan-outside-tests-2026-02-15.md`, `docs/proof/m13-readpath-history-sqlite-2026-02-15.md`, `src/ji_engine/run_repository.py`, `scripts/report_changes.py`, `tests/test_m13_no_run_filesystem_scan_repo_wide.py`, `tests/test_run_repository.py`.
 - Dashboard plumbing is now API-boring: `/version`, artifact index endpoint, bounded artifact serving, and smoke receipts are landed. Verified by `docs/proof/m17-api-boring-pack-2026-02-15.md`, `docs/proof/m17-artifact-index-endpoint-2026-02-14.md`, `docs/proof/m17-api-boring-pack-smoke-negative-2026-02-15.md`, `docs/proof/p1-artifact-download-size-cap-2026-02-17.md`, `docs/DASHBOARD_API.md`.
+- PR governance enforcement: labels (provenance, type, area), milestone required, provenance label-only (no `[from-composer]` in titles). Verified by `docs/LABELS.md`, `docs/proof/provenance-always-enforced-20260222T211953Z.md`, `.github/workflows/pr-governance.yml`.
+- Release-notes renderer: deterministic milestone vs product templates (`scripts/release/render_release_notes.py`). Verified by `docs/RELEASE_NOTES_STYLE.md`, `docs/proof/release-notes-render-m19-example-20260222.md`.
+- M19 DR proof discipline: cost guardrails (validate-only default), branch auto-delete, cleanup rollup receipts. Verified by `docs/proof/20260222T211723Z-cleanup-rollup.md`, `scripts/ops/dr_drill.sh`, `scripts/ops/dr_validate.sh`.
 
 ---
 
