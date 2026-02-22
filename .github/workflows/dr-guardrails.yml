@@ -1,0 +1,81 @@
+name: dr-guardrails
+
+on:
+  pull_request:
+    paths:
+      - "ops/dr/**"
+      - "scripts/ops/**"
+      - "scripts/control_plane/**"
+      - "docs/dr_*.md"
+      - "docs/ROADMAP.md"
+      - "ops/aws/EKS_ECR_GOLDEN_PATH.md"
+      - ".github/workflows/dr-guardrails.yml"
+      - ".github/workflows/release-ecr.yml"
+  push:
+    branches: [main]
+    paths:
+      - "ops/dr/**"
+      - "scripts/ops/**"
+      - "scripts/control_plane/**"
+      - "docs/dr_*.md"
+      - "docs/ROADMAP.md"
+      - "ops/aws/EKS_ECR_GOLDEN_PATH.md"
+      - ".github/workflows/dr-guardrails.yml"
+      - ".github/workflows/release-ecr.yml"
+  workflow_dispatch:
+    inputs:
+      allow_non_arm_instance_type:
+        description: "Allow non-t4g DR instance-type defaults for this run (explicit override)"
+        required: false
+        default: "false"
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.5
+
+      - name: Validate ops/dr/terraform
+        run: |
+          set -euo pipefail
+          terraform -chdir=ops/dr/terraform init -input=false -backend=false
+          terraform -chdir=ops/dr/terraform validate
+
+      - name: Validate ops/dr/orchestrator
+        run: |
+          set -euo pipefail
+          terraform -chdir=ops/dr/orchestrator init -input=false -backend=false
+          terraform -chdir=ops/dr/orchestrator validate
+
+  dr-policy-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14.3"
+
+      - name: DR backend / trigger / ARM / lint guardrails
+        env:
+          ALLOW_NON_ARM_INPUT: ${{ github.event.inputs.allow_non_arm_instance_type || 'false' }}
+        run: |
+          set -euo pipefail
+          extra_args=()
+          case "${ALLOW_NON_ARM_INPUT,,}" in
+            1|true|yes|y)
+              extra_args+=(--allow-non-arm-instance-type)
+              ;;
+          esac
+          python3 scripts/ops/check_dr_guardrails.py "${extra_args[@]}"
+
+      - name: DR docs coherence lint
+        run: |
+          set -euo pipefail
+          python3 scripts/ops/check_dr_docs.py

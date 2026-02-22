@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "destinations": {
+    "email": [],
+    "slack_webhooks": []
+  },
+  "thresholds": {
+    "minimum_score_delta": 5,
+    "max_daily_alerts": 50
+  },
+  "rules": []
+}

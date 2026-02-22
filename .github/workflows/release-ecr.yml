@@ -1,0 +1,112 @@
+name: release-ecr
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag (defaults to commit SHA)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+
+jobs:
+  build-and-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      ECR_REPO: jobintel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.image_tag }}"
+          if [ -z "$tag" ]; then
+            tag="${GITHUB_SHA}"
+          fi
+          echo "IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Docker setup (QEMU + Buildx)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Buildx builder
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push multi-arch image
+        run: |
+          set -euo pipefail
+          IMAGE_TAG="$IMAGE_TAG" \
+          AWS_REGION="$AWS_REGION" \
+          ECR_REPO="$ECR_REPO" \
+          RELEASE_METADATA_PATH="ops/proof/releases/release-${IMAGE_TAG}.json" \
+            scripts/release/build_and_push_ecr.sh
+
+      - name: Verify release metadata generated and valid
+        run: |
+          set -euo pipefail
+          metadata="ops/proof/releases/release-${IMAGE_TAG}.json"
+          test -s "$metadata"
+          python3 - "$metadata" <<'PY'
+          import json
+          import re
+          import sys
+
+          path = sys.argv[1]
+          doc = json.load(open(path, "r", encoding="utf-8"))
+          required = [
+              "git_sha",
+              "image_repo",
+              "image_tag",
+              "image_digest",
+              "build_timestamp",
+              "supported_architectures",
+              "image_ref_digest",
+          ]
+          missing = [k for k in required if k not in doc]
+          if missing:
+              raise SystemExit(f"missing metadata keys: {missing}")
+          if not isinstance(doc.get("supported_architectures"), list) or not doc["supported_architectures"]:
+              raise SystemExit("supported_architectures must be a non-empty list")
+          image_ref = str(doc.get("image_ref_digest", "")).strip()
+          if not re.match(r"^\d+\.dkr\.ecr\.[^.]+\.amazonaws\.com\/[A-Za-z0-9._\/-]+@sha256:[0-9a-f]{64}$", image_ref):
+              raise SystemExit(f"invalid image_ref_digest format: {image_ref}")
+          print(f"metadata_ok image_ref_digest={image_ref}")
+          PY
+
+      - name: Verify manifest includes amd64 + arm64
+        run: |
+          set -euo pipefail
+          account_id="$(aws sts get-caller-identity --query Account --output text)"
+          image_ref="${account_id}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
+          scripts/release/verify_ecr_image_arch.py --image-ref "$image_ref" --require-arch amd64 --require-arch arm64
+
+      - name: DR arm64 workload precheck (image mismatch gate)
+        run: |
+          set -euo pipefail
+          metadata="ops/proof/releases/release-${IMAGE_TAG}.json"
+          image_ref="$(python3 - "$metadata" <<'PY'
+          import json
+          import sys
+
+          print(json.load(open(sys.argv[1], "r", encoding="utf-8"))["image_ref_digest"])
+          PY
+          )"
+          CHECK_IMAGE_ONLY=1 CHECK_ARCH=arm64 IMAGE_REF="$image_ref" scripts/ops/dr_validate.sh
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata-${{ env.IMAGE_TAG }}
+          path: ops/proof/releases/release-${{ env.IMAGE_TAG }}.json
+          retention-days: 14

@@ -25,7 +25,7 @@ spec:
       serviceAccountName: jobintel-sa
       containers:
         - name: jobintel
-          image: ghcr.io/yourorg/jobintel:latest
+          image: ghcr.io/yourorg/jobintel:sha-REPLACE_WITH_COMMIT_SHA
           imagePullPolicy: IfNotPresent
           securityContext:
             readOnlyRootFilesystem: true

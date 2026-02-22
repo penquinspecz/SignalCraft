@@ -1,0 +1,112 @@
+version: 0.2
+env:
+  shell: bash
+phases:
+  install:
+    commands:
+      - set -euo pipefail
+      - apt-get update
+      - DEBIAN_FRONTEND=noninteractive apt-get install -y unzip curl jq >/dev/null
+      - curl -fsSL -o /tmp/terraform.zip "https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip"
+      - unzip -o /tmp/terraform.zip -d /usr/local/bin >/dev/null
+      - terraform version
+  build:
+    commands:
+      - set -euo pipefail
+      - : "${ACTION:?ACTION is required}"
+      - : "${EXECUTION_ID:?EXECUTION_ID is required}"
+      - : "${EXPECTED_ACCOUNT_ID:?EXPECTED_ACCOUNT_ID is required}"
+      - : "${AWS_REGION:?AWS_REGION is required}"
+      - : "${RECEIPT_BUCKET:?RECEIPT_BUCKET is required}"
+      - : "${RECEIPT_PREFIX:?RECEIPT_PREFIX is required}"
+      - : "${TF_BUNDLE_BUCKET:?TF_BUNDLE_BUCKET is required}"
+      - : "${TF_BUNDLE_KEY:?TF_BUNDLE_KEY is required}"
+      - : "${TF_STATE_BUCKET:?TF_STATE_BUCKET is required}"
+      - : "${TF_STATE_KEY:?TF_STATE_KEY is required}"
+      - : "${TF_STATE_DYNAMODB_TABLE:?TF_STATE_DYNAMODB_TABLE is required}"
+      - : "${TF_VAR_region:?TF_VAR_region is required}"
+      - : "${TF_VAR_vpc_id:?TF_VAR_vpc_id is required}"
+      - : "${TF_VAR_subnet_id:?TF_VAR_subnet_id is required}"
+      - : "${TF_VAR_allowed_cidr:?TF_VAR_allowed_cidr is required}"
+      - ACTUAL_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+      - |
+        if [[ "${ACTUAL_ACCOUNT_ID}" != "${EXPECTED_ACCOUNT_ID}" ]]; then
+          echo "account mismatch: expected=${EXPECTED_ACCOUNT_ID} actual=${ACTUAL_ACCOUNT_ID}" >&2
+          exit 1
+        fi
+      - WORK_DIR="/tmp/dr-terraform"
+      - rm -rf "${WORK_DIR}" /tmp/dr-terraform.zip
+      - aws s3 cp "s3://${TF_BUNDLE_BUCKET}/${TF_BUNDLE_KEY}" /tmp/dr-terraform.zip
+      - mkdir -p "${WORK_DIR}"
+      - unzip -q /tmp/dr-terraform.zip -d "${WORK_DIR}"
+      - cd "${WORK_DIR}"
+      - |
+        terraform init -input=false \
+          -backend-config="bucket=${TF_STATE_BUCKET}" \
+          -backend-config="key=${TF_STATE_KEY}" \
+          -backend-config="region=${AWS_REGION}" \
+          -backend-config="dynamodb_table=${TF_STATE_DYNAMODB_TABLE}" \
+          -backend-config="encrypt=true"
+      - terraform fmt -check
+      - terraform validate
+      - |
+        tf_var_args=(
+          -var "region=${TF_VAR_region}"
+          -var "vpc_id=${TF_VAR_vpc_id}"
+          -var "subnet_id=${TF_VAR_subnet_id}"
+          -var "allowed_cidr=${TF_VAR_allowed_cidr}"
+          -var "instance_type=${TF_VAR_instance_type:-t4g.small}"
+        )
+        if [[ -n "${TF_VAR_key_name:-}" ]]; then
+          tf_var_args+=( -var "key_name=${TF_VAR_key_name}" )
+        fi
+        if [[ -n "${TF_VAR_ami_id:-}" ]]; then
+          tf_var_args+=( -var "ami_id=${TF_VAR_ami_id}" )
+        fi
+
+        case "${ACTION}" in
+          bringup)
+            terraform plan -input=false "${tf_var_args[@]}" -out=tfplan
+            terraform apply -auto-approve tfplan
+            ;;
+          teardown)
+            terraform plan -destroy -input=false "${tf_var_args[@]}" -out=tfplan-destroy
+            terraform apply -auto-approve tfplan-destroy
+            ;;
+          *)
+            echo "unsupported ACTION=${ACTION}" >&2
+            exit 2
+            ;;
+        esac
+      - terraform output -json > /tmp/dr_tf_outputs.json || echo '{}' > /tmp/dr_tf_outputs.json
+      - RECEIPT_KEY="${RECEIPT_PREFIX}/${EXECUTION_ID}/codebuild-${ACTION}.json"
+      - |
+        python3 - <<'PY' > /tmp/codebuild_receipt.json
+        import datetime as dt
+        import json
+        import os
+        from pathlib import Path
+
+        outputs_path = Path('/tmp/dr_tf_outputs.json')
+        outputs = json.loads(outputs_path.read_text(encoding='utf-8')) if outputs_path.exists() else {}
+
+        payload = {
+            'schema_version': 1,
+            'timestamp_utc': dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'phase': os.environ['ACTION'],
+            'status': 'ok',
+            'execution_id': os.environ['EXECUTION_ID'],
+            'build_id': os.environ.get('CODEBUILD_BUILD_ID', ''),
+            'account_id': os.environ.get('ACTUAL_ACCOUNT_ID', ''),
+            'region': os.environ['AWS_REGION'],
+            'terraform_backend': {
+                'bucket': os.environ['TF_STATE_BUCKET'],
+                'key': os.environ['TF_STATE_KEY'],
+                'dynamodb_table': os.environ['TF_STATE_DYNAMODB_TABLE'],
+            },
+            'terraform_outputs': outputs,
+        }
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        PY
+      - aws s3 cp /tmp/codebuild_receipt.json "s3://${RECEIPT_BUCKET}/${RECEIPT_KEY}" --content-type application/json
+      - echo "receipt=s3://${RECEIPT_BUCKET}/${RECEIPT_KEY}"

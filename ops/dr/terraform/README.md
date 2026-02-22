@@ -24,3 +24,18 @@ terraform plan
 terraform apply
 terraform output
 ```
+
+## Backend
+
+This module is configured for remote backend usage (`backend "s3" {}`).
+
+For non-orchestrator runs, pass backend settings explicitly at init time:
+
+```bash
+terraform init \
+  -backend-config="bucket=<state-bucket>" \
+  -backend-config="key=<state-key>" \
+  -backend-config="region=us-east-1" \
+  -backend-config="dynamodb_table=<lock-table>" \
+  -backend-config="encrypt=true"
+```

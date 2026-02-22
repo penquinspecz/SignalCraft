@@ -33,14 +33,31 @@ $(terraform -chdir=ops/aws/infra/eks output -raw update_kubeconfig_command)
 export JOBINTEL_IRSA_ROLE_ARN="$(terraform -chdir=ops/aws/infra/eks output -raw jobintel_irsa_role_arn)"
 ```
 
-## 2) Build + push image to ECR
+## 2) Build + push multi-arch image to ECR (+ release metadata)
 
 ```bash
 export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-export JOBINTEL_IMAGE="$(scripts/ecr_publish_image.sh | awk -F= '/^IMAGE_URI=/{print $2}')"
+export IMAGE_TAG="$(git rev-parse HEAD)"
+scripts/release/build_and_push_ecr.sh
+export RELEASE_METADATA="ops/proof/releases/release-${IMAGE_TAG}.json"
+export JOBINTEL_IMAGE="$(python3 - <<'PY' "$RELEASE_METADATA"
+import json,sys
+print(json.load(open(sys.argv[1], "r", encoding="utf-8"))["image_ref_digest"])
+PY
+)"
 ```
 
-`scripts/ecr_publish_image.sh` prints a tag URI (`IMAGE_URI=...:<git_sha>`), which is accepted by the renderer.
+`scripts/release/build_and_push_ecr.sh` publishes one commit-SHA tag with both `linux/amd64` and `linux/arm64`, then writes release metadata including the digest-pinned image ref.
+
+DR consumers should use this digest ref directly:
+
+```bash
+IMAGE_REF="$JOBINTEL_IMAGE" scripts/ops/dr_validate.sh
+```
+
+For full DR execution flow and promotion/failback semantics, use:
+- `ops/dr/RUNBOOK_DISASTER_RECOVERY.md`
+- `docs/dr_promote_failback.md`
 
 ## 3) Render/apply manifests without manual YAML edits
 

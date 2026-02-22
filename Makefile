@@ -1,4 +1,4 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -310,8 +310,28 @@ dr-restore-check:
 dr-validate:
 	RUN_JOB=1 scripts/ops/dr_validate.sh
 
+dr-validate-image-ref:
+	@if [ -z "$(IMAGE_REF)" ]; then echo "Usage: make dr-validate-image-ref IMAGE_REF=<repo>:<tag>|<repo>@sha256:<digest> [CHECK_ARCH=arm64]"; exit 2; fi
+	CHECK_IMAGE_ONLY=1 CHECK_ARCH="$(if $(CHECK_ARCH),$(CHECK_ARCH),arm64)" IMAGE_REF="$(IMAGE_REF)" scripts/ops/dr_validate.sh
+
 dr-destroy:
 	CONFIRM_DESTROY=1 scripts/ops/dr_teardown.sh
+
+dr-drill:
+	@if [ -z "$(BACKUP_URI)" ]; then echo "Usage: make dr-drill BACKUP_URI=s3://<bucket>/<prefix>/backups/<backup_id> [IMAGE_REF=<repo>@sha256:<digest>] [AUTO_PROMOTE=false|true] [TEARDOWN=true|false] [ALLOW_PROMOTE_BYPASS=false|true]"; exit 2; fi
+	scripts/ops/dr_drill.sh \
+		--backup-uri "$(BACKUP_URI)" \
+		$(if $(IMAGE_REF),--image-ref "$(IMAGE_REF)",) \
+		--auto-promote "$(if $(AUTO_PROMOTE),$(AUTO_PROMOTE),false)" \
+		--teardown "$(if $(TEARDOWN),$(TEARDOWN),true)" \
+		--allow-promote-bypass "$(if $(ALLOW_PROMOTE_BYPASS),$(ALLOW_PROMOTE_BYPASS),false)"
+
+release-build-ecr:
+	IMAGE_TAG="$(if $(IMAGE_TAG),$(IMAGE_TAG),$$(git rev-parse HEAD))" scripts/release/build_and_push_ecr.sh
+
+release-verify-image-arch:
+	@if [ -z "$(IMAGE_REF)" ]; then echo "Usage: make release-verify-image-arch IMAGE_REF=<repo>:<tag>|<repo>@sha256:<digest>"; exit 2; fi
+	scripts/release/verify_ecr_image_arch.py --image-ref "$(IMAGE_REF)" --require-arch amd64 --require-arch arm64
 
 k8s-commands:
 	@echo "kubectl apply -f ops/k8s/namespace.yaml"

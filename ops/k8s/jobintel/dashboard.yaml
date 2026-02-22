@@ -21,7 +21,7 @@ spec:
       serviceAccountName: jobintel
       containers:
         - name: dashboard
-          image: ghcr.io/yourorg/jobintel:latest
+          image: ghcr.io/yourorg/jobintel:sha-REPLACE_WITH_COMMIT_SHA
           imagePullPolicy: IfNotPresent
           command:
             - python

@@ -8,4 +8,4 @@ patchesStrategicMerge:
 images:
   - name: jobintel
     newName: ghcr.io/yourorg/jobintel
-    newTag: latest
+    newTag: sha-REPLACE_WITH_COMMIT_SHA
