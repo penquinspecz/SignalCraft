@@ -390,8 +390,8 @@ def _request_manual_approval(event: Dict[str, Any], region: str) -> Dict[str, An
         "execution_id": execution_id,
         "summary": summary,
         "instructions": {
-            "approve": "aws stepfunctions send-task-success --task-token '<TASK_TOKEN>' --task-output '{\"approved\":true,\"approver\":\"<name>\",\"ticket\":\"<id>\"}'",
-            "reject": "aws stepfunctions send-task-success --task-token '<TASK_TOKEN>' --task-output '{\"approved\":false,\"approver\":\"<name>\",\"reason\":\"<reason>\"}'",
+            "approve": 'aws stepfunctions send-task-success --task-token \'<TASK_TOKEN>\' --task-output \'{"approved":true,"approver":"<name>","ticket":"<id>"}\'',
+            "reject": 'aws stepfunctions send-task-success --task-token \'<TASK_TOKEN>\' --task-output \'{"approved":false,"approver":"<name>","reason":"<reason>"}\'',
             "task_token": task_token,
         },
         "note": "Auto-promote is disabled; approval only records decision and readiness state.",

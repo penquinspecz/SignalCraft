@@ -25,7 +25,10 @@ CHECKS: list[Check] = [
     Check("ops/dr/RUNBOOK_DISASTER_RECOVERY.md", "scripts/ops/dr_status.sh"),
     Check("ops/dr/RUNBOOK_DISASTER_RECOVERY.md", "scripts/ops/dr_approve.sh"),
     Check("ops/dr/RUNBOOK_DISASTER_RECOVERY.md", "TF_BACKEND_BUCKET"),
-    Check("ops/dr/RUNBOOK_DISASTER_RECOVERY.md", "IMAGE_REF=<account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest>"),
+    Check(
+        "ops/dr/RUNBOOK_DISASTER_RECOVERY.md",
+        "IMAGE_REF=<account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest>",
+    ),
     Check("docs/dr_promote_failback.md", "scripts/ops/dr_drill.sh"),
     Check("docs/dr_promote_failback.md", "scripts/ops/dr_failback.sh"),
     Check("docs/dr_promote_failback.md", "control-plane"),

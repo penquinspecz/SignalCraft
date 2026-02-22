@@ -43,6 +43,28 @@ scripts/ops/dr_drill.sh \
   --teardown true
 ```
 
+## Preflight Checks
+
+- Confirm AWS account is `048622080012` and region is `us-east-1`.
+- Confirm `enable_triggers=false` unless explicitly testing automatic trigger paths.
+- Confirm digest-pinned `IMAGE_REF` is available in ECR and multi-arch metadata exists.
+- Confirm backup contract objects exist at `BACKUP_URI`.
+- Confirm `control-plane/current.json` exists (or bootstrap once from primary).
+
+## Success Criteria
+
+- DR bringup, restore, and validate complete with receipts.
+- Manual promotion gate is explicit and auditable.
+- Control-plane bundle URI/hash and validation outputs are receipted.
+- Teardown leaves zero DR runners unless operator explicitly holds environment.
+
+## If It Fails
+
+- Stop at the failing phase; do not continue downstream phases.
+- Capture failing command, stderr tail, and receipt location.
+- Apply minimal fix, then rerun only the failed phase.
+- If automation path fails, execute the equivalent manual runbook command and receipt it.
+
 ---
 
 ## A) Trigger Semantics (Manual vs Scheduled vs Alarm)

@@ -111,8 +111,7 @@ def main() -> int:
         "image_tag": args.image_tag,
         "image_digest": image_digest,
         "image_ref_digest": f"{args.image_repo}@{image_digest}",
-        "build_timestamp": args.build_timestamp
-        or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "build_timestamp": args.build_timestamp or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "supported_architectures": supported_architectures,
         "arch_digests": arch_digests,
         "aws_region": region,

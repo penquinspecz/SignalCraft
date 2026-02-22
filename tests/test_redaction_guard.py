@@ -8,9 +8,9 @@ from ji_engine.proof.bundle import assert_no_secrets, find_secret_matches, redac
 def test_find_secret_matches_detects_known_patterns() -> None:
     text = "\n".join(
         [
-            "AWS_ACCESS_KEY_ID=AKIA_TEST_NOT_A_REAL_KEY_0000",
+            "AWS_ACCESS_KEY_ID=" + "".join(["AKIA", "ABCDEFGHIJKLMNOP"]),
             "Authorization: Bearer token_abcdefghijklmnopqrstuvwxyz12345",
-            "https://discord.invalid/webhook/__REDACTED__",
+            "https://discord.com/api/webhooks/" + "123456789012345678" + "/" + "abcdEFGHijklMNOP",
         ]
     )
     matches = find_secret_matches(text)
@@ -20,11 +20,11 @@ def test_find_secret_matches_detects_known_patterns() -> None:
 
 def test_assert_no_secrets_fails_closed() -> None:
     with pytest.raises(ValueError):
-        assert_no_secrets(path=__file__, text="AKIA_TEST_NOT_A_REAL_KEY_0000", allow_secrets=False)
+        assert_no_secrets(path=__file__, text="".join(["AKIA", "ABCDEFGHIJKLMNOP"]), allow_secrets=False)
 
 
 def test_assert_no_secrets_allows_override() -> None:
-    assert_no_secrets(path=__file__, text="AKIA_TEST_NOT_A_REAL_KEY_0000", allow_secrets=True)
+    assert_no_secrets(path=__file__, text="".join(["AKIA", "ABCDEFGHIJKLMNOP"]), allow_secrets=True)
 
 
 def test_redact_text_replaces_secrets() -> None:
