@@ -2,6 +2,44 @@
 
 This is the canonical release discipline for SignalCraft.
 
+See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.md` (release body template), `docs/BRANCHING.md` (branch lifecycle).
+
+---
+
+## Branch Lifecycle
+
+- Short-lived branches only; auto-delete on merge (repo setting).
+- Exceptions: none for now; revisit for marketing/product release workflows.
+
+---
+
+## PR Governance
+
+**Enforcement:** `.github/workflows/pr-governance.yml` blocks merge when rules are violated.
+
+### Titles and Provenance
+
+- **PR titles never contain `[from-composer]`, `[from-codex]`, or `[from-human]`.** Provenance is label-only.
+- **Required labels for merge (enforced):**
+  - Exactly one provenance: `from-composer`, `from-codex`, or `from-human`
+  - Exactly one `type:*` (feat, fix, chore, docs, refactor, test)
+  - At least one `area:*` (engine, providers, dr, release, infra, docs; multiple allowed)
+  - Milestone must be set (any milestone)
+
+### Milestone B Rule
+
+- **Milestones are REQUIRED** for all PRs (CI enforces).
+- For roadmap/MXX work: use the corresponding milestone.
+- For ad hoc work: use a bucket milestone — **Infra & Tooling**, **Docs & Governance**, or **Backlog Cleanup**.
+
+### Release Notes vs PR Titles
+
+- Release notes may include `[from-composer]` as a header line or in PR lists.
+- PR titles must not contain `[from-composer]`.
+- PRs may be listed in releases regardless of provenance label.
+
+---
+
 ## Release-Intent Policy
 
 A PR is **release-intent** when any of the following is true:
