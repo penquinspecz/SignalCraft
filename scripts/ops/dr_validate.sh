@@ -332,7 +332,7 @@ EOF_MANIFEST
   kubectl label --local -f "${manifest_path}" app=jobintel purpose=dr-validate "run_id=${run_label}" -o yaml > "${manifest_path}.tmp"
   mv "${manifest_path}.tmp" "${manifest_path}"
   kubectl patch --local -f "${manifest_path}" --type=json \
-    -p "[{\"op\":\"add\",\"path\":\"/spec/template/spec/containers/0/resources\",\"value\":{\"requests\":{\"cpu\":\"${VALIDATE_REQUEST_CPU}\",\"memory\":\"${VALIDATE_REQUEST_MEMORY}\"},\"limits\":{\"cpu\":\"${VALIDATE_LIMIT_CPU}\",\"memory\":\"${VALIDATE_LIMIT_MEMORY}\"}}}]" \
+    -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/resources\",\"value\":{\"requests\":{\"cpu\":\"${VALIDATE_REQUEST_CPU}\",\"memory\":\"${VALIDATE_REQUEST_MEMORY}\"},\"limits\":{\"cpu\":\"${VALIDATE_LIMIT_CPU}\",\"memory\":\"${VALIDATE_LIMIT_MEMORY}\"}}}]" \
     -o yaml > "${manifest_path}.tmp"
   mv "${manifest_path}.tmp" "${manifest_path}"
   kubectl patch --local -f "${manifest_path}" --type=merge \
@@ -354,7 +354,10 @@ EOF_MANIFEST
       echo "aws identity unavailable; skipping image arch precheck for runtime validate" \
         > "${RECEIPT_DIR}/dr_validate.image_override_precheck.log"
     fi
-    kubectl set image --local -f "${manifest_path}" jobintel="${resolved_image_ref}" -o yaml > "${manifest_path}.tmp"
+    # kubectl set image does not support Job; use patch instead
+    kubectl patch --local -f "${manifest_path}" --type=json \
+      -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/image\",\"value\":\"${resolved_image_ref}\"}]" \
+      -o yaml > "${manifest_path}.tmp"
     mv "${manifest_path}.tmp" "${manifest_path}"
   fi
   state_test_image="$(kubectl create --dry-run=client -f "${manifest_path}" -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)"

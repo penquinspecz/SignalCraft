@@ -51,6 +51,7 @@ done
 [[ -n "${AWS_REGION}" ]] || { usage; fail "--aws-region is required"; }
 command -v aws >/dev/null 2>&1 || fail "aws is required"
 command -v kubectl >/dev/null 2>&1 || fail "kubectl is required"
+command -v python3 >/dev/null 2>&1 || fail "python3 is required for .dockerconfigjson generation"
 
 AWS_REGION="${AWS_REGION:-us-east-1}"
 export AWS_REGION
@@ -91,13 +92,23 @@ KUBE_EXTRA=()
 # Delete existing secret so we can recreate with fresh token (ECR tokens expire)
 "${KUBE_EXTRA[@]}" kubectl -n "${NAMESPACE}" delete secret "${SECRET_NAME}" --ignore-not-found=true > "${RECEIPT_DIR}/delete.log" 2>&1 || true
 
-# Create secret from ECR login (do not log password)
-aws ecr get-login-password --region "${AWS_REGION}" | \
-  "${KUBE_EXTRA[@]}" kubectl -n "${NAMESPACE}" create secret docker-registry "${SECRET_NAME}" \
-  --docker-server="${DOCKER_SERVER}" \
-  --docker-username=AWS \
-  --docker-password-stdin \
-  > "${RECEIPT_DIR}/create.log" 2>&1 || fail "kubectl create secret docker-registry failed; see ${RECEIPT_DIR}/create.log"
+# Create secret using .dockerconfigjson (portable across kubectl versions; --docker-password-stdin not in older kubectl)
+DOCKER_PASSWORD="$(aws ecr get-login-password --region "${AWS_REGION}")"
+DOCKER_CONFIG_JSON="$(python3 - "${DOCKER_SERVER}" "${DOCKER_PASSWORD}" <<'PY'
+import json, base64, sys
+server, pw = sys.argv[1], sys.argv[2]
+auth = base64.b64encode(f"AWS:{pw}".encode()).decode()
+cfg = {"auths": {server: {"username": "AWS", "password": pw, "auth": auth}}}
+print(json.dumps(cfg))
+PY
+)"
+DOCKER_CONFIG_FILE="${RECEIPT_DIR}/.dockerconfigjson"
+printf '%s' "${DOCKER_CONFIG_JSON}" > "${DOCKER_CONFIG_FILE}"
+"${KUBE_EXTRA[@]}" kubectl -n "${NAMESPACE}" create secret generic "${SECRET_NAME}" \
+  --type=kubernetes.io/dockerconfigjson \
+  --from-file=.dockerconfigjson="${DOCKER_CONFIG_FILE}" \
+  > "${RECEIPT_DIR}/create.log" 2>&1 || fail "kubectl create secret generic (dockerconfigjson) failed; see ${RECEIPT_DIR}/create.log"
+rm -f "${DOCKER_CONFIG_FILE}"
 
 # Patch service account to use the secret (merge; idempotent)
 "${KUBE_EXTRA[@]}" kubectl -n "${NAMESPACE}" patch serviceaccount "${SERVICE_ACCOUNT}" \
