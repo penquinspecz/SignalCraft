@@ -402,6 +402,8 @@ Receipts include per-phase execution status (`success|failed|skipped`) and skip 
 
 ## Cost Discipline (Primary Operator Workflow)
 
+For milestone release body template, see `docs/RELEASE_TEMPLATE.md`.
+
 Primary low-cost execution pattern (default for day-to-day operations):
 - Bring up DR once, then iterate without recreating infra:
   - `--start-at bringup --stop-after bringup --teardown false`
