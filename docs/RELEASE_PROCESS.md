@@ -157,6 +157,16 @@ git push origin v0.1.0
 gh release create v0.1.0 --generate-notes --title "v0.1.0"
 ```
 
+## Release Proof Bundle (M19A)
+
+Every release build produces a proof bundle:
+
+- **Metadata artifact:** `ops/proof/releases/release-<tag>.json` (or `release-<sha>.json` when tag is commit SHA)
+- **CI evidence:** When built in CI, metadata includes `ci_run_url`, `ci_run_id`, `ci_workflow` for multi-arch verification traceability
+- **Validation:** `python3 scripts/release/check_release_proof_bundle.py <metadata_path> [--require-ci-evidence]`
+
+For milestone releases, download the `release-metadata-<tag>` artifact from the CI run and include its path in the release body. The metadata artifact is the canonical proof of multi-arch build + gate evidence.
+
 ## Release Notes Renderer
 
 Use `scripts/release/render_release_notes.py` for deterministic release bodies. See `docs/RELEASE_NOTES_STYLE.md`.

@@ -52,6 +52,26 @@ jobs:
           RELEASE_METADATA_PATH="ops/proof/releases/release-${IMAGE_TAG}.json" \
             scripts/release/build_and_push_ecr.sh
 
+      - name: Inject CI evidence into release metadata (M19A)
+        run: |
+          set -euo pipefail
+          metadata="ops/proof/releases/release-${IMAGE_TAG}.json"
+          python3 - "$metadata" "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" "${{ github.run_id }}" "${{ github.workflow }}" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          path = Path(sys.argv[1])
+          ci_run_url = sys.argv[2]
+          ci_run_id = sys.argv[3]
+          ci_workflow = sys.argv[4]
+          doc = json.loads(path.read_text(encoding="utf-8"))
+          doc["ci_run_url"] = ci_run_url
+          doc["ci_run_id"] = ci_run_id
+          doc["ci_workflow"] = ci_workflow
+          path.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(f"injected ci_run_url={ci_run_url}")
+          PY
+
       - name: Verify release metadata generated and valid
         run: |
           set -euo pipefail
@@ -83,6 +103,7 @@ jobs:
               raise SystemExit(f"invalid image_ref_digest format: {image_ref}")
           print(f"metadata_ok image_ref_digest={image_ref}")
           PY
+          python3 scripts/release/check_release_proof_bundle.py "$metadata" --require-ci-evidence
 
       - name: Verify manifest includes amd64 + arm64
         run: |

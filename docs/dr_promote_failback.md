@@ -115,6 +115,53 @@ Failback must be deterministic and receipted:
 6. Switch canonical pointers back to primary.
 7. Monitor freshness/correctness alarms through one full batch cycle.
 
+## Deterministic Failback Pointers (M19C)
+
+`scripts/ops/dr_failback_pointers.sh` performs the pointer switchback with dry-run (default) and explicit apply.
+
+### When to Run
+
+- After primary is healthy and you have verified no divergence.
+- When you are ready to switch canonical S3 pointers from DR run back to primary run.
+
+### Dry-Run Then Apply
+
+1. **Dry-run (default):** Captures before state, verifies published S3, compares artifacts, writes plan receipt. No mutations.
+2. **Apply:** Performs pointer updates, re-verifies, writes apply receipt.
+
+### Example Commands
+
+```bash
+# 1. Dry-run (no mutations)
+scripts/ops/dr_failback_pointers.sh \
+  --bucket <bucket> \
+  --prefix jobintel \
+  --primary-run-id <primary_run_id> \
+  --dr-run-id <dr_run_id> \
+  --receipt-dir /tmp/dr-failback-$(date -u +%Y%m%dT%H%M%SZ) \
+  --dry-run
+
+# 2. Apply (after reviewing plan receipt)
+scripts/ops/dr_failback_pointers.sh \
+  --bucket <bucket> \
+  --prefix jobintel \
+  --primary-run-id <primary_run_id> \
+  --dr-run-id <dr_run_id> \
+  --receipt-dir /tmp/dr-failback-$(date -u +%Y%m%dT%H%M%SZ) \
+  --apply
+```
+
+### Receipt Interpretation
+
+| Receipt | When | Meaning |
+|---------|------|---------|
+| `drill.failback.inputs.json` | Always | Input parameters and mode |
+| `drill.failback.verify_before.json` | Always | Before pointers; must match dr-run-id |
+| `drill.failback.plan.json` | Dry-run | Planned pointer updates (from→to) |
+| `drill.failback.apply.json` | Apply | Applied updates |
+| `drill.failback.verify_after.json` | Apply | After pointers; must match primary-run-id |
+| `drill.failback.phase_timestamps.json` | Always | Phase timestamps |
+
 ## Failback Command (Implemented)
 
 `scripts/ops/dr_failback.sh` now executes actual failback mechanics with hard safety gates:
