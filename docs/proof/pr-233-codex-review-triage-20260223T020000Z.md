@@ -56,5 +56,5 @@ make ci-fast
 
 ## Final Status
 
-- **Final commit SHA:** d8eac2b (Codex fixes in 012fd12)
+- **Codex fixes commit:** 012fd12
 - **All gates:** PASS (audit_determinism, check_dr_docs, check_dr_guardrails, make lint)
