@@ -345,11 +345,12 @@ Receipts Required
 
 ---
 
-## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ✅
+## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ◐
 
 Goal: DR detection and Kubernetes DR validation run unattended in AWS, with human-controlled promotion.
-Status: ✅ Terraform + Lambda + Step Functions orchestration is landed; deterministic operator drill command is landed; success-path and failure-path rehearsal receipts captured.
-Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`. Success-path rehearsal: `docs/proof/m19b-orchestrator-success-true-20260222T221006Z.md` (attempt blocked by CodeBuild quota; check_health + notify receipts). Failure-path rehearsal: `docs/proof/m19b-orchestrator-failure-20260222T214946Z.md`.
+Status: ◐ Orchestrator flow is landed; failure-path rehearsal captured; success-path blocked by CodeBuild account queue limit (0 builds in queue).
+Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`. Failure-path rehearsal: `docs/proof/m19b-orchestrator-failure-20260222T214946Z.md` (SUCCESS — proves failure handling). Success-path attempt receipt (blocked): `docs/proof/m19b-orchestrator-success-true-20260222T221006Z.md` (bringup blocked by CodeBuild.AccountLimitExceededException; check_health + notify receipts only).
+Blocker: CodeBuild account quota allows 0 builds in queue. To close 19B: request quota increase (AWS Support or `service-quotas request-service-quota-increase` for L-2DC20C30), then re-run full success-path rehearsal and capture receipt.
 
 Definition of Done
 - [x] Batch-first health signals emitted: pipeline freshness and publish correctness
@@ -364,7 +365,7 @@ Definition of Done
 - [x] DR restore applies same control-plane bundle as primary before validation
 - [x] Restore receipts include `bundle_uri`, `bundle_sha256`, and applied config counts
 - [ ] At least one full success-path rehearsal receipt bundle captured
-- [ ] At least one failure-path rehearsal receipt bundle captured
+- [x] At least one failure-path rehearsal receipt bundle captured
 
 Receipts Required
 - Step Functions execution history export
