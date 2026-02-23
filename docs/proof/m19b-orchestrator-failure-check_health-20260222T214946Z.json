@@ -1,0 +1,26 @@
+{
+  "payload": {
+    "error": "could not convert string to float: 'not-a-number'",
+    "input": {
+      "action": "check_health",
+      "execution_id": "m19b-failure-20260222T214946Z",
+      "expected_account_id": "048622080012",
+      "expected_marker_file": "openai_top.cs.md",
+      "force_run": false,
+      "max_freshness_hours": "not-a-number",
+      "metric_namespace": "SignalCraft/DR",
+      "profile": "cs",
+      "project": "signalcraft",
+      "provider": "openai",
+      "publish_bucket": "jobintel-prod1",
+      "publish_prefix": "jobintel",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1"
+    }
+  },
+  "phase": "check_health",
+  "schema_version": 1,
+  "status": "error",
+  "timestamp_utc": "2026-02-22T21:49:52Z"
+}

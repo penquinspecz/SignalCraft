@@ -1,0 +1,188 @@
+{
+    "events": [
+        {
+            "timestamp": "2026-02-22T16:49:51.835000-05:00",
+            "type": "ExecutionStarted",
+            "id": 1,
+            "previousEventId": 0,
+            "executionStartedEventDetails": {
+                "input": "{\"expected_account_id\": \"048622080012\", \"region\": \"us-east-1\", \"project\": \"signalcraft\", \"publish_bucket\": \"jobintel-prod1\", \"publish_prefix\": \"jobintel\", \"backup_bucket\": \"jobintel-prod1\", \"backup_uri\": \"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\", \"backup_required_keys\": [\"metadata.json\", \"state.tar.zst\", \"manifests.tar.zst\"], \"receipt_bucket\": \"jobintel-prod1\", \"receipt_prefix\": \"jobintel/dr-orchestrator/receipts\", \"notification_topic_arn\": \"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\", \"provider\": \"openai\", \"profile\": \"cs\", \"expected_marker_file\": \"openai_top.cs.md\", \"max_freshness_hours\": \"not-a-number\", \"metric_namespace\": \"SignalCraft/DR\", \"dr_runner_name\": \"jobintel-dr-runner\", \"dr_vpc_id\": \"vpc-4362fc3e\", \"dr_subnet_id\": \"subnet-11001d5c\", \"dr_allowed_cidr\": \"10.0.0.0/8\", \"dr_key_name\": \"\", \"dr_instance_type\": \"t4g.small\", \"dr_ami_id\": \"\", \"namespace\": \"jobintel\", \"validate_timeout_seconds\": 300, \"force_run\": false}\n",
+                "inputDetails": {
+                    "truncated": false
+                },
+                "roleArn": "arn:aws:iam::048622080012:role/signalcraft-dr-orchestrator-sfn-role"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:51.865000-05:00",
+            "type": "PassStateEntered",
+            "id": 2,
+            "previousEventId": 0,
+            "stateEnteredEventDetails": {
+                "name": "SetPhaseCheckHealth",
+                "input": "{\"expected_account_id\": \"048622080012\", \"region\": \"us-east-1\", \"project\": \"signalcraft\", \"publish_bucket\": \"jobintel-prod1\", \"publish_prefix\": \"jobintel\", \"backup_bucket\": \"jobintel-prod1\", \"backup_uri\": \"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\", \"backup_required_keys\": [\"metadata.json\", \"state.tar.zst\", \"manifests.tar.zst\"], \"receipt_bucket\": \"jobintel-prod1\", \"receipt_prefix\": \"jobintel/dr-orchestrator/receipts\", \"notification_topic_arn\": \"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\", \"provider\": \"openai\", \"profile\": \"cs\", \"expected_marker_file\": \"openai_top.cs.md\", \"max_freshness_hours\": \"not-a-number\", \"metric_namespace\": \"SignalCraft/DR\", \"dr_runner_name\": \"jobintel-dr-runner\", \"dr_vpc_id\": \"vpc-4362fc3e\", \"dr_subnet_id\": \"subnet-11001d5c\", \"dr_allowed_cidr\": \"10.0.0.0/8\", \"dr_key_name\": \"\", \"dr_instance_type\": \"t4g.small\", \"dr_ami_id\": \"\", \"namespace\": \"jobintel\", \"validate_timeout_seconds\": 300, \"force_run\": false}\n",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:51.865000-05:00",
+            "type": "PassStateExited",
+            "id": 3,
+            "previousEventId": 2,
+            "stateExitedEventDetails": {
+                "name": "SetPhaseCheckHealth",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":\"not-a-number\",\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":false,\"current_phase\":{\"name\":\"check_health\"}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:51.865000-05:00",
+            "type": "TaskStateEntered",
+            "id": 4,
+            "previousEventId": 3,
+            "stateEnteredEventDetails": {
+                "name": "CheckHealth",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":\"not-a-number\",\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":false,\"current_phase\":{\"name\":\"check_health\"}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:51.865000-05:00",
+            "type": "TaskScheduled",
+            "id": 5,
+            "previousEventId": 4,
+            "taskScheduledEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "region": "us-east-1",
+                "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:048622080012:function:signalcraft-dr-orchestrator-runner\",\"Payload\":{\"action\":\"check_health\",\"publish_prefix\":\"jobintel\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"project\":\"signalcraft\",\"max_freshness_hours\":\"not-a-number\",\"force_run\":false,\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"publish_bucket\":\"jobintel-prod1\",\"receipt_bucket\":\"jobintel-prod1\",\"provider\":\"openai\",\"metric_namespace\":\"SignalCraft/DR\",\"region\":\"us-east-1\"}}"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:51.917000-05:00",
+            "type": "TaskStarted",
+            "id": 6,
+            "previousEventId": 5,
+            "taskStartedEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:53.532000-05:00",
+            "type": "TaskFailed",
+            "id": 7,
+            "previousEventId": 6,
+            "taskFailedEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "error": "RuntimeError",
+                "cause": "{\"errorMessage\":\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"3207c293-bf32-4570-8675-0ac92030747e\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:53.557000-05:00",
+            "type": "TaskStateExited",
+            "id": 8,
+            "previousEventId": 7,
+            "stateExitedEventDetails": {
+                "name": "CheckHealth",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":\"not-a-number\",\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":false,\"current_phase\":{\"name\":\"check_health\"},\"failure\":{\"Error\":\"RuntimeError\",\"Cause\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\"}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:53.557000-05:00",
+            "type": "TaskStateEntered",
+            "id": 9,
+            "previousEventId": 8,
+            "stateEnteredEventDetails": {
+                "name": "HandlePhaseFailure",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":\"not-a-number\",\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":false,\"current_phase\":{\"name\":\"check_health\"},\"failure\":{\"Error\":\"RuntimeError\",\"Cause\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\"}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:53.557000-05:00",
+            "type": "TaskScheduled",
+            "id": 10,
+            "previousEventId": 9,
+            "taskScheduledEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "region": "us-east-1",
+                "parameters": "{\"FunctionName\":\"arn:aws:lambda:us-east-1:048622080012:function:signalcraft-dr-orchestrator-runner\",\"Payload\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"}}"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:53.634000-05:00",
+            "type": "TaskStarted",
+            "id": 11,
+            "previousEventId": 10,
+            "taskStartedEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke"
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:55.012000-05:00",
+            "type": "TaskSucceeded",
+            "id": 12,
+            "previousEventId": 11,
+            "taskSucceededEventDetails": {
+                "resourceType": "lambda",
+                "resource": "invoke",
+                "output": "{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"notify\",\"phase_inputs\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"published\":true,\"message_id\":\"0001cb14-b7ec-5855-ad83-a901cbae0891\",\"message\":{\"kind\":\"dr_orchestrator_status\",\"timestamp_utc\":\"2026-02-22T21:49:54Z\",\"status\":\"dr_orchestrator_phase_failed\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"details\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"}},\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/notify.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\"],\"Content-Length\":[\"1995\"],\"Date\":[\"Sun, 22 Feb 2026 21:49:54 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7a01-736700a81cc8c5bb79f52d59;Parent=28948b51950e9ba7;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1995\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 21:49:54 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\",\"X-Amzn-Trace-Id\":\"Root=1-699b7a01-736700a81cc8c5bb79f52d59;Parent=28948b51950e9ba7;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\"},\"StatusCode\":200}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:55.034000-05:00",
+            "type": "TaskStateExited",
+            "id": 13,
+            "previousEventId": 12,
+            "stateExitedEventDetails": {
+                "name": "HandlePhaseFailure",
+                "output": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":\"not-a-number\",\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":false,\"current_phase\":{\"name\":\"check_health\"},\"failure\":{\"Error\":\"RuntimeError\",\"Cause\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\"},\"failure_notification\":{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"notify\",\"phase_inputs\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"published\":true,\"message_id\":\"0001cb14-b7ec-5855-ad83-a901cbae0891\",\"message\":{\"kind\":\"dr_orchestrator_status\",\"timestamp_utc\":\"2026-02-22T21:49:54Z\",\"status\":\"dr_orchestrator_phase_failed\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"details\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"}},\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/notify.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\"],\"Content-Length\":[\"1995\"],\"Date\":[\"Sun, 22 Feb 2026 21:49:54 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7a01-736700a81cc8c5bb79f52d59;Parent=28948b51950e9ba7;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1995\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 21:49:54 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\",\"X-Amzn-Trace-Id\":\"Root=1-699b7a01-736700a81cc8c5bb79f52d59;Parent=28948b51950e9ba7;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\"},\"StatusCode\":200}}",
+                "outputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:55.034000-05:00",
+            "type": "FailStateEntered",
+            "id": 14,
+            "previousEventId": 13,
+            "stateEnteredEventDetails": {
+                "name": "FailWorkflow",
+                "input": "{\"expected_account_id\":\"048622080012\",\"region\":\"us-east-1\",\"project\":\"signalcraft\",\"publish_bucket\":\"jobintel-prod1\",\"publish_prefix\":\"jobintel\",\"backup_bucket\":\"jobintel-prod1\",\"backup_uri\":\"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\"backup_required_keys\":[\"metadata.json\",\"state.tar.zst\",\"manifests.tar.zst\"],\"receipt_bucket\":\"jobintel-prod1\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"provider\":\"openai\",\"profile\":\"cs\",\"expected_marker_file\":\"openai_top.cs.md\",\"max_freshness_hours\":\"not-a-number\",\"metric_namespace\":\"SignalCraft/DR\",\"dr_runner_name\":\"jobintel-dr-runner\",\"dr_vpc_id\":\"vpc-4362fc3e\",\"dr_subnet_id\":\"subnet-11001d5c\",\"dr_allowed_cidr\":\"10.0.0.0/8\",\"dr_key_name\":\"\",\"dr_instance_type\":\"t4g.small\",\"dr_ami_id\":\"\",\"namespace\":\"jobintel\",\"validate_timeout_seconds\":300,\"force_run\":false,\"current_phase\":{\"name\":\"check_health\"},\"failure\":{\"Error\":\"RuntimeError\",\"Cause\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\"},\"failure_notification\":{\"ExecutedVersion\":\"$LATEST\",\"Payload\":{\"ok\":true,\"phase_name\":\"notify\",\"phase_inputs\":{\"action\":\"notify\",\"status\":\"dr_orchestrator_phase_failed\",\"summary\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"},\"expected_account_id\":\"048622080012\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"receipt_bucket\":\"jobintel-prod1\",\"notification_topic_arn\":\"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\"receipt_prefix\":\"jobintel/dr-orchestrator/receipts\",\"region\":\"us-east-1\"},\"phase_outputs\":{\"published\":true,\"message_id\":\"0001cb14-b7ec-5855-ad83-a901cbae0891\",\"message\":{\"kind\":\"dr_orchestrator_status\",\"timestamp_utc\":\"2026-02-22T21:49:54Z\",\"status\":\"dr_orchestrator_phase_failed\",\"execution_id\":\"m19b-failure-20260222T214946Z\",\"details\":{\"failure_error\":\"RuntimeError\",\"failure_reason\":\"{\\\"errorMessage\\\":\\\"check_health failed: could not convert string to float: 'not-a-number'; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json\\\",\\\"errorType\\\":\\\"RuntimeError\\\",\\\"requestId\\\":\\\"3207c293-bf32-4570-8675-0ac92030747e\\\",\\\"stackTrace\\\":[\\\"  File \\\\\\\"/var/task/dr_orchestrator.py\\\\\\\", line 507, in handler\\\\n    raise RuntimeError(f\\\\\\\"{action} failed: {reason}; receipt={receipt_uri}\\\\\\\")\\\\n\\\"]}\",\"phase_name\":\"check_health\"}},\"account_id\":\"048622080012\",\"region\":\"us-east-1\"},\"receipt_uri\":\"s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/notify.json\",\"failure_reason\":\"\"},\"SdkHttpMetadata\":{\"AllHttpHeaders\":{\"X-Amz-Executed-Version\":[\"$LATEST\"],\"x-amzn-Remapped-Content-Length\":[\"0\"],\"Connection\":[\"keep-alive\"],\"x-amzn-RequestId\":[\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\"],\"Content-Length\":[\"1995\"],\"Date\":[\"Sun, 22 Feb 2026 21:49:54 GMT\"],\"X-Amzn-Trace-Id\":[\"Root=1-699b7a01-736700a81cc8c5bb79f52d59;Parent=28948b51950e9ba7;Sampled=0;Lineage=1:ba18b611:0\"],\"Content-Type\":[\"application/json\"]},\"HttpHeaders\":{\"Connection\":\"keep-alive\",\"Content-Length\":\"1995\",\"Content-Type\":\"application/json\",\"Date\":\"Sun, 22 Feb 2026 21:49:54 GMT\",\"X-Amz-Executed-Version\":\"$LATEST\",\"x-amzn-Remapped-Content-Length\":\"0\",\"x-amzn-RequestId\":\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\",\"X-Amzn-Trace-Id\":\"Root=1-699b7a01-736700a81cc8c5bb79f52d59;Parent=28948b51950e9ba7;Sampled=0;Lineage=1:ba18b611:0\"},\"HttpStatusCode\":200},\"SdkResponseMetadata\":{\"RequestId\":\"f8617ac7-0a8f-4580-88c4-cae793f5bf6b\"},\"StatusCode\":200}}",
+                "inputDetails": {
+                    "truncated": false
+                }
+            }
+        },
+        {
+            "timestamp": "2026-02-22T16:49:55.063000-05:00",
+            "type": "ExecutionFailed",
+            "id": 15,
+            "previousEventId": 14,
+            "executionFailedEventDetails": {
+                "error": "DRPhaseFailed",
+                "cause": "See phase failure receipt and notification payload"
+            }
+        }
+    ]
+}
