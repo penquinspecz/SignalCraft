@@ -56,5 +56,5 @@ make ci-fast
 
 ## Final Status
 
-- **Final commit SHA:** 70b6025
+- **Final commit SHA:** 012fd12
 - **All gates:** PASS (audit_determinism, check_dr_docs, check_dr_guardrails, make lint)
