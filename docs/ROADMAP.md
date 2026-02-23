@@ -376,8 +376,8 @@ Receipts Required
 ## Milestone 19C — Promote Semantics & Failback v1 (Batch-First, Endpoint-Ready) ◐
 
 Goal: “Promote” and “failback” are explicit, deterministic operations rather than tribal knowledge.
-Status: ◐ Semantics are documented; deterministic promote decision path for DR drills is landed; failback command path and rehearsal receipts are still pending.
-Evidence: `docs/dr_orchestrator.md`, `docs/dr_promote_failback.md`, `scripts/ops/dr_drill.sh`, `scripts/verify_published_s3.py`, `scripts/compare_run_artifacts.py`.
+Status: ◐ Semantics are documented; deterministic promote decision path and failback pointer path are landed; rehearsed failback receipts still pending.
+Evidence: `docs/dr_orchestrator.md`, `docs/dr_promote_failback.md`, `scripts/ops/dr_drill.sh`, `scripts/ops/dr_failback_pointers.sh`, `scripts/verify_published_s3.py`, `scripts/compare_run_artifacts.py`, `docs/proof/m19c-failback-pointers-dry-run-2026-02-22.md`.
 
 Definition of Done
 - [x] Batch-mode promote semantics documented (what changes today, and what does not)
@@ -387,7 +387,7 @@ Definition of Done
 - [x] DR Determinism Audit Complete (`scripts/audit_determinism.sh` passes; no committed local state/cache artifacts; DR guardrails enforced)
 - [x] DR Docs Coherence Gate: PASS (Definition: a new operator can run a drill from docs only, including trigger semantics, digest image selection, control-plane continuity, and promotion/failback commands.)
 - [x] Cost guardrails: PASS (default iteration is bringup-only once + restore-only + validate-only; full drill requires explicit `--allow-full-drill` and receipts)
-- [ ] Deterministic failback command path exists (dry-run + apply)
+- [x] Deterministic failback command path exists (dry-run + apply)
 - [ ] Rehearsed failback proves no pointer drift and no artifact loss
 
 Receipts Required

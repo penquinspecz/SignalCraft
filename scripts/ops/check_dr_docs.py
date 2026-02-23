@@ -34,6 +34,7 @@ CHECKS: list[Check] = [
     ),
     Check("docs/dr_promote_failback.md", "scripts/ops/dr_drill.sh"),
     Check("docs/dr_promote_failback.md", "scripts/ops/dr_failback.sh"),
+    Check("docs/dr_promote_failback.md", "scripts/ops/dr_failback_pointers.sh"),
     Check("docs/dr_promote_failback.md", "control-plane"),
     Check("docs/dr_orchestrator.md", "enable_triggers"),
     Check("docs/dr_orchestrator.md", "scripts/ops/dr_status.sh"),
