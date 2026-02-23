@@ -129,8 +129,8 @@ CONTROL_PLANE_BUCKET=${CONTROL_PLANE_BUCKET}
 CONTROL_PLANE_PREFIX=${CONTROL_PLANE_PREFIX}
 EOF_IMG
 
-# M19A: Non-dev paths default to digest pinning. When user provides IMAGE_REF explicitly, require digest.
-if [[ "${image_ref_source}" == "explicit" && -n "${resolved_image_ref}" ]]; then
+# M19A: Non-dev paths default to digest pinning. Validate any non-empty resolved ref (explicit or control-plane).
+if [[ -n "${resolved_image_ref}" ]]; then
   assert_args=("${resolved_image_ref}" --context "dr_validate")
   [[ "${ALLOW_TAG}" == "1" ]] && assert_args+=(--allow-tag)
   ALLOW_TAG="${ALLOW_TAG}" DEV_MODE="${DEV_MODE:-}" python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${assert_args[@]}" \

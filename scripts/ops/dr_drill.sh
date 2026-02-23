@@ -230,7 +230,7 @@ fi
 if [[ -n "${IMAGE_REF}" ]]; then
   allow_tag_arg=()
   [[ "${ALLOW_TAG}" == "true" ]] && allow_tag_arg=(--allow-tag)
-  python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${IMAGE_REF}" --context "dr_drill" "${allow_tag_arg[@]:-}" \
+  python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${IMAGE_REF}" --context "dr_drill" "${allow_tag_arg[@]}" \
     || fail "IMAGE_REF must be digest-pinned; use --allow-tag for dev iteration only"
 fi
 

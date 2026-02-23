@@ -24,7 +24,7 @@ REQUIRED_KEYS = [
 ]
 
 # CI evidence keys (required when --require-ci-evidence)
-CI_EVIDENCE_KEYS = ["ci_run_url", "ci_run_id"]
+CI_EVIDENCE_KEYS = ["ci_run_id", "ci_run_url", "ci_workflow"]
 
 
 def main() -> int:
@@ -33,7 +33,7 @@ def main() -> int:
     ap.add_argument(
         "--require-ci-evidence",
         action="store_true",
-        help="Require ci_run_url and ci_run_id (set when built in CI)",
+        help="Require ci_run_id, ci_run_url, ci_workflow (set when built in CI)",
     )
     args = ap.parse_args()
 
@@ -65,7 +65,7 @@ def main() -> int:
         if ci_missing:
             print(
                 f"FAIL: CI evidence required but missing: {ci_missing}. "
-                "Release metadata from CI build includes ci_run_url and ci_run_id.",
+                "Release metadata from CI build includes ci_run_id, ci_run_url, ci_workflow.",
                 file=sys.stderr,
             )
             return 1
