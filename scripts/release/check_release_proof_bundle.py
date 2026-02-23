@@ -13,7 +13,6 @@ import re
 import sys
 from pathlib import Path
 
-
 REQUIRED_KEYS = [
     "git_sha",
     "image_repo",
