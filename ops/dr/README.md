@@ -45,11 +45,11 @@ IMAGE_REF=<account>.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:<digest> \
   RUN_JOB=1 NAMESPACE=jobintel scripts/ops/dr_validate.sh
 ```
 
-Tag-based image refs are accepted for development only:
+Tag-based image refs require explicit opt-in for development only:
 
 ```bash
 IMAGE_REF=<account>.dkr.ecr.us-east-1.amazonaws.com/jobintel:<tag> \
-  RUN_JOB=1 NAMESPACE=jobintel scripts/ops/dr_validate.sh
+  ALLOW_TAG=1 RUN_JOB=1 NAMESPACE=jobintel scripts/ops/dr_validate.sh
 ```
 
 Milestone 4 deterministic plan bundle:

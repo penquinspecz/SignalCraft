@@ -327,7 +327,7 @@ Receipts Required
 
 Goal: Every DR deploy uses deterministic, architecture-safe release units.
 Status: ◐ Multi-arch build/publish and metadata tooling are landed; production adoption and receipts are still incomplete.
-Evidence: `scripts/release/build_and_push_ecr.sh`, `scripts/release/write_release_metadata.py`, `scripts/release/verify_ecr_image_arch.py`, `.github/workflows/release-ecr.yml`, `scripts/ops/dr_validate.sh`, `ops/aws/EKS_ECR_GOLDEN_PATH.md`.
+Evidence: `scripts/release/build_and_push_ecr.sh`, `scripts/release/write_release_metadata.py`, `scripts/release/verify_ecr_image_arch.py`, `scripts/release/check_release_proof_bundle.py`, `.github/workflows/release-ecr.yml`, `scripts/ops/dr_validate.sh`, `scripts/ops/assert_image_ref_digest.py`, `ops/aws/EKS_ECR_GOLDEN_PATH.md`, `docs/proof/m19a-digest-pinning-release-proof-2026-02-22.md`.
 
 Definition of Done
 - [x] ECR image publish is multi-arch per commit SHA (`linux/amd64` + `linux/arm64`) under one tag
@@ -335,8 +335,8 @@ Definition of Done
 - [x] DR validate path accepts `IMAGE_REF` as digest (preferred) or tag (dev fallback)
 - [x] CI gate fails when required architecture (`arm64`) is missing
 - [x] CI gate fails when DR image precheck cannot validate arm64 compatibility
-- [ ] Non-dev deployment paths default to digest pinning (tag opt-in for development only)
-- [ ] Release proof bundle always includes metadata artifact + CI gate evidence
+- [x] Non-dev deployment paths default to digest pinning (tag opt-in for development only)
+- [x] Release proof bundle always includes metadata artifact + CI gate evidence
 
 Receipts Required
 - Release metadata artifact (`release-<sha>.json`)

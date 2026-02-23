@@ -63,6 +63,7 @@ CONFIRM1=""
 CONFIRM2=""
 DRY_RUN="false"
 RECEIPT_DIR=""
+ALLOW_TAG="0"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -83,6 +84,7 @@ while [[ $# -gt 0 ]]; do
     --confirm2) CONFIRM2="${2:-}"; shift 2 ;;
     --dry-run) DRY_RUN="true"; shift ;;
     --receipt-dir) RECEIPT_DIR="${2:-}"; shift 2 ;;
+    --allow-tag) ALLOW_TAG="1"; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "Unknown argument: $1" ;;
   esac
@@ -94,6 +96,14 @@ done
 [[ -n "${KUBECONFIG_DR}" ]] || fail "--kubeconfig-dr is required"
 [[ -n "${KUBECONFIG_PRIMARY}" ]] || fail "--kubeconfig-primary is required"
 TEARDOWN="$(parse_bool "${TEARDOWN_RAW}")" || fail "invalid --teardown value: ${TEARDOWN_RAW}"
+
+# M19A: When IMAGE_REF is provided, require digest pinning unless --allow-tag
+if [[ -n "${IMAGE_REF}" ]]; then
+  allow_tag_arg=()
+  [[ "${ALLOW_TAG}" == "1" ]] && allow_tag_arg=(--allow-tag)
+  python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${IMAGE_REF}" --context "dr_failback" "${allow_tag_arg[@]:-}" \
+    || fail "IMAGE_REF must be digest-pinned; use --allow-tag for dev iteration only"
+fi
 
 for bin in aws kubectl python3 terraform; do
   command -v "${bin}" >/dev/null 2>&1 || fail "missing required command: ${bin}"
@@ -367,6 +377,7 @@ confirm_primary_healthy() {
   RUN_JOB=1 \
   NAMESPACE="${NAMESPACE}" \
   IMAGE_REF="${IMAGE_REF}" \
+  ALLOW_TAG="${ALLOW_TAG}" \
   "${ROOT_DIR}/scripts/ops/dr_validate.sh" > "${PRIMARY_VALIDATE_LOG}" 2>&1
 
   PRIMARY_JOB_NAME="$(sed -n 's/^DR_JOB_NAME=//p' "${PRIMARY_VALIDATE_LOG}" | tail -n 1 | tr -d '[:space:]' || true)"

@@ -24,6 +24,7 @@ Usage:
     [--validate-only] \
     [--skip-workload-assume] \
     [--allow-full-drill] \
+    [--allow-tag] \
     [--receipt-dir /path/to/prior-receipt] \
     [--kubeconfig /path/to/k3s.public.yaml]
 
@@ -46,6 +47,7 @@ Notes:
   - --receipt-dir auto-loads kubeconfig for restore/validate starts when --kubeconfig is omitted.
   - Required env for bringup/teardown: TF_VAR_vpc_id, TF_VAR_subnet_id.
   - When mutation phases run and TF_BACKEND_MODE=remote (default), set TF_BACKEND_BUCKET, TF_BACKEND_KEY, TF_BACKEND_DYNAMODB_TABLE.
+  - IMAGE_REF must be digest-pinned (repo@sha256:<digest>) for non-dev; use --allow-tag for tag in dev iteration only.
 EOF
 }
 
@@ -112,6 +114,7 @@ VALIDATE_SKIP_WORKLOAD_ASSUME="false"
 ALLOW_FULL_DRILL_FLAG="false"
 INPUT_RECEIPT_DIR=""
 KUBECONFIG_INPUT=""
+ALLOW_TAG="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -176,6 +179,10 @@ while [[ $# -gt 0 ]]; do
       KUBECONFIG_INPUT="${2:-}"
       shift 2
       ;;
+    --allow-tag)
+      ALLOW_TAG="true"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -217,6 +224,14 @@ if [[ "${START_AT}" == "bringup" && "${TEARDOWN}" == "true" && "${STOP_AFTER_EXP
 fi
 if [[ "${FULL_DRILL_REQUESTED}" == "true" && "${ALLOW_FULL_DRILL}" != "true" ]]; then
   fail "Full drill requires explicit allow flag; use validate-only/stop-after."
+fi
+
+# M19A: When IMAGE_REF is provided, require digest pinning unless --allow-tag
+if [[ -n "${IMAGE_REF}" ]]; then
+  allow_tag_arg=()
+  [[ "${ALLOW_TAG}" == "true" ]] && allow_tag_arg=(--allow-tag)
+  python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${IMAGE_REF}" --context "dr_drill" "${allow_tag_arg[@]:-}" \
+    || fail "IMAGE_REF must be digest-pinned; use --allow-tag for dev iteration only"
 fi
 
 if [[ "${START_AT}" != "teardown" ]]; then
@@ -1121,6 +1136,7 @@ PY
     CONTROL_PLANE_PREFIX="${cp_prefix}" \
     VALIDATE_SKIP_WORKLOAD_ASSUME="${validate_skip_workload_assume_env}" \
     IMAGE_REF="${IMAGE_REF}" \
+    ALLOW_TAG=$([[ "${ALLOW_TAG}" == "true" ]] && echo "1" || echo "0") \
     "${ROOT_DIR}/scripts/ops/dr_validate.sh" || return $?
   fi
 
@@ -1132,6 +1148,7 @@ PY
   CONTROL_PLANE_PREFIX="${cp_prefix}" \
   VALIDATE_SKIP_WORKLOAD_ASSUME="${validate_skip_workload_assume_env}" \
   IMAGE_REF="${IMAGE_REF}" \
+  ALLOW_TAG=$([[ "${ALLOW_TAG}" == "true" ]] && echo "1" || echo "0") \
   RECEIPT_DIR="${validate_receipt_dir}" \
   "${ROOT_DIR}/scripts/ops/dr_validate.sh" || return $?
 

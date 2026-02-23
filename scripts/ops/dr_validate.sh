@@ -16,6 +16,7 @@ ECR_PULL_SECRET_NAME="${ECR_PULL_SECRET_NAME:-ecr-pull}"
 ECR_PULL_SECRET_SERVICE_ACCOUNT="${ECR_PULL_SECRET_SERVICE_ACCOUNT:-jobintel}"
 ECR_REGISTRY="${ECR_REGISTRY:-}"
 ENSURE_ECR_PULL_SECRET="${ENSURE_ECR_PULL_SECRET:-1}"
+ALLOW_TAG="${ALLOW_TAG:-0}"
 VALIDATE_REQUEST_CPU="${VALIDATE_REQUEST_CPU:-250m}"
 VALIDATE_REQUEST_MEMORY="${VALIDATE_REQUEST_MEMORY:-512Mi}"
 VALIDATE_LIMIT_CPU="${VALIDATE_LIMIT_CPU:-1}"
@@ -127,6 +128,14 @@ IMAGE_REF_SOURCE=${image_ref_source}
 CONTROL_PLANE_BUCKET=${CONTROL_PLANE_BUCKET}
 CONTROL_PLANE_PREFIX=${CONTROL_PLANE_PREFIX}
 EOF_IMG
+
+# M19A: Non-dev paths default to digest pinning. When user provides IMAGE_REF explicitly, require digest.
+if [[ "${image_ref_source}" == "explicit" && -n "${resolved_image_ref}" ]]; then
+  assert_args=("${resolved_image_ref}" --context "dr_validate")
+  [[ "${ALLOW_TAG}" == "1" ]] && assert_args+=(--allow-tag)
+  ALLOW_TAG="${ALLOW_TAG}" DEV_MODE="${DEV_MODE:-}" python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${assert_args[@]}" \
+    || fail "IMAGE_REF must be digest-pinned; use ALLOW_TAG=1 or DEV_MODE=1 for dev iteration only"
+fi
 
 cat > "${RECEIPT_DIR}/dr_validate.context.env" <<EOF_CTX
 AWS_REGION=${AWS_REGION}
