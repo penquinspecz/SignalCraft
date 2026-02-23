@@ -14,6 +14,7 @@ CONTROL_PLANE_BUNDLE_URI=""
 CONTROL_PLANE_BUNDLE_SHA256=""
 SKIP_CONTROL_PLANE=0
 IMAGE_REF=""
+ALLOW_TAG="0"
 
 usage() {
   cat <<USAGE
@@ -59,6 +60,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_CONTROL_PLANE=1
       shift
       ;;
+    --allow-tag)
+      ALLOW_TAG="1"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -71,6 +76,14 @@ done
 
 [[ -n "${BACKUP_URI}" ]] || { usage; fail "--backup-uri is required"; }
 command -v aws >/dev/null 2>&1 || fail "aws cli is required"
+
+# M19A: When IMAGE_REF is provided, require digest pinning unless --allow-tag
+if [[ -n "${IMAGE_REF}" ]]; then
+  allow_tag_arg=()
+  [[ "${ALLOW_TAG}" == "1" ]] && allow_tag_arg=(--allow-tag)
+  python3 "${ROOT_DIR}/scripts/ops/assert_image_ref_digest.py" "${IMAGE_REF}" --context "dr_restore" "${allow_tag_arg[@]}" \
+    || fail "IMAGE_REF must be digest-pinned; use --allow-tag for dev iteration only"
+fi
 PY_BIN="${PY_BIN:-python3}"
 command -v "${PY_BIN}" >/dev/null 2>&1 || fail "${PY_BIN} is required"
 

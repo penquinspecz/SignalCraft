@@ -68,6 +68,7 @@ Each milestone release must include:
 - Architectures verified (amd64, arm64 as applicable)
 - PRs included
 - Receipt paths for build/verify/drill proofs
+- Release proof bundle: `ops/proof/releases/release-<tag>.json` or CI artifact `release-metadata-<tag>` (includes `ci_run_url` for multi-arch gate evidence)
 - High-level "Operational Impact" summary (bullet list)
 
 ---
