@@ -1,0 +1,40 @@
+{
+  "payload": {
+    "input": {
+      "action": "check_health",
+      "execution_id": "m19b-success-true-20260222T220931Z",
+      "expected_account_id": "048622080012",
+      "expected_marker_file": "openai_top.cs.md",
+      "force_run": true,
+      "max_freshness_hours": 6,
+      "metric_namespace": "SignalCraft/DR",
+      "profile": "cs",
+      "project": "signalcraft",
+      "provider": "openai",
+      "publish_bucket": "jobintel-prod1",
+      "publish_prefix": "jobintel",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1"
+    },
+    "result": {
+      "account_id": "048622080012",
+      "expected_marker_key": "jobintel/latest/openai/cs/openai_top.cs.md",
+      "global_pointer_key": "jobintel/state/last_success.json",
+      "needs_dr": true,
+      "pipeline_freshness_hours": 21.776,
+      "pipeline_freshness_ok": false,
+      "provider_pointer_key": "jobintel/state/openai/cs/last_success.json",
+      "publish_correctness_ok": true,
+      "reasons": [
+        "stale_pipeline:21.78h>6.00h"
+      ],
+      "region": "us-east-1",
+      "run_id": "2026-02-22T00:22:30.918278+00:00"
+    }
+  },
+  "phase": "check_health",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-22T22:09:38Z"
+}
