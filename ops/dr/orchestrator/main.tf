@@ -401,6 +401,12 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = "*"
       },
       {
+        Sid      = "TerraformIamRoleInlinePolicyRead"
+        Effect   = "Allow"
+        Action   = ["iam:ListRolePolicies"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/jobintel-dr-runner-ssm-role"
+      },
+      {
         Sid      = "ReadIdentity"
         Effect   = "Allow"
         Action   = ["sts:GetCallerIdentity"]

@@ -1,0 +1,1464 @@
+{
+  "events": [
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.065936 Running on CodeBuild On-demand\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.065947 Waiting for agent ping\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.267513 Waiting for DOWNLOAD_SOURCE\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.822868 Phase is DOWNLOAD_SOURCE\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.823867 CODEBUILD_SRC_DIR=/codebuild/output/src4055771412/src\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.824014 YAML location is /codebuild/readonly/buildspec.yml\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.824810 Selecting shell bash as specified in buildspec.\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.826466 Processing environment variables\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.910027 No runtime version selected in buildspec.\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.959304 Moving to directory /codebuild/output/src4055771412/src\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.959326 Cache is not defined in the buildspec\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.998253 Skip cache due to: no paths specified to be cached\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:33.998497 Registering with agent\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.035321 Phases found in YAML: 2\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.035339  INSTALL: 6 commands\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.035343  BUILD: 33 commands\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.035608 Phase complete: DOWNLOAD_SOURCE State: SUCCEEDED\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.035661 Phase context status code:  Message: \n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.145480 Entering phase INSTALL\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.197160 Running command set -euo pipefail\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "[Container] 2026/02/27 04:05:34.387027 Running command apt-get update\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "Get:1 https://apt.corretto.aws stable InRelease [10.7 kB]\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "Get:2 https://cli.github.com/packages stable InRelease [3917 B]\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "Get:3 https://dl.google.com/linux/chrome/deb stable InRelease [1825 B]\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "Hit:4 http://archive.ubuntu.com/ubuntu jammy InRelease\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "Get:5 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]\n",
+      "ingestionTime": 1772165137895
+    },
+    {
+      "timestamp": 1772165137873,
+      "message": "Get:6 http://archive.ubuntu.com/ubuntu jammy-updates InRelease [128 kB]\n",
+      "ingestionTime": 1772165137920
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:7 https://ppa.launchpadcontent.net/mozillateam/ppa/ubuntu jammy InRelease [24.6 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:8 https://apt.corretto.aws stable/main i386 Packages [5982 B]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:9 http://archive.ubuntu.com/ubuntu jammy-backports InRelease [127 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:10 https://apt.corretto.aws stable/main amd64 Packages [28.2 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:11 https://cli.github.com/packages stable/main amd64 Packages [357 B]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:12 https://dl.google.com/linux/chrome/deb stable/main amd64 Packages [1207 B]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:13 http://archive.ubuntu.com/ubuntu jammy-updates/multiverse amd64 Packages [70.9 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:14 https://ppa.launchpadcontent.net/mozillateam/ppa/ubuntu jammy/main amd64 Packages [43.4 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:15 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 Packages [62.6 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:16 http://archive.ubuntu.com/ubuntu jammy-updates/restricted amd64 Packages [6870 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:17 https://ppa.launchpadcontent.net/mozillateam/ppa/ubuntu jammy/main i386 Packages [2368 B]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:18 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [1302 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:19 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 Packages [1613 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:20 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages [4115 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:21 http://security.ubuntu.com/ubuntu jammy-security/main i386 Packages [955 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:22 http://archive.ubuntu.com/ubuntu jammy-updates/restricted i386 Packages [63.9 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:23 http://archive.ubuntu.com/ubuntu jammy-updates/universe i386 Packages [996 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:24 http://security.ubuntu.com/ubuntu jammy-security/universe i386 Packages [855 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:25 http://archive.ubuntu.com/ubuntu jammy-updates/multiverse i386 Packages [10.1 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:26 http://archive.ubuntu.com/ubuntu jammy-updates/main i386 Packages [1192 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:27 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [6643 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:28 http://security.ubuntu.com/ubuntu jammy-security/multiverse i386 Packages [6263 B]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165139931,
+      "message": "Get:29 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [3772 kB]\n",
+      "ingestionTime": 1772165139934
+    },
+    {
+      "timestamp": 1772165141948,
+      "message": "Get:30 http://security.ubuntu.com/ubuntu jammy-security/restricted i386 Packages [60.4 kB]\n",
+      "ingestionTime": 1772165141952
+    },
+    {
+      "timestamp": 1772165141948,
+      "message": "Fetched 29.1 MB in 3s (8789 kB/s)\n",
+      "ingestionTime": 1772165141952
+    },
+    {
+      "timestamp": 1772165147964,
+      "message": "Reading package lists...\n",
+      "ingestionTime": 1772165147966
+    },
+    {
+      "timestamp": 1772165147964,
+      "message": "\n",
+      "ingestionTime": 1772165147966
+    },
+    {
+      "timestamp": 1772165147964,
+      "message": "[Container] 2026/02/27 04:05:46.805596 Running command DEBIAN_FRONTEND=noninteractive apt-get install -y unzip curl jq >/dev/null\n",
+      "ingestionTime": 1772165147966
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:08.282227 Running command curl -fsSL -o /tmp/terraform.zip \"https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:08.630763 Running command unzip -o /tmp/terraform.zip -d /usr/local/bin >/dev/null\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.319764 Running command terraform version\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "Terraform v1.8.5\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "on linux_amd64\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "Your version of Terraform is out of date! The latest version\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "is 1.14.6. You can update by downloading from https://www.terraform.io/downloads.html\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.554323 Phase complete: INSTALL State: SUCCEEDED\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.554344 Phase context status code:  Message: \n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.591434 Entering phase PRE_BUILD\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.593911 Phase complete: PRE_BUILD State: SUCCEEDED\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.593928 Phase context status code:  Message: \n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.631711 Entering phase BUILD\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.632691 Running command set -euo pipefail\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.642021 Running command : \"${ACTION:?ACTION is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.650730 Running command : \"${EXECUTION_ID:?EXECUTION_ID is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.659556 Running command : \"${EXPECTED_ACCOUNT_ID:?EXPECTED_ACCOUNT_ID is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.668516 Running command : \"${AWS_REGION:?AWS_REGION is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.677346 Running command : \"${RECEIPT_BUCKET:?RECEIPT_BUCKET is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.685985 Running command : \"${RECEIPT_PREFIX:?RECEIPT_PREFIX is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.694469 Running command : \"${TF_BUNDLE_BUCKET:?TF_BUNDLE_BUCKET is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.703278 Running command : \"${TF_BUNDLE_KEY:?TF_BUNDLE_KEY is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.712000 Running command : \"${TF_STATE_BUCKET:?TF_STATE_BUCKET is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.720781 Running command : \"${TF_STATE_KEY:?TF_STATE_KEY is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.729431 Running command : \"${TF_STATE_DYNAMODB_TABLE:?TF_STATE_DYNAMODB_TABLE is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.738149 Running command : \"${TF_VAR_region:?TF_VAR_region is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.746929 Running command : \"${TF_VAR_vpc_id:?TF_VAR_vpc_id is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.755574 Running command : \"${TF_VAR_subnet_id:?TF_VAR_subnet_id is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.764158 Running command : \"${TF_VAR_allowed_cidr:?TF_VAR_allowed_cidr is required}\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165169989,
+      "message": "[Container] 2026/02/27 04:06:09.772883 Running command ACTUAL_ACCOUNT_ID=\"$(aws sts get-caller-identity --query Account --output text)\"\n",
+      "ingestionTime": 1772165170007
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "[Container] 2026/02/27 04:06:19.550284 Running command if [[ \"${ACTUAL_ACCOUNT_ID}\" != \"${EXPECTED_ACCOUNT_ID}\" ]]; then\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "  echo \"account mismatch: expected=${EXPECTED_ACCOUNT_ID} actual=${ACTUAL_ACCOUNT_ID}\" >&2\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "  exit 1\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "fi\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "[Container] 2026/02/27 04:06:19.559611 Running command WORK_DIR=\"/tmp/dr-terraform\"\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "[Container] 2026/02/27 04:06:19.568563 Running command rm -rf \"${WORK_DIR}\" /tmp/dr-terraform.zip\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165180034,
+      "message": "[Container] 2026/02/27 04:06:19.578337 Running command aws s3 cp \"s3://${TF_BUNDLE_BUCKET}/${TF_BUNDLE_KEY}\" /tmp/dr-terraform.zip\n",
+      "ingestionTime": 1772165180054
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "Completed 2.1 KiB/2.1 KiB (24.9 KiB/s) with 1 file(s) remaining\rdownload: s3://jobintel-prod1/jobintel/dr-orchestrator/artifacts/dr-terraform-module.zip to ../../../../tmp/dr-terraform.zip\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "[Container] 2026/02/27 04:06:20.653863 Running command mkdir -p \"${WORK_DIR}\"\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "[Container] 2026/02/27 04:06:20.664022 Running command unzip -q /tmp/dr-terraform.zip -d \"${WORK_DIR}\"\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "[Container] 2026/02/27 04:06:20.713603 Running command cd \"${WORK_DIR}\"\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "[Container] 2026/02/27 04:06:20.722513 Running command terraform init -input=false \\\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "  -backend-config=\"bucket=${TF_STATE_BUCKET}\" \\\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "  -backend-config=\"key=${TF_STATE_KEY}\" \\\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "  -backend-config=\"region=${AWS_REGION}\" \\\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "  -backend-config=\"dynamodb_table=${TF_STATE_DYNAMODB_TABLE}\" \\\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "  -backend-config=\"encrypt=true\"\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\u001b[0m\u001b[1mInitializing the backend...\u001b[0m\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\u001b[0m\u001b[32m\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "Successfully configured the backend \"s3\"! Terraform will automatically\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "use this backend unless the backend configuration changes.\u001b[0m\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "\u001b[0m\u001b[1mInitializing provider plugins...\u001b[0m\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "- Finding hashicorp/aws versions matching \">= 5.0.0\"...\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165182071,
+      "message": "- Installing hashicorp/aws v6.34.0...\n",
+      "ingestionTime": 1772165182075
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "- Installed hashicorp/aws v6.34.0 (signed by HashiCorp)\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "Terraform has created a lock file \u001b[1m.terraform.lock.hcl\u001b[0m to record the provider\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "selections it made above. Include this file in your version control repository\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "so that Terraform can guarantee to make the same selections by default when\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "you run \"terraform init\" in the future.\u001b[0m\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\u001b[0m\u001b[1m\u001b[32mTerraform has been successfully initialized!\u001b[0m\u001b[32m\u001b[0m\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\u001b[0m\u001b[32m\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "You may now begin working with Terraform. Try running \"terraform plan\" to see\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "any changes that are required for your infrastructure. All Terraform commands\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "should now work.\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "If you ever set or change modules or backend configuration for Terraform,\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "rerun this command to reinitialize your working directory. If you forget, other\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "commands will detect it and remind you to do so if necessary.\u001b[0m\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "[Container] 2026/02/27 04:06:27.767857 Running command terraform fmt -check\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165188090,
+      "message": "[Container] 2026/02/27 04:06:27.810343 Running command terraform validate\n",
+      "ingestionTime": 1772165188109
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "\u001b[32m\u001b[1mSuccess!\u001b[0m The configuration is valid.\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "\u001b[0m\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "[Container] 2026/02/27 04:06:32.155105 Running command tf_var_args=(\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  -var \"region=${TF_VAR_region}\"\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  -var \"vpc_id=${TF_VAR_vpc_id}\"\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  -var \"subnet_id=${TF_VAR_subnet_id}\"\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  -var \"allowed_cidr=${TF_VAR_allowed_cidr}\"\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  -var \"instance_type=${TF_VAR_instance_type:-t4g.small}\"\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": ")\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "if [[ -n \"${TF_VAR_key_name:-}\" ]]; then\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  tf_var_args+=( -var \"key_name=${TF_VAR_key_name}\" )\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "fi\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "if [[ -n \"${TF_VAR_ami_id:-}\" ]]; then\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  tf_var_args+=( -var \"ami_id=${TF_VAR_ami_id}\" )\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "fi\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "case \"${ACTION}\" in\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  bringup)\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    terraform plan -input=false \"${tf_var_args[@]}\" -out=tfplan\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    terraform apply -auto-approve tfplan\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  teardown)\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    terraform plan -destroy -input=false \"${tf_var_args[@]}\" -out=tfplan-destroy\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    terraform apply -auto-approve tfplan-destroy\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "  *)\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    echo \"unsupported ACTION=${ACTION}\" >&2\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    exit 2\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "esac\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165194127,
+      "message": "\n",
+      "ingestionTime": 1772165194187
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1mdata.aws_ami.ubuntu_arm64[0]: Reading...\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1mdata.aws_iam_policy_document.dr_runner_assume_role: Reading...\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1maws_security_group.dr_runner: Refreshing state... [id=sg-0bf417d856b521efa]\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1mdata.aws_iam_policy_document.dr_runner_assume_role: Read complete after 0s [id=2851119427]\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1maws_iam_role.dr_runner_ssm: Refreshing state... [id=jobintel-dr-runner-ssm-role]\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1mdata.aws_ami.ubuntu_arm64[0]: Read complete after 0s [id=ami-0f1b9964277dbd54e]\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[1m\u001b[31mPlanning failed.\u001b[0m\u001b[1m Terraform encountered an error while generating this plan.\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[0m\u001b[31m╷\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\u001b[1m\u001b[31mError: \u001b[0m\u001b[0m\u001b[1mreading IAM Policies attached to Role (jobintel-dr-runner-ssm-role): operation error IAM: ListAttachedRolePolicies, https response error StatusCode: 403, RequestID: 90c9f8f0-668e-4205-ad9f-7606565a840b, api error AccessDenied: User: arn:aws:sts::048622080012:assumed-role/signalcraft-dr-orchestrator-codebuild-role/AWSCodeBuild-cb54f688-89ac-4f3c-a131-c3638fb55938 is not authorized to perform: iam:ListAttachedRolePolicies on resource: role jobintel-dr-runner-ssm-role because no identity-based policy allows the iam:ListAttachedRolePolicies action\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\u001b[0m  with aws_iam_role.dr_runner_ssm,\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m  on main.tf line 36, in resource \"aws_iam_role\" \"dr_runner_ssm\":\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m  36: resource \"aws_iam_role\" \"dr_runner_ssm\" \u001b[4m{\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165198207,
+      "message": "\u001b[31m╵\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165198210
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\u001b[31m╷\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\u001b[1m\u001b[31mError: \u001b[0m\u001b[0m\u001b[1mCannot apply incomplete plan\u001b[0m\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\u001b[31m│\u001b[0m \u001b[0m\u001b[0mTerraform encountered an error when generating this plan, so it cannot be\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\u001b[31m│\u001b[0m \u001b[0mapplied.\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\u001b[31m╵\u001b[0m\u001b[0m\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.377948 Command did not exit successfully tf_var_args=(\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"region=${TF_VAR_region}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"vpc_id=${TF_VAR_vpc_id}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"subnet_id=${TF_VAR_subnet_id}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"allowed_cidr=${TF_VAR_allowed_cidr}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"instance_type=${TF_VAR_instance_type:-t4g.small}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": ")\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "if [[ -n \"${TF_VAR_key_name:-}\" ]]; then\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  tf_var_args+=( -var \"key_name=${TF_VAR_key_name}\" )\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "fi\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "if [[ -n \"${TF_VAR_ami_id:-}\" ]]; then\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  tf_var_args+=( -var \"ami_id=${TF_VAR_ami_id}\" )\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "fi\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "case \"${ACTION}\" in\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  bringup)\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform plan -input=false \"${tf_var_args[@]}\" -out=tfplan\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform apply -auto-approve tfplan\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  teardown)\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform plan -destroy -input=false \"${tf_var_args[@]}\" -out=tfplan-destroy\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform apply -auto-approve tfplan-destroy\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  *)\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    echo \"unsupported ACTION=${ACTION}\" >&2\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    exit 2\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "esac\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": " exit status 1\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.381715 Phase complete: BUILD State: FAILED\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.381736 Phase context status code: COMMAND_EXECUTION_ERROR Message: Error while executing command: tf_var_args=(\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"region=${TF_VAR_region}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"vpc_id=${TF_VAR_vpc_id}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"subnet_id=${TF_VAR_subnet_id}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"allowed_cidr=${TF_VAR_allowed_cidr}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  -var \"instance_type=${TF_VAR_instance_type:-t4g.small}\"\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": ")\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "if [[ -n \"${TF_VAR_key_name:-}\" ]]; then\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  tf_var_args+=( -var \"key_name=${TF_VAR_key_name}\" )\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "fi\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "if [[ -n \"${TF_VAR_ami_id:-}\" ]]; then\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  tf_var_args+=( -var \"ami_id=${TF_VAR_ami_id}\" )\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "fi\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "case \"${ACTION}\" in\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  bringup)\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform plan -input=false \"${tf_var_args[@]}\" -out=tfplan\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform apply -auto-approve tfplan\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  teardown)\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform plan -destroy -input=false \"${tf_var_args[@]}\" -out=tfplan-destroy\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    terraform apply -auto-approve tfplan-destroy\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "  *)\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    echo \"unsupported ACTION=${ACTION}\" >&2\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    exit 2\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "    ;;\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "esac\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": ". Reason: exit status 1\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.430654 Entering phase POST_BUILD\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.432285 Phase complete: POST_BUILD State: SUCCEEDED\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.432299 Phase context status code:  Message: \n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.487494 Set report auto-discover timeout to 5 seconds\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.487546 Expanding base directory path:  .\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.489433 Assembling file list\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.489446 Expanding .\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.491291 Expanding file paths for base directory .\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.491301 Assembling file list\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.491304 Expanding **/*\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.493229 No matching auto-discover report paths found\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.493244 Report auto-discover file discovery took 0.005750 seconds\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.493256 Phase complete: UPLOAD_ARTIFACTS State: SUCCEEDED\n",
+      "ingestionTime": 1772165201681
+    },
+    {
+      "timestamp": 1772165201674,
+      "message": "[Container] 2026/02/27 04:06:41.493310 Phase context status code:  Message: \n",
+      "ingestionTime": 1772165201681
+    }
+  ]
+}
