@@ -352,9 +352,9 @@ Receipts Required
 ## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ◐
 
 Goal: DR detection and Kubernetes DR validation run unattended in AWS, with human-controlled promotion.
-Status: ◐ Orchestrator flow is landed; failure-path rehearsal captured; success-path blocked by CodeBuild account queue limit (0 builds in queue).
-Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`. Failure-path rehearsal: `docs/proof/m19b-orchestrator-failure-20260222T214946Z.md` (SUCCESS — proves failure handling). Success-path attempt receipt (blocked): `docs/proof/m19b-orchestrator-success-true-20260222T221006Z.md` (bringup blocked by CodeBuild.AccountLimitExceededException; check_health + notify receipts only).
-Blocker: CodeBuild account quota allows 0 builds in queue. To close 19B: request quota increase (AWS Support or `service-quotas request-service-quota-increase` for L-2DC20C30), then re-run full success-path rehearsal and capture receipt.
+Status: ◐ Orchestrator flow is landed; failure-path rehearsal is captured; full success-path remains unproven. Latest `force_run=true` rehearsal reached CodeBuild bringup and failed in `DOWNLOAD_SOURCE` with `YAML_FILE_ERROR` (`did not find expected key at line 15`) before `restore/validate/manual-approval`.
+Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`. Failure-path rehearsal: `docs/proof/m19b-orchestrator-failure-20260222T214946Z.md` (SUCCESS — proves failure handling). Earlier success-path attempt (quota blocker): `docs/proof/m19b-orchestrator-success-true-20260222T221006Z.md`. Latest success-path attempt (post-quota): `docs/proof/m19b-orchestrator-success-true-20260227T032245Z.md` (bringup failed with CodeBuild buildspec YAML parse error).
+Blocker: Bringup CodeBuild buildspec fails to parse (`YAML_FILE_ERROR` at line 15) in live orchestration run. To close 19B: fix buildspec parsing in orchestrator deployment, rerun full success-path rehearsal, and capture complete phase receipts.
 
 Definition of Done
 - [x] Batch-first health signals emitted: pipeline freshness and publish correctness
