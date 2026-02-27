@@ -1,0 +1,24 @@
+{
+  "dry_run": true,
+  "from_run_id": "2026-02-27T00:22:29.934039+00:00",
+  "pointer_updates": [
+    {
+      "key": "jobintel/state/last_success.json",
+      "payload": {
+        "ended_at": "2026-02-27T00:22:32.665111+00:00",
+        "run_id": "2026-02-27T00:22:29.934039+00:00",
+        "run_path": "jobintel/runs/2026-02-27T00:22:29.934039+00:00"
+      }
+    },
+    {
+      "key": "jobintel/state/openai/cs/last_success.json",
+      "payload": {
+        "ended_at": "2026-02-27T00:22:32.665111+00:00",
+        "run_id": "2026-02-27T00:22:29.934039+00:00",
+        "run_path": "jobintel/runs/2026-02-27T00:22:29.934039+00:00"
+      }
+    }
+  ],
+  "schema_version": 1,
+  "to_run_id": "2026-02-27T00:22:29.934039+00:00"
+}

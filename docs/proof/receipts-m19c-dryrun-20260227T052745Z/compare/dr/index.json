@@ -1,0 +1,45 @@
+{
+  "artifacts": {
+    "openai_alerts.cs.json": "openai/cs/openai_alerts.cs.json",
+    "openai_alerts.cs.md": "openai/cs/openai_alerts.cs.md",
+    "openai_enriched_jobs.json": "openai/openai_enriched_jobs.json",
+    "openai_labeled_jobs.json": "openai/openai_labeled_jobs.json",
+    "openai_ranked_families.cs.json": "openai/cs/openai_ranked_families.cs.json",
+    "openai_ranked_jobs.cs.csv": "openai/cs/openai_ranked_jobs.cs.csv",
+    "openai_ranked_jobs.cs.json": "openai/cs/openai_ranked_jobs.cs.json",
+    "openai_raw_jobs.json": "openai/openai_raw_jobs.json",
+    "openai_shortlist.cs.md": "openai/cs/openai_shortlist.cs.md",
+    "openai_top.cs.md": "openai/cs/openai_top.cs.md",
+    "run_report.json": "run_report.json"
+  },
+  "providers": {
+    "openai": {
+      "artifacts": {
+        "openai_enriched_jobs.json": "openai/openai_enriched_jobs.json",
+        "openai_labeled_jobs.json": "openai/openai_labeled_jobs.json",
+        "openai_raw_jobs.json": "openai/openai_raw_jobs.json"
+      },
+      "profiles": {
+        "cs": {
+          "artifacts": {
+            "openai_alerts.cs.json": "openai/cs/openai_alerts.cs.json",
+            "openai_alerts.cs.md": "openai/cs/openai_alerts.cs.md",
+            "openai_ranked_families.cs.json": "openai/cs/openai_ranked_families.cs.json",
+            "openai_ranked_jobs.cs.csv": "openai/cs/openai_ranked_jobs.cs.csv",
+            "openai_ranked_jobs.cs.json": "openai/cs/openai_ranked_jobs.cs.json",
+            "openai_shortlist.cs.md": "openai/cs/openai_shortlist.cs.md",
+            "openai_top.cs.md": "openai/cs/openai_top.cs.md"
+          },
+          "diff_counts": {
+            "changed": 11,
+            "new": 9,
+            "removed": 4
+          }
+        }
+      }
+    }
+  },
+  "run_id": "2026-02-27T00:22:29.934039+00:00",
+  "run_report_path": "run_report.json",
+  "timestamp": "2026-02-27T00:22:32.665111+00:00"
+}

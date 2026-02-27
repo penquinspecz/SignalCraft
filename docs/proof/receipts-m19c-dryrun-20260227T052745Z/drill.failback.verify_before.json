@@ -1,0 +1,7 @@
+{
+  "expected_dr_run_id": "2026-02-27T00:22:29.934039+00:00",
+  "global_pointer_run_id": "2026-02-27T00:22:29.934039+00:00",
+  "pointers_match_dr": true,
+  "provider_pointer_run_id": "2026-02-27T00:22:29.934039+00:00",
+  "schema_version": 1
+}

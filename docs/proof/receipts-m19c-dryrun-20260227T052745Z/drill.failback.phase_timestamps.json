@@ -1,0 +1,11 @@
+{
+  "phases": {
+    "compare": "2026-02-27T0527:48Z",
+    "complete": "2026-02-27T0527:50Z",
+    "inputs": "2026-02-27T0527:45Z",
+    "plan": "2026-02-27T0527:49Z",
+    "verify_before": "2026-02-27T0527:46Z",
+    "verify_dr_published": "2026-02-27T0527:47Z"
+  },
+  "schema_version": 1
+}
