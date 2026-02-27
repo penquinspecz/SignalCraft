@@ -1,0 +1,42 @@
+{
+  "account_id": "048622080012",
+  "build_id": "signalcraft-dr-orchestrator-dr-infra:e2fbeebb-8f16-4064-afd7-bae0ac5d6a95",
+  "execution_id": "m19b-success-true-20260227T050057Z",
+  "phase": "bringup",
+  "region": "us-east-1",
+  "schema_version": 1,
+  "status": "ok",
+  "terraform_backend": {
+    "bucket": "signalcraft-dr-tfstate-048622080012-us-east-1",
+    "dynamodb_table": "signalcraft-dr-tf-lock",
+    "key": "jobintel/dr/terraform/dr-runner.tfstate"
+  },
+  "terraform_outputs": {
+    "instance_id": {
+      "sensitive": false,
+      "type": "string",
+      "value": "i-0313e98010ecef6e0"
+    },
+    "kubeconfig_hint": {
+      "sensitive": false,
+      "type": "string",
+      "value": "scp ubuntu@3.88.91.148:/etc/rancher/k3s/k3s.yaml ./k3s-dr.yaml"
+    },
+    "private_ip": {
+      "sensitive": false,
+      "type": "string",
+      "value": "172.31.29.47"
+    },
+    "public_ip": {
+      "sensitive": false,
+      "type": "string",
+      "value": "3.88.91.148"
+    },
+    "ssh_command": {
+      "sensitive": false,
+      "type": "string",
+      "value": "ssh ubuntu@3.88.91.148"
+    }
+  },
+  "timestamp_utc": "2026-02-27T05:04:20Z"
+}

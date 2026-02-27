@@ -401,6 +401,30 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = "*"
       },
       {
+        Sid      = "TerraformIamRoleInlinePolicyRead"
+        Effect   = "Allow"
+        Action   = ["iam:ListRolePolicies"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/jobintel-dr-runner-ssm-role"
+      },
+      {
+        Sid      = "TerraformIamRoleAttachedPolicyRead"
+        Effect   = "Allow"
+        Action   = ["iam:ListAttachedRolePolicies"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/jobintel-dr-runner-ssm-role"
+      },
+      {
+        Sid      = "TerraformIamRoleInstanceProfileRead"
+        Effect   = "Allow"
+        Action   = ["iam:ListInstanceProfilesForRole"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/jobintel-dr-runner-ssm-role"
+      },
+      {
+        Sid      = "TerraformIamInstanceProfileTag"
+        Effect   = "Allow"
+        Action   = ["iam:TagInstanceProfile"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/jobintel-dr-runner-instance-profile"
+      },
+      {
         Sid      = "ReadIdentity"
         Effect   = "Allow"
         Action   = ["sts:GetCallerIdentity"]
@@ -627,7 +651,7 @@ resource "aws_sfn_state_machine" "dr_orchestrator" {
             backend_lock = local.tf_lock_table_name
           }
           "phase_outputs.$" = "$.Build"
-          "receipt_uri.$"   = "States.Format('s3://{}/{}/{}/codebuild-bringup.json', $.receipt_bucket, $.receipt_prefix, $$.Execution.Name)"
+          "receipt_uri.$"   = "States.Format('s3://{}/{}/{}/codebuild-bringup.json', $$.Execution.Input.receipt_bucket, $$.Execution.Input.receipt_prefix, $$.Execution.Name)"
           failure_reason    = ""
         }
         ResultPath = "$.phase_results.bringup"

@@ -1,0 +1,413 @@
+{
+    "Contents": [
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/check_health.json",
+            "LastModified": "2026-02-22T21:49:54+00:00",
+            "ETag": "\"2d725c5633fe28e53aae49e98a373837\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 813,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-failure-20260222T214946Z/notify.json",
+            "LastModified": "2026-02-22T21:49:55+00:00",
+            "ETag": "\"3a593d58af96091d0588ba00095e2701\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 2160,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-20260222T214638Z/check_health.json",
+            "LastModified": "2026-02-22T21:46:43+00:00",
+            "ETag": "\"15c95e1abb69c783d3370967e0cfa063\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1292,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-20260222T214638Z/notify.json",
+            "LastModified": "2026-02-22T21:46:45+00:00",
+            "ETag": "\"7e8f1aa0225b949ee6e12b2b23188dbb\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1682,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/check_health.json",
+            "LastModified": "2026-02-22T22:09:40+00:00",
+            "ETag": "\"38d466001184f3d9b0efa1a745cdf0f0\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1297,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260222T220931Z/notify.json",
+            "LastModified": "2026-02-22T22:09:41+00:00",
+            "ETag": "\"9af05afbbc5cf21ddd6347224743b8c3\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1692,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T032245Z/check_health.json",
+            "LastModified": "2026-02-27T03:22:51+00:00",
+            "ETag": "\"c8f8ed8529cbf91a1a48679e1970a270\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T032245Z/notify.json",
+            "LastModified": "2026-02-27T03:23:04+00:00",
+            "ETag": "\"9153ec8fdc2df09ab594f22d26f080e8\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 22048,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T033503Z/check_health.json",
+            "LastModified": "2026-02-27T03:35:08+00:00",
+            "ETag": "\"78bfb530378ecc69b2b1858618c51b3d\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T033503Z/notify.json",
+            "LastModified": "2026-02-27T03:36:26+00:00",
+            "ETag": "\"3062a582df6756d1a33a8bc2e43ec880\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 26606,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T040524Z/check_health.json",
+            "LastModified": "2026-02-27T04:05:29+00:00",
+            "ETag": "\"c228f39b28148d0f4bc0893609f87bc2\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T040524Z/notify.json",
+            "LastModified": "2026-02-27T04:06:48+00:00",
+            "ETag": "\"c4c4c81fe68ba63952862bfdd3298039\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 26606,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T041537Z/check_health.json",
+            "LastModified": "2026-02-27T04:15:42+00:00",
+            "ETag": "\"6a69d0c0b3ee2befad9a258fd2a9f17b\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T041537Z/notify.json",
+            "LastModified": "2026-02-27T04:17:05+00:00",
+            "ETag": "\"6ff318e27ca5fba22bff3ed8e43252a4\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 26606,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T042825Z/check_health.json",
+            "LastModified": "2026-02-27T04:28:30+00:00",
+            "ETag": "\"4c28fceef0733198e3ac7fdf40ee3396\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T042825Z/notify.json",
+            "LastModified": "2026-02-27T04:29:51+00:00",
+            "ETag": "\"cf43198e9568166ed0dde6700017a1ab\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 26606,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T044403Z/check_health.json",
+            "LastModified": "2026-02-27T04:44:08+00:00",
+            "ETag": "\"1878e2d510f26186b948ba73730c978d\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T044403Z/codebuild-bringup.json",
+            "LastModified": "2026-02-27T04:45:45+00:00",
+            "ETag": "\"271febe8a35224a7fe8feda975c52b8a\"",
+            "ChecksumAlgorithm": [
+                "CRC64NVME"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1143,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/check_health.json",
+            "LastModified": "2026-02-27T04:50:49+00:00",
+            "ETag": "\"ef80e816f29190527711ee96ef62b932\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/codebuild-bringup.json",
+            "LastModified": "2026-02-27T04:52:07+00:00",
+            "ETag": "\"077fffa54aaf0f47a2b7007f1e1f13a3\"",
+            "ChecksumAlgorithm": [
+                "CRC64NVME"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1143,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/notify.json",
+            "LastModified": "2026-02-27T04:52:24+00:00",
+            "ETag": "\"e4f8ca8cb4138abf2ee5c842aef3d709\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 2592,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/resolve_runner.json",
+            "LastModified": "2026-02-27T04:52:14+00:00",
+            "ETag": "\"ff36a02eb3da5679b641a8ae38696573\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 782,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/restore.json",
+            "LastModified": "2026-02-27T04:52:16+00:00",
+            "ETag": "\"2f5cea848763c8fcc5b7350a5bfaef86\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1372,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/validate.json",
+            "LastModified": "2026-02-27T04:52:23+00:00",
+            "ETag": "\"dd429293874ebde67b8d76a2826f1dad\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 815,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/check_health.json",
+            "LastModified": "2026-02-27T05:01:02+00:00",
+            "ETag": "\"89a1007d2163d02a0786f74917cc4c5d\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/codebuild-bringup.json",
+            "LastModified": "2026-02-27T05:04:22+00:00",
+            "ETag": "\"e423b82b62d142ecebe595ddda633ca4\"",
+            "ChecksumAlgorithm": [
+                "CRC64NVME"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1143,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/notify.json",
+            "LastModified": "2026-02-27T05:04:41+00:00",
+            "ETag": "\"316b3d9797b92eb012b905df28183a14\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 2358,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/resolve_runner.json",
+            "LastModified": "2026-02-27T05:04:31+00:00",
+            "ETag": "\"dd565a479e58226676f7ae4c3f0aa716\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 782,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/restore.json",
+            "LastModified": "2026-02-27T05:04:33+00:00",
+            "ETag": "\"d92bf70f513e212f0ab927bce7a4875f\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1372,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/validate.json",
+            "LastModified": "2026-02-27T05:04:40+00:00",
+            "ETag": "\"d9eb1d55d6d0e18bc1de7cec9eac4da3\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 694,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/check_health.json",
+            "LastModified": "2026-02-27T05:07:11+00:00",
+            "ETag": "\"52e13504fef9a681e63b309ce5f841ce\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1250,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/codebuild-bringup.json",
+            "LastModified": "2026-02-27T05:08:34+00:00",
+            "ETag": "\"500393b5b3a96a923d1a9daf822d2ac4\"",
+            "ChecksumAlgorithm": [
+                "CRC64NVME"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1143,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/notify.json",
+            "LastModified": "2026-02-27T05:08:52+00:00",
+            "ETag": "\"c7861cd9920a95e90aa35fd3ac6b9149\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1516,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/request_manual_approval.json",
+            "LastModified": "2026-02-27T05:08:54+00:00",
+            "ETag": "\"59bf127989bb7db45f5d133eb31fde27\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1702,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/resolve_runner.json",
+            "LastModified": "2026-02-27T05:08:42+00:00",
+            "ETag": "\"198e908a94255f5ce80876ddbb4c8810\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 782,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/restore.json",
+            "LastModified": "2026-02-27T05:08:44+00:00",
+            "ETag": "\"50b652f0128590e145ff0acefba704a2\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1372,
+            "StorageClass": "STANDARD"
+        },
+        {
+            "Key": "jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050707Z/validate.json",
+            "LastModified": "2026-02-27T05:08:51+00:00",
+            "ETag": "\"30c4b290221489a8161ec1e09081de30\"",
+            "ChecksumAlgorithm": [
+                "CRC32"
+            ],
+            "ChecksumType": "FULL_OBJECT",
+            "Size": 1104,
+            "StorageClass": "STANDARD"
+        }
+    ],
+    "RequestCharged": null,
+    "Prefix": "jobintel/dr-orchestrator/receipts"
+}

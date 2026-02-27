@@ -1,0 +1,27 @@
+{
+  "payload": {
+    "input": {
+      "action": "validate",
+      "execution_id": "m19b-success-true-20260227T050707Z",
+      "expected_account_id": "048622080012",
+      "instance_id": "i-0313e98010ecef6e0",
+      "namespace": "jobintel",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "validate_timeout_seconds": 300
+    },
+    "result": {
+      "account_id": "048622080012",
+      "command_id": "76a7a627-8bdf-42f2-9876-9ea473be4f2d",
+      "region": "us-east-1",
+      "status": "Success",
+      "stderr_tail": "",
+      "stdout_tail": "NAME              STATUS   ROLES                  AGE   VERSION        INTERNAL-IP    EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION    CONTAINER-RUNTIME\nip-172-31-29-47   Ready    control-plane,master   22m   v1.31.5+k3s1   172.31.29.47   <none>        Ubuntu 24.04.4 LTS   6.17.0-1007-aws   containerd://1.7.23-k3s2\nnamespace/jobintel created\n"
+    }
+  },
+  "phase": "validate",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T05:08:50Z"
+}

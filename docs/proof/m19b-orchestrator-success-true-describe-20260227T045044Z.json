@@ -1,0 +1,16 @@
+{
+    "executionArn": "arn:aws:states:us-east-1:048622080012:execution:signalcraft-dr-orchestrator-state-machine:m19b-success-true-20260227T045044Z",
+    "stateMachineArn": "arn:aws:states:us-east-1:048622080012:stateMachine:signalcraft-dr-orchestrator-state-machine",
+    "name": "m19b-success-true-20260227T045044Z",
+    "status": "FAILED",
+    "startDate": "2026-02-26T23:50:45.517000-05:00",
+    "stopDate": "2026-02-26T23:52:23.919000-05:00",
+    "input": "{\n  \"expected_account_id\": \"048622080012\",\n  \"region\": \"us-east-1\",\n  \"project\": \"signalcraft\",\n  \"publish_bucket\": \"jobintel-prod1\",\n  \"publish_prefix\": \"jobintel\",\n  \"backup_bucket\": \"jobintel-prod1\",\n  \"backup_uri\": \"s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z\",\n  \"backup_required_keys\": [\n    \"metadata.json\",\n    \"state.tar.zst\",\n    \"manifests.tar.zst\"\n  ],\n  \"receipt_bucket\": \"jobintel-prod1\",\n  \"receipt_prefix\": \"jobintel/dr-orchestrator/receipts\",\n  \"notification_topic_arn\": \"arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications\",\n  \"provider\": \"openai\",\n  \"profile\": \"cs\",\n  \"expected_marker_file\": \"openai_top.cs.md\",\n  \"max_freshness_hours\": 6,\n  \"metric_namespace\": \"SignalCraft/DR\",\n  \"dr_runner_name\": \"jobintel-dr-runner\",\n  \"dr_vpc_id\": \"vpc-4362fc3e\",\n  \"dr_subnet_id\": \"subnet-11001d5c\",\n  \"dr_allowed_cidr\": \"10.0.0.0/8\",\n  \"dr_key_name\": \"\",\n  \"dr_instance_type\": \"t4g.small\",\n  \"dr_ami_id\": \"\",\n  \"namespace\": \"jobintel\",\n  \"validate_timeout_seconds\": 300,\n  \"force_run\": true\n}",
+    "inputDetails": {
+        "included": true
+    },
+    "error": "DRPhaseFailed",
+    "cause": "See phase failure receipt and notification payload",
+    "redriveCount": 0,
+    "redriveStatus": "REDRIVABLE"
+}

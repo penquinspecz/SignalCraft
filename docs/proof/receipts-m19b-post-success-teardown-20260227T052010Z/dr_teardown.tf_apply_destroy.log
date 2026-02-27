@@ -1,0 +1,23 @@
+[33m╷[0m[0m
+[33m│[0m [0m[1m[33mWarning: [0m[0m[1mDeprecated Parameter[0m
+[33m│[0m [0m
+[33m│[0m [0m[0mThe parameter "dynamodb_table" is deprecated. Use parameter "use_lockfile"
+[33m│[0m [0minstead.
+[33m╵[0m[0m
+[0m[1maws_iam_role_policy_attachment.dr_runner_ssm_core: Destroying... [id=jobintel-dr-runner-ssm-role/arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore][0m[0m
+[0m[1maws_instance.dr_runner: Destroying... [id=i-0313e98010ecef6e0][0m[0m
+[0m[1maws_iam_role_policy_attachment.dr_runner_ssm_core: Destruction complete after 0s[0m
+[0m[1maws_instance.dr_runner: Still destroying... [id=i-0313e98010ecef6e0, 00m10s elapsed][0m[0m
+[0m[1maws_instance.dr_runner: Still destroying... [id=i-0313e98010ecef6e0, 00m20s elapsed][0m[0m
+[0m[1maws_instance.dr_runner: Still destroying... [id=i-0313e98010ecef6e0, 00m30s elapsed][0m[0m
+[0m[1maws_instance.dr_runner: Still destroying... [id=i-0313e98010ecef6e0, 00m40s elapsed][0m[0m
+[0m[1maws_instance.dr_runner: Still destroying... [id=i-0313e98010ecef6e0, 00m50s elapsed][0m[0m
+[0m[1maws_instance.dr_runner: Destruction complete after 50s[0m
+[0m[1maws_iam_instance_profile.dr_runner: Destroying... [id=jobintel-dr-runner-instance-profile][0m[0m
+[0m[1maws_security_group.dr_runner: Destroying... [id=sg-0bf417d856b521efa][0m[0m
+[0m[1maws_iam_instance_profile.dr_runner: Destruction complete after 0s[0m
+[0m[1maws_iam_role.dr_runner_ssm: Destroying... [id=jobintel-dr-runner-ssm-role][0m[0m
+[0m[1maws_iam_role.dr_runner_ssm: Destruction complete after 0s[0m
+[0m[1maws_security_group.dr_runner: Destruction complete after 0s[0m
+[0m[1m[32m
+Apply complete! Resources: 0 added, 0 changed, 5 destroyed.[0m

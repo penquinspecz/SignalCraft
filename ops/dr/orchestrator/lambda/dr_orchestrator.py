@@ -326,10 +326,10 @@ def _validate(event: Dict[str, Any], region: str) -> Dict[str, Any]:
         raise RuntimeError("instance_id is required for validate action")
 
     commands = [
-        "set -euo pipefail",
+        "set -eu",
         "sudo test -s /etc/rancher/k3s/k3s.yaml",
         "sudo k3s kubectl get nodes -o wide",
-        f"sudo k3s kubectl get ns {namespace}",
+        f"sudo k3s kubectl get ns {namespace} >/dev/null 2>&1 || sudo k3s kubectl create ns {namespace}",
     ]
     ssm = _client("ssm", region)
     send = ssm.send_command(

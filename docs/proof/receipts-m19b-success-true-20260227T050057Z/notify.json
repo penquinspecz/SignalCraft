@@ -1,0 +1,40 @@
+{
+  "payload": {
+    "input": {
+      "action": "notify",
+      "execution_id": "m19b-success-true-20260227T050057Z",
+      "expected_account_id": "048622080012",
+      "notification_topic_arn": "arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "status": "dr_orchestrator_phase_failed",
+      "summary": {
+        "failure_error": "RuntimeError",
+        "failure_reason": "{\"errorMessage\":\"validate failed: validate failed: status=Failed stderr_tail=Error from server (NotFound): namespaces \\\"jobintel\\\" not found\\nfailed to run commands: exit status 1; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/validate.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"467c6d91-e303-4e0d-92c2-d89b09b35e0a\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}",
+        "phase_name": "validate"
+      }
+    },
+    "result": {
+      "account_id": "048622080012",
+      "message": {
+        "details": {
+          "failure_error": "RuntimeError",
+          "failure_reason": "{\"errorMessage\":\"validate failed: validate failed: status=Failed stderr_tail=Error from server (NotFound): namespaces \\\"jobintel\\\" not found\\nfailed to run commands: exit status 1; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T050057Z/validate.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"467c6d91-e303-4e0d-92c2-d89b09b35e0a\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}",
+          "phase_name": "validate"
+        },
+        "execution_id": "m19b-success-true-20260227T050057Z",
+        "kind": "dr_orchestrator_status",
+        "status": "dr_orchestrator_phase_failed",
+        "timestamp_utc": "2026-02-27T05:04:39Z"
+      },
+      "message_id": "cdb220d3-727f-5e89-a969-42c85a57cacc",
+      "published": true,
+      "region": "us-east-1"
+    }
+  },
+  "phase": "notify",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T05:04:40Z"
+}

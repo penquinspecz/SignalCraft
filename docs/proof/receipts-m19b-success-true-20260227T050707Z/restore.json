@@ -1,0 +1,44 @@
+{
+  "payload": {
+    "input": {
+      "action": "restore",
+      "backup_required_keys": [
+        "metadata.json",
+        "state.tar.zst",
+        "manifests.tar.zst"
+      ],
+      "backup_uri": "s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z",
+      "execution_id": "m19b-success-true-20260227T050707Z",
+      "expected_account_id": "048622080012",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1"
+    },
+    "result": {
+      "account_id": "048622080012",
+      "backup_uri": "s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z",
+      "checked_keys": [
+        {
+          "content_length": 626,
+          "etag": "8517e952add8d9835b8db7224e31720c",
+          "key": "jobintel/backups/backup-20260221T061624Z/metadata.json"
+        },
+        {
+          "content_length": 1481,
+          "etag": "3d4c7aaa7fdaeb12137117c5eee24e48",
+          "key": "jobintel/backups/backup-20260221T061624Z/state.tar.zst"
+        },
+        {
+          "content_length": 19096,
+          "etag": "9eaa7ca111551eb130c8fb98c3e6fd8c",
+          "key": "jobintel/backups/backup-20260221T061624Z/manifests.tar.zst"
+        }
+      ],
+      "region": "us-east-1"
+    }
+  },
+  "phase": "restore",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T05:08:43Z"
+}

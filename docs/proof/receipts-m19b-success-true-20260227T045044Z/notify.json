@@ -1,0 +1,40 @@
+{
+  "payload": {
+    "input": {
+      "action": "notify",
+      "execution_id": "m19b-success-true-20260227T045044Z",
+      "expected_account_id": "048622080012",
+      "notification_topic_arn": "arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "status": "dr_orchestrator_phase_failed",
+      "summary": {
+        "failure_error": "RuntimeError",
+        "failure_reason": "{\"errorMessage\":\"validate failed: validate failed: status=Failed stderr_tail=/var/lib/amazon/ssm/i-0313e98010ecef6e0/document/orchestration/0876c505-2f89-44a3-9855-a8306d787b2c/awsrunShellScript/0.awsrunShellScript/_script.sh: 1: set: Illegal option -o pipefail\\nfailed to run commands: exit status 2; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/validate.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"f38bbfb0-03c0-41de-b23b-04ce5e5ad5bb\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}",
+        "phase_name": "validate"
+      }
+    },
+    "result": {
+      "account_id": "048622080012",
+      "message": {
+        "details": {
+          "failure_error": "RuntimeError",
+          "failure_reason": "{\"errorMessage\":\"validate failed: validate failed: status=Failed stderr_tail=/var/lib/amazon/ssm/i-0313e98010ecef6e0/document/orchestration/0876c505-2f89-44a3-9855-a8306d787b2c/awsrunShellScript/0.awsrunShellScript/_script.sh: 1: set: Illegal option -o pipefail\\nfailed to run commands: exit status 2; receipt=s3://jobintel-prod1/jobintel/dr-orchestrator/receipts/m19b-success-true-20260227T045044Z/validate.json\",\"errorType\":\"RuntimeError\",\"requestId\":\"f38bbfb0-03c0-41de-b23b-04ce5e5ad5bb\",\"stackTrace\":[\"  File \\\"/var/task/dr_orchestrator.py\\\", line 507, in handler\\n    raise RuntimeError(f\\\"{action} failed: {reason}; receipt={receipt_uri}\\\")\\n\"]}",
+          "phase_name": "validate"
+        },
+        "execution_id": "m19b-success-true-20260227T045044Z",
+        "kind": "dr_orchestrator_status",
+        "status": "dr_orchestrator_phase_failed",
+        "timestamp_utc": "2026-02-27T04:52:22Z"
+      },
+      "message_id": "b54734ff-7e47-5021-b9e6-56e45b0011aa",
+      "published": true,
+      "region": "us-east-1"
+    }
+  },
+  "phase": "notify",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T04:52:23Z"
+}
