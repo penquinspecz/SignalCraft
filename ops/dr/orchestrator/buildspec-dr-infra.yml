@@ -13,21 +13,21 @@ phases:
   build:
     commands:
       - set -euo pipefail
-      - : "${ACTION:?ACTION is required}"
-      - : "${EXECUTION_ID:?EXECUTION_ID is required}"
-      - : "${EXPECTED_ACCOUNT_ID:?EXPECTED_ACCOUNT_ID is required}"
-      - : "${AWS_REGION:?AWS_REGION is required}"
-      - : "${RECEIPT_BUCKET:?RECEIPT_BUCKET is required}"
-      - : "${RECEIPT_PREFIX:?RECEIPT_PREFIX is required}"
-      - : "${TF_BUNDLE_BUCKET:?TF_BUNDLE_BUCKET is required}"
-      - : "${TF_BUNDLE_KEY:?TF_BUNDLE_KEY is required}"
-      - : "${TF_STATE_BUCKET:?TF_STATE_BUCKET is required}"
-      - : "${TF_STATE_KEY:?TF_STATE_KEY is required}"
-      - : "${TF_STATE_DYNAMODB_TABLE:?TF_STATE_DYNAMODB_TABLE is required}"
-      - : "${TF_VAR_region:?TF_VAR_region is required}"
-      - : "${TF_VAR_vpc_id:?TF_VAR_vpc_id is required}"
-      - : "${TF_VAR_subnet_id:?TF_VAR_subnet_id is required}"
-      - : "${TF_VAR_allowed_cidr:?TF_VAR_allowed_cidr is required}"
+      - ': "${ACTION:?ACTION is required}"'
+      - ': "${EXECUTION_ID:?EXECUTION_ID is required}"'
+      - ': "${EXPECTED_ACCOUNT_ID:?EXPECTED_ACCOUNT_ID is required}"'
+      - ': "${AWS_REGION:?AWS_REGION is required}"'
+      - ': "${RECEIPT_BUCKET:?RECEIPT_BUCKET is required}"'
+      - ': "${RECEIPT_PREFIX:?RECEIPT_PREFIX is required}"'
+      - ': "${TF_BUNDLE_BUCKET:?TF_BUNDLE_BUCKET is required}"'
+      - ': "${TF_BUNDLE_KEY:?TF_BUNDLE_KEY is required}"'
+      - ': "${TF_STATE_BUCKET:?TF_STATE_BUCKET is required}"'
+      - ': "${TF_STATE_KEY:?TF_STATE_KEY is required}"'
+      - ': "${TF_STATE_DYNAMODB_TABLE:?TF_STATE_DYNAMODB_TABLE is required}"'
+      - ': "${TF_VAR_region:?TF_VAR_region is required}"'
+      - ': "${TF_VAR_vpc_id:?TF_VAR_vpc_id is required}"'
+      - ': "${TF_VAR_subnet_id:?TF_VAR_subnet_id is required}"'
+      - ': "${TF_VAR_allowed_cidr:?TF_VAR_allowed_cidr is required}"'
       - ACTUAL_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
       - |
         if [[ "${ACTUAL_ACCOUNT_ID}" != "${EXPECTED_ACCOUNT_ID}" ]]; then
