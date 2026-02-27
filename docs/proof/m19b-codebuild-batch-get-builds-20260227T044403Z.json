@@ -1,0 +1,278 @@
+{
+    "builds": [
+        {
+            "id": "signalcraft-dr-orchestrator-dr-infra:de383d1d-118e-4dd7-8c89-8680b0252527",
+            "arn": "arn:aws:codebuild:us-east-1:048622080012:build/signalcraft-dr-orchestrator-dr-infra:de383d1d-118e-4dd7-8c89-8680b0252527",
+            "buildNumber": 6,
+            "startTime": "2026-02-26T23:44:07.406000-05:00",
+            "endTime": "2026-02-26T23:45:44.738000-05:00",
+            "currentPhase": "COMPLETED",
+            "buildStatus": "SUCCEEDED",
+            "projectName": "signalcraft-dr-orchestrator-dr-infra",
+            "phases": [
+                {
+                    "phaseType": "SUBMITTED",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:07.406000-05:00",
+                    "endTime": "2026-02-26T23:44:07.529000-05:00",
+                    "durationInSeconds": 0
+                },
+                {
+                    "phaseType": "QUEUED",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:07.529000-05:00",
+                    "endTime": "2026-02-26T23:44:08.277000-05:00",
+                    "durationInSeconds": 0
+                },
+                {
+                    "phaseType": "PROVISIONING",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:08.277000-05:00",
+                    "endTime": "2026-02-26T23:44:12.991000-05:00",
+                    "durationInSeconds": 4,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "DOWNLOAD_SOURCE",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:12.991000-05:00",
+                    "endTime": "2026-02-26T23:44:13.812000-05:00",
+                    "durationInSeconds": 0,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "INSTALL",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:13.812000-05:00",
+                    "endTime": "2026-02-26T23:44:47.441000-05:00",
+                    "durationInSeconds": 33,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "PRE_BUILD",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:47.441000-05:00",
+                    "endTime": "2026-02-26T23:44:47.487000-05:00",
+                    "durationInSeconds": 0,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "BUILD",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:44:47.487000-05:00",
+                    "endTime": "2026-02-26T23:45:44.344000-05:00",
+                    "durationInSeconds": 56,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "POST_BUILD",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:45:44.344000-05:00",
+                    "endTime": "2026-02-26T23:45:44.390000-05:00",
+                    "durationInSeconds": 0,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "UPLOAD_ARTIFACTS",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:45:44.390000-05:00",
+                    "endTime": "2026-02-26T23:45:44.442000-05:00",
+                    "durationInSeconds": 0,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "FINALIZING",
+                    "phaseStatus": "SUCCEEDED",
+                    "startTime": "2026-02-26T23:45:44.442000-05:00",
+                    "endTime": "2026-02-26T23:45:44.738000-05:00",
+                    "durationInSeconds": 0,
+                    "contexts": [
+                        {
+                            "statusCode": "",
+                            "message": ""
+                        }
+                    ]
+                },
+                {
+                    "phaseType": "COMPLETED",
+                    "startTime": "2026-02-26T23:45:44.738000-05:00"
+                }
+            ],
+            "source": {
+                "type": "NO_SOURCE",
+                "gitCloneDepth": 0,
+                "buildspec": "\"env\":\n  \"shell\": \"bash\"\n\"phases\":\n  \"build\":\n    \"commands\":\n    - \"set -euo pipefail\"\n    - \": \\\"${ACTION:?ACTION is required}\\\"\"\n    - \": \\\"${EXECUTION_ID:?EXECUTION_ID is required}\\\"\"\n    - \": \\\"${EXPECTED_ACCOUNT_ID:?EXPECTED_ACCOUNT_ID is required}\\\"\"\n    - \": \\\"${AWS_REGION:?AWS_REGION is required}\\\"\"\n    - \": \\\"${RECEIPT_BUCKET:?RECEIPT_BUCKET is required}\\\"\"\n    - \": \\\"${RECEIPT_PREFIX:?RECEIPT_PREFIX is required}\\\"\"\n    - \": \\\"${TF_BUNDLE_BUCKET:?TF_BUNDLE_BUCKET is required}\\\"\"\n    - \": \\\"${TF_BUNDLE_KEY:?TF_BUNDLE_KEY is required}\\\"\"\n    - \": \\\"${TF_STATE_BUCKET:?TF_STATE_BUCKET is required}\\\"\"\n    - \": \\\"${TF_STATE_KEY:?TF_STATE_KEY is required}\\\"\"\n    - \": \\\"${TF_STATE_DYNAMODB_TABLE:?TF_STATE_DYNAMODB_TABLE is required}\\\"\"\n    - \": \\\"${TF_VAR_region:?TF_VAR_region is required}\\\"\"\n    - \": \\\"${TF_VAR_vpc_id:?TF_VAR_vpc_id is required}\\\"\"\n    - \": \\\"${TF_VAR_subnet_id:?TF_VAR_subnet_id is required}\\\"\"\n    - \": \\\"${TF_VAR_allowed_cidr:?TF_VAR_allowed_cidr is required}\\\"\"\n    - \"ACTUAL_ACCOUNT_ID=\\\"$(aws sts get-caller-identity --query Account --output\n      text)\\\"\"\n    - |\n      if [[ \"${ACTUAL_ACCOUNT_ID}\" != \"${EXPECTED_ACCOUNT_ID}\" ]]; then\n        echo \"account mismatch: expected=${EXPECTED_ACCOUNT_ID} actual=${ACTUAL_ACCOUNT_ID}\" >&2\n        exit 1\n      fi\n    - \"WORK_DIR=\\\"/tmp/dr-terraform\\\"\"\n    - \"rm -rf \\\"${WORK_DIR}\\\" /tmp/dr-terraform.zip\"\n    - \"aws s3 cp \\\"s3://${TF_BUNDLE_BUCKET}/${TF_BUNDLE_KEY}\\\" /tmp/dr-terraform.zip\"\n    - \"mkdir -p \\\"${WORK_DIR}\\\"\"\n    - \"unzip -q /tmp/dr-terraform.zip -d \\\"${WORK_DIR}\\\"\"\n    - \"cd \\\"${WORK_DIR}\\\"\"\n    - |\n      terraform init -input=false \\\n        -backend-config=\"bucket=${TF_STATE_BUCKET}\" \\\n        -backend-config=\"key=${TF_STATE_KEY}\" \\\n        -backend-config=\"region=${AWS_REGION}\" \\\n        -backend-config=\"dynamodb_table=${TF_STATE_DYNAMODB_TABLE}\" \\\n        -backend-config=\"encrypt=true\"\n    - \"terraform fmt -check\"\n    - \"terraform validate\"\n    - |\n      tf_var_args=(\n        -var \"region=${TF_VAR_region}\"\n        -var \"vpc_id=${TF_VAR_vpc_id}\"\n        -var \"subnet_id=${TF_VAR_subnet_id}\"\n        -var \"allowed_cidr=${TF_VAR_allowed_cidr}\"\n        -var \"instance_type=${TF_VAR_instance_type:-t4g.small}\"\n      )\n      if [[ -n \"${TF_VAR_key_name:-}\" ]]; then\n        tf_var_args+=( -var \"key_name=${TF_VAR_key_name}\" )\n      fi\n      if [[ -n \"${TF_VAR_ami_id:-}\" ]]; then\n        tf_var_args+=( -var \"ami_id=${TF_VAR_ami_id}\" )\n      fi\n\n      case \"${ACTION}\" in\n        bringup)\n          terraform plan -input=false \"${tf_var_args[@]}\" -out=tfplan\n          terraform apply -auto-approve tfplan\n          ;;\n        teardown)\n          terraform plan -destroy -input=false \"${tf_var_args[@]}\" -out=tfplan-destroy\n          terraform apply -auto-approve tfplan-destroy\n          ;;\n        *)\n          echo \"unsupported ACTION=${ACTION}\" >&2\n          exit 2\n          ;;\n      esac\n    - \"terraform output -json > /tmp/dr_tf_outputs.json || echo '{}' > /tmp/dr_tf_outputs.json\"\n    - \"RECEIPT_KEY=\\\"${RECEIPT_PREFIX}/${EXECUTION_ID}/codebuild-${ACTION}.json\\\"\"\n    - |\n      python3 - <<'PY' > /tmp/codebuild_receipt.json\n      import datetime as dt\n      import json\n      import os\n      from pathlib import Path\n\n      outputs_path = Path('/tmp/dr_tf_outputs.json')\n      outputs = json.loads(outputs_path.read_text(encoding='utf-8')) if outputs_path.exists() else {}\n\n      payload = {\n          'schema_version': 1,\n          'timestamp_utc': dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),\n          'phase': os.environ['ACTION'],\n          'status': 'ok',\n          'execution_id': os.environ['EXECUTION_ID'],\n          'build_id': os.environ.get('CODEBUILD_BUILD_ID', ''),\n          'account_id': os.environ.get('ACTUAL_ACCOUNT_ID', ''),\n          'region': os.environ['AWS_REGION'],\n          'terraform_backend': {\n              'bucket': os.environ['TF_STATE_BUCKET'],\n              'key': os.environ['TF_STATE_KEY'],\n              'dynamodb_table': os.environ['TF_STATE_DYNAMODB_TABLE'],\n          },\n          'terraform_outputs': outputs,\n      }\n      print(json.dumps(payload, indent=2, sort_keys=True))\n      PY\n    - \"aws s3 cp /tmp/codebuild_receipt.json \\\"s3://${RECEIPT_BUCKET}/${RECEIPT_KEY}\\\"\n      --content-type application/json\"\n    - \"echo \\\"receipt=s3://${RECEIPT_BUCKET}/${RECEIPT_KEY}\\\"\"\n  \"install\":\n    \"commands\":\n    - \"set -euo pipefail\"\n    - \"apt-get update\"\n    - \"DEBIAN_FRONTEND=noninteractive apt-get install -y unzip curl jq >/dev/null\"\n    - \"curl -fsSL -o /tmp/terraform.zip \\\"https://releases.hashicorp.com/terraform/${TF_VERSION}/terraform_${TF_VERSION}_linux_amd64.zip\\\"\"\n    - \"unzip -o /tmp/terraform.zip -d /usr/local/bin >/dev/null\"\n    - \"terraform version\"\n\"version\": 0.2\n",
+                "insecureSsl": false
+            },
+            "secondarySources": [],
+            "secondarySourceVersions": [],
+            "artifacts": {
+                "location": "",
+                "overrideArtifactName": false
+            },
+            "cache": {
+                "type": "NO_CACHE"
+            },
+            "environment": {
+                "type": "LINUX_CONTAINER",
+                "image": "aws/codebuild/standard:7.0",
+                "computeType": "BUILD_GENERAL1_MEDIUM",
+                "environmentVariables": [
+                    {
+                        "name": "RECEIPT_BUCKET",
+                        "value": "jobintel-prod1",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_allowed_cidr",
+                        "value": "10.0.0.0/8",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "EXECUTION_ID",
+                        "value": "m19b-success-true-20260227T044403Z",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_BUNDLE_BUCKET",
+                        "value": "jobintel-prod1",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_instance_type",
+                        "value": "t4g.small",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_subnet_id",
+                        "value": "subnet-11001d5c",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "AWS_REGION",
+                        "value": "us-east-1",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_key_name",
+                        "value": "",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_BUNDLE_KEY",
+                        "value": "jobintel/dr-orchestrator/artifacts/dr-terraform-module.zip",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_STATE_KEY",
+                        "value": "jobintel/dr/terraform/dr-runner.tfstate",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VERSION",
+                        "value": "1.8.5",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "ACTION",
+                        "value": "bringup",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_ami_id",
+                        "value": "",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_region",
+                        "value": "us-east-1",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "EXPECTED_ACCOUNT_ID",
+                        "value": "048622080012",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_VAR_vpc_id",
+                        "value": "vpc-4362fc3e",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "RECEIPT_PREFIX",
+                        "value": "jobintel/dr-orchestrator/receipts",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_STATE_BUCKET",
+                        "value": "signalcraft-dr-tfstate-048622080012-us-east-1",
+                        "type": "PLAINTEXT"
+                    },
+                    {
+                        "name": "TF_STATE_DYNAMODB_TABLE",
+                        "value": "signalcraft-dr-tf-lock",
+                        "type": "PLAINTEXT"
+                    }
+                ],
+                "privilegedMode": false,
+                "imagePullCredentialsType": "CODEBUILD"
+            },
+            "serviceRole": "arn:aws:iam::048622080012:role/signalcraft-dr-orchestrator-codebuild-role",
+            "logs": {
+                "groupName": "/aws/codebuild/signalcraft-dr-orchestrator-dr-infra",
+                "streamName": "de383d1d-118e-4dd7-8c89-8680b0252527",
+                "deepLink": "https://console.aws.amazon.com/cloudwatch/home?region=us-east-1#logsV2:log-groups/log-group/$252Faws$252Fcodebuild$252Fsignalcraft-dr-orchestrator-dr-infra/log-events/de383d1d-118e-4dd7-8c89-8680b0252527",
+                "cloudWatchLogsArn": "arn:aws:logs:us-east-1:048622080012:log-group:/aws/codebuild/signalcraft-dr-orchestrator-dr-infra:log-stream:de383d1d-118e-4dd7-8c89-8680b0252527",
+                "cloudWatchLogs": {
+                    "status": "ENABLED",
+                    "groupName": "/aws/codebuild/signalcraft-dr-orchestrator-dr-infra"
+                },
+                "s3Logs": {
+                    "status": "DISABLED",
+                    "encryptionDisabled": false
+                }
+            },
+            "timeoutInMinutes": 30,
+            "queuedTimeoutInMinutes": 60,
+            "buildComplete": true,
+            "initiator": "states/signalcraft-dr-orchestrator-state-machine",
+            "encryptionKey": "arn:aws:kms:us-east-1:048622080012:alias/aws/s3"
+        }
+    ],
+    "buildsNotFound": []
+}
