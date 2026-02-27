@@ -651,7 +651,7 @@ resource "aws_sfn_state_machine" "dr_orchestrator" {
             backend_lock = local.tf_lock_table_name
           }
           "phase_outputs.$" = "$.Build"
-          "receipt_uri.$"   = "States.Format('s3://{}/{}/{}/codebuild-bringup.json', $.receipt_bucket, $.receipt_prefix, $$.Execution.Name)"
+          "receipt_uri.$"   = "States.Format('s3://{}/{}/{}/codebuild-bringup.json', $$.Execution.Input.receipt_bucket, $$.Execution.Input.receipt_prefix, $$.Execution.Name)"
           failure_reason    = ""
         }
         ResultPath = "$.phase_results.bringup"
