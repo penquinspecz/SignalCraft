@@ -1,0 +1,431 @@
+{
+  "delta_summary": {
+    "baseline_run_id": "2026-02-26T00:22:31.390444+00:00",
+    "baseline_run_path": "jobintel/runs/2026-02-26T00:22:31.390444+00:00",
+    "current_run_id": "2026-02-27T00:22:29.934039+00:00",
+    "provider_profile": {
+      "openai": {
+        "cs": {
+          "baseline_resolved": true,
+          "baseline_run_id": "2026-02-26T00:22:31.390444+00:00",
+          "baseline_run_path": "jobintel/runs/2026-02-26T00:22:31.390444+00:00",
+          "baseline_source": "state_file",
+          "change_fields": {
+            "location": 8,
+            "team": 0,
+            "title": 3,
+            "url": 0
+          },
+          "changed_job_count": 11,
+          "changed_job_ids": [
+            "openai:169cc6f0-fa49-4c09-b6f4-bc7617a99808",
+            "openai:2ffac382-aade-4baf-bc4b-5a73596fc01f",
+            "openai:5c657884-e2d2-423e-97ef-961d3bbb8776",
+            "openai:6d262b25-a92c-487e-a69e-ffe4e6a1e6e2",
+            "openai:78d41733-5100-4548-958f-debe82112cfa",
+            "openai:8b0b7484-d4f0-4bfc-82af-710616ab278c",
+            "openai:d46606bb-d9af-4931-b91e-dfff4b35b326",
+            "openai:d8aba3b4-28b1-46b1-b594-79527d41ad2d",
+            "openai:da32a265-addf-4b65-9503-32d6cbea8283",
+            "openai:e027cc68-37be-4efc-a4b2-50b7e2f2b0e9",
+            "openai:e178fd86-a7eb-43c7-a41e-7db9842fe97b"
+          ],
+          "current_run_id": "2026-02-27T00:22:29.934039+00:00",
+          "labeled_total": 582,
+          "new_job_count": 9,
+          "new_job_ids": [
+            "openai:07f95fec-31c4-49ae-a5cf-f8cca49a982c",
+            "openai:0a00033b-8fcf-486a-86fe-e631418300a4",
+            "openai:14f663f1-5d85-4b46-a281-337733b3ee61",
+            "openai:16b15522-7fbb-4616-9aa9-3fcccb4a95d5",
+            "openai:2231ffdb-6b1c-4edd-a968-abcaaef1273e",
+            "openai:26b1e9c2-ad0e-4010-84dd-fc92fdb308b7",
+            "openai:58043f9b-f50b-4a14-bbe0-426c0a62bc5e",
+            "openai:67234c86-b8fc-41f3-b937-ff5a4dc335f4",
+            "openai:7417548c-65f2-4d05-afb0-e3b07cedce29"
+          ],
+          "profile": "cs",
+          "provider": "openai",
+          "ranked_total": 582,
+          "removed_job_count": 4,
+          "removed_job_ids": [
+            "openai:04776c0e-46e6-4ffe-9cbf-40c0967d1df8",
+            "openai:3339ca97-4604-4058-9a29-3139250b8475",
+            "openai:75ceb372-4f94-4446-b8ae-7f49952cb37b",
+            "openai:7a5d71eb-1c4e-4017-9bb1-4ca51e22d46e"
+          ],
+          "unchanged_job_count": 562
+        }
+      }
+    }
+  },
+  "diff_counts": {
+    "cs": {
+      "changed": 11,
+      "new": 9,
+      "removed": 4
+    }
+  },
+  "flags": {
+    "ai": false,
+    "ai_only": false,
+    "min_alert_score": 85,
+    "min_score": 40,
+    "no_enrich": false,
+    "profile": "cs",
+    "profiles": "cs",
+    "providers": [
+      "openai"
+    ],
+    "us_only": false
+  },
+  "git_sha": null,
+  "image_tag": null,
+  "inputs": {
+    "enriched_jobs_json": {
+      "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+      "path": "/app/data/openai_enriched_jobs.json",
+      "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+    },
+    "labeled_jobs_json": {
+      "mtime_iso": "2026-02-27T00:22:31.327736+00:00",
+      "path": "/app/data/openai_labeled_jobs.json",
+      "sha256": "1d8bcd719b6269d6bcfc2ca4904e41793b60809024e212e1b2c19f805a965510"
+    },
+    "raw_jobs_json": {
+      "mtime_iso": "2026-02-27T00:22:30.375728+00:00",
+      "path": "/app/data/openai_raw_jobs.json",
+      "sha256": "8d2db39c5049a7ad8485553a314b786e11af0a752d9e21bef7a1c74792b65990"
+    }
+  },
+  "inputs_by_provider": {
+    "openai": {
+      "enriched_jobs_json": {
+        "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+        "path": "/app/data/openai_enriched_jobs.json",
+        "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+      },
+      "labeled_jobs_json": {
+        "mtime_iso": "2026-02-27T00:22:31.327736+00:00",
+        "path": "/app/data/openai_labeled_jobs.json",
+        "sha256": "1d8bcd719b6269d6bcfc2ca4904e41793b60809024e212e1b2c19f805a965510"
+      },
+      "raw_jobs_json": {
+        "mtime_iso": "2026-02-27T00:22:30.375728+00:00",
+        "path": "/app/data/openai_raw_jobs.json",
+        "sha256": "8d2db39c5049a7ad8485553a314b786e11af0a752d9e21bef7a1c74792b65990"
+      }
+    }
+  },
+  "outputs_by_profile": {
+    "cs": {
+      "ranked_csv": {
+        "path": "/app/data/openai_ranked_jobs.cs.csv",
+        "sha256": "548e7fc771d427fbac13f79d313ce4fc8274988b5d579db4e9ad3f8c6f075d61"
+      },
+      "ranked_families_json": {
+        "path": "/app/data/openai_ranked_families.cs.json",
+        "sha256": "3059ef3a5fa811cc7d2524894db36e6e252175b381d2928de232e6b94d870460"
+      },
+      "ranked_json": {
+        "path": "/app/data/openai_ranked_jobs.cs.json",
+        "sha256": "1c646fce8d0627c1a60368c6e633b9bede4feb282c554cecdda35bbdc77e4e18"
+      },
+      "shortlist_md": {
+        "path": "/app/data/openai_shortlist.cs.md",
+        "sha256": "923e55a70bfac198160637067a5a9767aeca0a9f6c14134e7d5b6a02183b7074"
+      },
+      "top_md": {
+        "path": "/app/data/openai_top.cs.md",
+        "sha256": "c14f61cfc69f00af3de96d166e50a10950d5cd84722ac8b73b13c9e092f8707d"
+      }
+    }
+  },
+  "outputs_by_provider": {
+    "openai": {
+      "cs": {
+        "ranked_csv": {
+          "path": "/app/data/openai_ranked_jobs.cs.csv",
+          "sha256": "548e7fc771d427fbac13f79d313ce4fc8274988b5d579db4e9ad3f8c6f075d61"
+        },
+        "ranked_families_json": {
+          "path": "/app/data/openai_ranked_families.cs.json",
+          "sha256": "3059ef3a5fa811cc7d2524894db36e6e252175b381d2928de232e6b94d870460"
+        },
+        "ranked_json": {
+          "path": "/app/data/openai_ranked_jobs.cs.json",
+          "sha256": "1c646fce8d0627c1a60368c6e633b9bede4feb282c554cecdda35bbdc77e4e18"
+        },
+        "shortlist_md": {
+          "path": "/app/data/openai_shortlist.cs.md",
+          "sha256": "923e55a70bfac198160637067a5a9767aeca0a9f6c14134e7d5b6a02183b7074"
+        },
+        "top_md": {
+          "path": "/app/data/openai_top.cs.md",
+          "sha256": "c14f61cfc69f00af3de96d166e50a10950d5cd84722ac8b73b13c9e092f8707d"
+        }
+      }
+    }
+  },
+  "profiles": [
+    "cs"
+  ],
+  "provenance": {
+    "build": {
+      "ecs_task_arn": "unknown",
+      "git_sha": "unknown",
+      "image": "unknown",
+      "taskdef": "unknown"
+    },
+    "openai": {
+      "attempts_made": 1,
+      "availability": "available",
+      "error": null,
+      "fetched_at": "2026-01-22T20:38:01.489304+00:00",
+      "live_attempted": true,
+      "live_http_status": null,
+      "live_result": "success",
+      "live_status_code": null,
+      "mode": "AUTO",
+      "parsed_job_count": 582,
+      "provider": "openai",
+      "provider_id": "openai",
+      "scrape_mode": "live",
+      "snapshot_mtime_iso": "2026-02-27T00:22:30.227727+00:00",
+      "snapshot_path": "data/openai_snapshots/index.html",
+      "snapshot_reason": null,
+      "snapshot_sha256": "1eaf943abe167fbde631ac897d0c267b140e4ceab6ee3ba7a6bb649a40c711b3",
+      "snapshot_used": false,
+      "snapshot_validated": true,
+      "unavailable_reason": null
+    }
+  },
+  "provenance_by_provider": {
+    "openai": {
+      "attempts_made": 1,
+      "availability": "available",
+      "error": null,
+      "fetched_at": "2026-01-22T20:38:01.489304+00:00",
+      "live_attempted": true,
+      "live_http_status": null,
+      "live_result": "success",
+      "live_status_code": null,
+      "mode": "AUTO",
+      "parsed_job_count": 582,
+      "provider": "openai",
+      "provider_id": "openai",
+      "scrape_mode": "live",
+      "snapshot_mtime_iso": "2026-02-27T00:22:30.227727+00:00",
+      "snapshot_path": "data/openai_snapshots/index.html",
+      "snapshot_reason": null,
+      "snapshot_sha256": "1eaf943abe167fbde631ac897d0c267b140e4ceab6ee3ba7a6bb649a40c711b3",
+      "snapshot_used": false,
+      "snapshot_validated": true,
+      "unavailable_reason": null
+    }
+  },
+  "providers": [
+    "openai"
+  ],
+  "run_id": "2026-02-27T00:22:29.934039+00:00",
+  "run_report_schema_version": 1,
+  "scoring_input_selection_by_profile": {
+    "cs": {
+      "candidate_paths_considered": [
+        {
+          "exists": false,
+          "mtime_iso": null,
+          "path": "/app/data/openai_enriched_jobs_ai.json",
+          "sha256": null
+        },
+        {
+          "exists": true,
+          "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+          "path": "/app/data/openai_enriched_jobs.json",
+          "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+        },
+        {
+          "exists": true,
+          "mtime_iso": "2026-02-27T00:22:31.327736+00:00",
+          "path": "/app/data/openai_labeled_jobs.json",
+          "sha256": "1d8bcd719b6269d6bcfc2ca4904e41793b60809024e212e1b2c19f805a965510"
+        }
+      ],
+      "candidates": [
+        {
+          "exists": false,
+          "mtime_iso": null,
+          "path": "/app/data/openai_enriched_jobs_ai.json",
+          "sha256": null
+        },
+        {
+          "exists": true,
+          "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+          "path": "/app/data/openai_enriched_jobs.json",
+          "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+        },
+        {
+          "exists": true,
+          "mtime_iso": "2026-02-27T00:22:31.327736+00:00",
+          "path": "/app/data/openai_labeled_jobs.json",
+          "sha256": "1d8bcd719b6269d6bcfc2ca4904e41793b60809024e212e1b2c19f805a965510"
+        }
+      ],
+      "comparison_details": {},
+      "decision": {
+        "comparisons": {},
+        "flags": {
+          "ai": false,
+          "ai_only": false,
+          "no_enrich": false
+        },
+        "reason": "default requires enriched input",
+        "rule": "default_enriched_required"
+      },
+      "selected": {
+        "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+        "path": "/app/data/openai_enriched_jobs.json",
+        "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+      },
+      "selected_path": "/app/data/openai_enriched_jobs.json",
+      "selection_reason": "default_enriched_required"
+    }
+  },
+  "scoring_input_selection_by_provider": {
+    "openai": {
+      "cs": {
+        "candidate_paths_considered": [
+          {
+            "exists": false,
+            "mtime_iso": null,
+            "path": "/app/data/openai_enriched_jobs_ai.json",
+            "sha256": null
+          },
+          {
+            "exists": true,
+            "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+            "path": "/app/data/openai_enriched_jobs.json",
+            "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+          },
+          {
+            "exists": true,
+            "mtime_iso": "2026-02-27T00:22:31.327736+00:00",
+            "path": "/app/data/openai_labeled_jobs.json",
+            "sha256": "1d8bcd719b6269d6bcfc2ca4904e41793b60809024e212e1b2c19f805a965510"
+          }
+        ],
+        "candidates": [
+          {
+            "exists": false,
+            "mtime_iso": null,
+            "path": "/app/data/openai_enriched_jobs_ai.json",
+            "sha256": null
+          },
+          {
+            "exists": true,
+            "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+            "path": "/app/data/openai_enriched_jobs.json",
+            "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+          },
+          {
+            "exists": true,
+            "mtime_iso": "2026-02-27T00:22:31.327736+00:00",
+            "path": "/app/data/openai_labeled_jobs.json",
+            "sha256": "1d8bcd719b6269d6bcfc2ca4904e41793b60809024e212e1b2c19f805a965510"
+          }
+        ],
+        "comparison_details": {},
+        "decision": {
+          "comparisons": {},
+          "flags": {
+            "ai": false,
+            "ai_only": false,
+            "no_enrich": false
+          },
+          "reason": "default requires enriched input",
+          "rule": "default_enriched_required"
+        },
+        "selected": {
+          "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+          "path": "/app/data/openai_enriched_jobs.json",
+          "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+        },
+        "selected_path": "/app/data/openai_enriched_jobs.json",
+        "selection_reason": "default_enriched_required"
+      }
+    }
+  },
+  "scoring_inputs_by_profile": {
+    "cs": {
+      "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+      "path": "/app/data/openai_enriched_jobs.json",
+      "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+    }
+  },
+  "scoring_inputs_by_provider": {
+    "openai": {
+      "cs": {
+        "mtime_iso": "2026-02-27T00:22:31.599739+00:00",
+        "path": "/app/data/openai_enriched_jobs.json",
+        "sha256": "2f1405061850c482b883e72b82951d1db5407ac0e8ac2777396f40bf77f134f4"
+      }
+    }
+  },
+  "selection": {
+    "classified_job_count": 582,
+    "classified_job_count_by_provider": {
+      "openai": 582
+    },
+    "provider_availability": {
+      "openai": {
+        "attempts_made": 1,
+        "status": "available",
+        "unavailable_reason": null
+      }
+    },
+    "scrape_provenance": {
+      "openai": {
+        "attempts_made": 1,
+        "availability": "available",
+        "error": null,
+        "fetched_at": "2026-01-22T20:38:01.489304+00:00",
+        "live_attempted": true,
+        "live_http_status": null,
+        "live_result": "success",
+        "live_status_code": null,
+        "mode": "AUTO",
+        "parsed_job_count": 582,
+        "provider": "openai",
+        "provider_id": "openai",
+        "scrape_mode": "live",
+        "snapshot_mtime_iso": "2026-02-27T00:22:30.227727+00:00",
+        "snapshot_path": "data/openai_snapshots/index.html",
+        "snapshot_reason": null,
+        "snapshot_sha256": "1eaf943abe167fbde631ac897d0c267b140e4ceab6ee3ba7a6bb649a40c711b3",
+        "snapshot_used": false,
+        "snapshot_validated": true,
+        "unavailable_reason": null
+      }
+    }
+  },
+  "stage_durations": {
+    "classify": {
+      "duration_sec": 1.003
+    },
+    "enrich": {
+      "duration_sec": 0.166
+    },
+    "score:cs": {
+      "duration_sec": 0.483
+    },
+    "scrape": {
+      "duration_sec": 0.513
+    }
+  },
+  "status": "success",
+  "success": true,
+  "timestamps": {
+    "ended_at": "2026-02-27T00:22:32.665111+00:00",
+    "started_at": "2026-02-27T00:22:29.934416+00:00"
+  }
+}

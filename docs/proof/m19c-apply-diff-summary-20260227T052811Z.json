@@ -1,0 +1,10 @@
+{
+  "run_id": "2026-02-27T00:22:29.934039+00:00",
+  "receipt_dir": "docs/proof/receipts-m19c-apply-20260227T052811Z",
+  "pointer_changed": false,
+  "objects_changed": false,
+  "pre_pointer": "docs/proof/m19c-pointers-preapply-20260227T052811Z.json",
+  "post_pointer": "docs/proof/m19c-pointers-postapply-20260227T052811Z.json",
+  "pre_objects": "docs/proof/m19c-run-objects-preapply-20260227T052811Z.json",
+  "post_objects": "docs/proof/m19c-run-objects-postapply-20260227T052811Z.json"
+}

@@ -1,0 +1,9 @@
+{
+  "applied": true,
+  "canonical_run_id": "2026-02-27T00:22:29.934039+00:00",
+  "schema_version": 1,
+  "updated_keys": [
+    "jobintel/state/last_success.json",
+    "jobintel/state/openai/cs/last_success.json"
+  ]
+}

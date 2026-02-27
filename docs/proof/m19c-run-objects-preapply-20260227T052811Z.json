@@ -1,0 +1,65 @@
+{
+  "key_count": 12,
+  "objects": [
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/index.json",
+      "ETag": "\"81095985f94b58a01957bec52be69ffe\"",
+      "Size": 1883
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_alerts.cs.json",
+      "ETag": "\"837d72d935cde4a41bbf6f599a95a33c\"",
+      "Size": 137355
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_alerts.cs.md",
+      "ETag": "\"f24afdb73ef2fe3d5b3d802bdd362e0e\"",
+      "Size": 1580
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_ranked_families.cs.json",
+      "ETag": "\"20c2e21124bc8164ab0f2af98d912b5c\"",
+      "Size": 1158138
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_ranked_jobs.cs.csv",
+      "ETag": "\"f875cf1cb918726e2899ebe509bf3a21\"",
+      "Size": 217440
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_ranked_jobs.cs.json",
+      "ETag": "\"328cdfe72f7c412062508f4e18cec8f0\"",
+      "Size": 1017516
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_shortlist.cs.md",
+      "ETag": "\"11f4c3744fa65799908c859a2e685831\"",
+      "Size": 412
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/cs/openai_top.cs.md",
+      "ETag": "\"577856e38ed67a1ff3288a5cd8262fbe\"",
+      "Size": 5238
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/openai_enriched_jobs.json",
+      "ETag": "\"3e512bda54878d162a04f9d6f83fc815\"",
+      "Size": 370592
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/openai_labeled_jobs.json",
+      "ETag": "\"f10d040dfd73887460832ec511ef488f\"",
+      "Size": 246927
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/openai/openai_raw_jobs.json",
+      "ETag": "\"655c37ee57737294402e6d83e928f5e9\"",
+      "Size": 220012
+    },
+    {
+      "Key": "jobintel/runs/2026-02-27T00:22:29.934039+00:00/run_report.json",
+      "ETag": "\"41f53565673a14a95cb13a8c4eafec51\"",
+      "Size": 14501
+    }
+  ]
+}

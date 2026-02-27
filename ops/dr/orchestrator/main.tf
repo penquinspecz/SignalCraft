@@ -17,6 +17,7 @@ locals {
   tf_lock_table_name   = var.tf_lock_table_name != "" ? var.tf_lock_table_name : "${var.project}-dr-tf-lock"
   tf_state_key         = "${trim(var.tf_state_key_prefix, "/")}/dr-runner.tfstate"
   tf_bundle_key        = trim(var.tf_bundle_s3_key, "/")
+  dr_infra_buildspec   = yamlencode(yamldecode(file("${path.module}/buildspec-dr-infra.yml")))
 
   common_tags = merge(
     {
@@ -440,7 +441,7 @@ resource "aws_codebuild_project" "dr_infra" {
 
   source {
     type      = "NO_SOURCE"
-    buildspec = file("${path.module}/buildspec-dr-infra.yml")
+    buildspec = local.dr_infra_buildspec
   }
 
   build_timeout          = 30
