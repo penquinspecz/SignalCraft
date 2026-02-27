@@ -407,6 +407,12 @@ resource "aws_iam_role_policy" "codebuild" {
         Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/jobintel-dr-runner-ssm-role"
       },
       {
+        Sid      = "TerraformIamRoleAttachedPolicyRead"
+        Effect   = "Allow"
+        Action   = ["iam:ListAttachedRolePolicies"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/jobintel-dr-runner-ssm-role"
+      },
+      {
         Sid      = "ReadIdentity"
         Effect   = "Allow"
         Action   = ["sts:GetCallerIdentity"]
