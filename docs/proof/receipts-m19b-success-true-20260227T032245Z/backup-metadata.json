@@ -1,0 +1,18 @@
+{
+  "artifacts": {
+    "manifests.tar.zst": {
+      "bytes": 19096,
+      "sha256": "6b69e3f1b42535e278a29879011efc867b135d1b9e84acdfa220e30605a2eef0"
+    },
+    "state.tar.zst": {
+      "bytes": 1481,
+      "sha256": "a1fe83578ec6a4c53487ce601fdb46e8898c1a5772ab3f477e84186047e24c73"
+    }
+  },
+  "backup_id": "backup-20260221T061624Z",
+  "backup_uri": "s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z",
+  "bucket": "jobintel-prod1",
+  "created_utc": "2026-02-21T06:16:24Z",
+  "notes": "Seed backup set for DR rehearsal; portable tar|zstd; contract gated by scripts/ops/dr_contract.py",
+  "prefix": "jobintel"
+}
