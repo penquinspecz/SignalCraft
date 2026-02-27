@@ -129,6 +129,10 @@ aws s3 cp "s3://${BUCKET}/${PROVIDER_KEY}" "${BEFORE_DIR}/provider.json" 2>/dev/
 
 BEFORE_GLOBAL_RUN="$(jq -r '.run_id // ""' "${BEFORE_DIR}/global.json")"
 BEFORE_PROVIDER_RUN="$(jq -r '.run_id // ""' "${BEFORE_DIR}/provider.json")"
+BEFORE_GLOBAL_RUN_PATH="$(jq -r '.run_path // ""' "${BEFORE_DIR}/global.json")"
+BEFORE_GLOBAL_ENDED_AT="$(jq -r '.ended_at // ""' "${BEFORE_DIR}/global.json")"
+export BEFORE_GLOBAL_RUN BEFORE_PROVIDER_RUN
+export BEFORE_GLOBAL_RUN_PATH BEFORE_GLOBAL_ENDED_AT
 
 python3 - "${RECEIPT_DIR}" "${BEFORE_GLOBAL_RUN}" "${BEFORE_PROVIDER_RUN}" "${DR_RUN_ID}" <<'PY'
 import json
@@ -186,11 +190,19 @@ fi
 phase "plan"
 # Fetch primary run_summary to build pointer payload
 PRIMARY_SUMMARY="${RECEIPT_DIR}/primary_run_summary.json"
-aws s3 cp "s3://${BUCKET}/${PREFIX_CLEAN}/runs/${PRIMARY_RUN_ID}/run_summary.v1.json" "${PRIMARY_SUMMARY}" 2>/dev/null || fail "primary run_summary not found: s3://${BUCKET}/${PREFIX_CLEAN}/runs/${PRIMARY_RUN_ID}/run_summary.v1.json"
-
-ENDED_AT="$(jq -r '.created_at_utc // .ended_at // ""' "${PRIMARY_SUMMARY}")"
-# run_path: directory path to run (e.g. runs/20260222T123456Z/)
-RUN_PATH="runs/${PRIMARY_RUN_ID}/"
+if aws s3 cp "s3://${BUCKET}/${PREFIX_CLEAN}/runs/${PRIMARY_RUN_ID}/run_summary.v1.json" "${PRIMARY_SUMMARY}" 2>/dev/null; then
+  ENDED_AT="$(jq -r '.created_at_utc // .ended_at // ""' "${PRIMARY_SUMMARY}")"
+  RUN_PATH="$(jq -r '.run_path // ""' "${PRIMARY_SUMMARY}")"
+  [[ -n "${RUN_PATH}" ]] || RUN_PATH="runs/${PRIMARY_RUN_ID}/"
+else
+  if [[ "${PRIMARY_RUN_ID}" == "${BEFORE_GLOBAL_RUN}" && -n "${BEFORE_GLOBAL_RUN_PATH}" ]]; then
+    ENDED_AT="${BEFORE_GLOBAL_ENDED_AT}"
+    RUN_PATH="${BEFORE_GLOBAL_RUN_PATH}"
+  else
+    fail "primary run_summary not found: s3://${BUCKET}/${PREFIX_CLEAN}/runs/${PRIMARY_RUN_ID}/run_summary.v1.json"
+  fi
+fi
+export ENDED_AT RUN_PATH GLOBAL_KEY PROVIDER_KEY
 
 python3 - "${RECEIPT_DIR}" "${PRIMARY_RUN_ID}" "${DR_RUN_ID}" "${RUN_PATH}" "${ENDED_AT}" "${GLOBAL_KEY}" "${PROVIDER_KEY}" <<PY
 import json
@@ -218,9 +230,42 @@ if [[ "${APPLY_MODE}" -eq 0 ]]; then
   phase "complete"
 else
   phase "apply"
-  POINTER_PAYLOAD="$(jq -c '{run_id: "'"${PRIMARY_RUN_ID}"'", run_path: "'"${RUN_PATH}"'", ended_at: "'"${ENDED_AT}"'", providers: ["'"${PROVIDER}"'"], profiles: ["'"${PROFILE}"'"]}' <<< '{}')"
-  aws s3 cp - "s3://${BUCKET}/${GLOBAL_KEY}" --content-type application/json <<< "${POINTER_PAYLOAD}"
-  aws s3 cp - "s3://${BUCKET}/${PROVIDER_KEY}" --content-type application/json <<< "${POINTER_PAYLOAD}"
+  GLOBAL_POINTER_PAYLOAD="$(jq -c \
+    --arg run_id "${PRIMARY_RUN_ID}" \
+    --arg run_path "${RUN_PATH}" \
+    --arg ended_at "${ENDED_AT}" \
+    --arg provider "${PROVIDER}" \
+    --arg profile "${PROFILE}" \
+    '
+      (if type == "object" then . else {} end)
+      | .schema_version = (.schema_version // 1)
+      | .providers = (.providers // [$provider])
+      | .profiles = (.profiles // [$profile])
+      | .provider_profiles = (.provider_profiles // {})
+      | .provider_profiles[($provider + ":" + $profile)] = $run_id
+      | .run_id = $run_id
+      | .run_path = $run_path
+      | .ended_at = (if $ended_at == "" then null else $ended_at end)
+    ' "${BEFORE_DIR}/global.json")"
+  PROVIDER_POINTER_PAYLOAD="$(jq -c \
+    --arg run_id "${PRIMARY_RUN_ID}" \
+    --arg run_path "${RUN_PATH}" \
+    --arg ended_at "${ENDED_AT}" \
+    --arg provider "${PROVIDER}" \
+    --arg profile "${PROFILE}" \
+    '
+      (if type == "object" then . else {} end)
+      | .schema_version = (.schema_version // 1)
+      | .providers = (.providers // [$provider])
+      | .profiles = (.profiles // [$profile])
+      | .provider_profiles = (.provider_profiles // {})
+      | .provider_profiles[($provider + ":" + $profile)] = $run_id
+      | .run_id = $run_id
+      | .run_path = $run_path
+      | .ended_at = (if $ended_at == "" then null else $ended_at end)
+    ' "${BEFORE_DIR}/provider.json")"
+  aws s3 cp - "s3://${BUCKET}/${GLOBAL_KEY}" --content-type application/json <<< "${GLOBAL_POINTER_PAYLOAD}"
+  aws s3 cp - "s3://${BUCKET}/${PROVIDER_KEY}" --content-type application/json <<< "${PROVIDER_POINTER_PAYLOAD}"
   note "pointers updated to primary_run_id=${PRIMARY_RUN_ID}"
 
   python3 - "${RECEIPT_DIR}" "${PRIMARY_RUN_ID}" "${GLOBAL_KEY}" "${PROVIDER_KEY}" <<PY
@@ -247,6 +292,7 @@ PY
   aws s3 cp "s3://${BUCKET}/${PROVIDER_KEY}" "${AFTER_DIR}/provider.json"
   AFTER_GLOBAL_RUN="$(jq -r '.run_id // ""' "${AFTER_DIR}/global.json")"
   AFTER_PROVIDER_RUN="$(jq -r '.run_id // ""' "${AFTER_DIR}/provider.json")"
+  export AFTER_GLOBAL_RUN AFTER_PROVIDER_RUN
 
   python3 - "${RECEIPT_DIR}" "${AFTER_GLOBAL_RUN}" "${AFTER_PROVIDER_RUN}" "${PRIMARY_RUN_ID}" <<PY
 import json
