@@ -1,46 +1,44 @@
 {
-    "events": [
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.491111 Running on CodeBuild On-demand\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.491124 Waiting for agent ping\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.692487 Waiting for DOWNLOAD_SOURCE\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.939797 Phase is DOWNLOAD_SOURCE\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.940773 CODEBUILD_SRC_DIR=/codebuild/output/src3739063902/src\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.940914 YAML location is /codebuild/readonly/buildspec.yml\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.946957 Phase complete: DOWNLOAD_SOURCE State: FAILED\n",
-            "ingestionTime": 1772162575281
-        },
-        {
-            "timestamp": 1772162575259,
-            "message": "[Container] 2026/02/27 03:22:54.946975 Phase context status code: YAML_FILE_ERROR Message: did not find expected key at line 15\n",
-            "ingestionTime": 1772162575281
-        }
-    ],
-    "nextForwardToken": "f/39520546041222808331420372436001104483602194183571177479/s",
-    "nextBackwardToken": "b/39520546041222808331420372436001104483602194183571177472/s"
+  "events": [
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.491111 Running on CodeBuild On-demand\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.491124 Waiting for agent ping\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.692487 Waiting for DOWNLOAD_SOURCE\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.939797 Phase is DOWNLOAD_SOURCE\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.940773 CODEBUILD_SRC_DIR=/codebuild/output/src3739063902/src\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.940914 YAML location is /codebuild/readonly/buildspec.yml\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.946957 Phase complete: DOWNLOAD_SOURCE State: FAILED\n",
+      "ingestionTime": 1772162575281
+    },
+    {
+      "timestamp": 1772162575259,
+      "message": "[Container] 2026/02/27 03:22:54.946975 Phase context status code: YAML_FILE_ERROR Message: did not find expected key at line 15\n",
+      "ingestionTime": 1772162575281
+    }
+  ]
 }
