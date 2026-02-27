@@ -43,3 +43,21 @@ Chronological log of least-privilege IAM unblocks on PR #236.
 - `docs/proof/m19b-iam-listattachedrolepolicies-fix-20260227T041537Z.md`
 - `docs/proof/m19b-iam-listinstanceprofilesforrole-fix-20260227T042825Z.md`
 - `docs/proof/m19b-iam-taginstanceprofile-fix-20260227T044403Z.md`
+
+## Entry 5
+- timestamp: `2026-02-27T04:50:44Z`
+- execution_arn: `arn:aws:states:us-east-1:048622080012:execution:signalcraft-dr-orchestrator-state-machine:m19b-success-true-20260227T045044Z`
+- failing_step: `Validate`
+- denied_action: `n/a (non-IAM)`
+- denied_resource: `n/a`
+- iam_change_made: `none`
+- result_next_blocker: `Step Functions/validate path progressed past bringup and failed on shell portability: set: Illegal option -o pipefail in AWS-RunShellScript validate command.`
+
+## Entry 6
+- timestamp: `2026-02-27T05:00:57Z`
+- execution_arn: `arn:aws:states:us-east-1:048622080012:execution:signalcraft-dr-orchestrator-state-machine:m19b-success-true-20260227T050057Z`
+- failing_step: `Validate`
+- denied_action: `n/a (non-IAM)`
+- denied_resource: `n/a`
+- iam_change_made: `none`
+- result_next_blocker: `pipefail blocker cleared; Validate now fails because namespace jobintel is missing (k3s kubectl get ns jobintel returned NotFound).`

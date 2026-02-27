@@ -1,0 +1,20 @@
+{
+  "payload": {
+    "error": "validate failed: status=Failed stderr_tail=Error from server (NotFound): namespaces \"jobintel\" not found\nfailed to run commands: exit status 1",
+    "input": {
+      "action": "validate",
+      "execution_id": "m19b-success-true-20260227T050057Z",
+      "expected_account_id": "048622080012",
+      "instance_id": "i-0313e98010ecef6e0",
+      "namespace": "jobintel",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "validate_timeout_seconds": 300
+    }
+  },
+  "phase": "validate",
+  "schema_version": 1,
+  "status": "error",
+  "timestamp_utc": "2026-02-27T05:04:38Z"
+}
