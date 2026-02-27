@@ -1,0 +1,175 @@
+{
+    "Reservations": [
+        {
+            "ReservationId": "r-0f4c02979d7bbbd27",
+            "OwnerId": "048622080012",
+            "Groups": [],
+            "Instances": [
+                {
+                    "Architecture": "arm64",
+                    "BlockDeviceMappings": [
+                        {
+                            "DeviceName": "/dev/sda1",
+                            "Ebs": {
+                                "AttachTime": "2026-02-27T04:45:27+00:00",
+                                "DeleteOnTermination": true,
+                                "Status": "attached",
+                                "VolumeId": "vol-03ebf5ca74314d5c6",
+                                "EbsCardIndex": 0
+                            }
+                        }
+                    ],
+                    "ClientToken": "terraform-20260227044523860900000001",
+                    "EbsOptimized": false,
+                    "EnaSupport": true,
+                    "Hypervisor": "xen",
+                    "IamInstanceProfile": {
+                        "Arn": "arn:aws:iam::048622080012:instance-profile/jobintel-dr-runner-instance-profile",
+                        "Id": "AIPAQWUQ2CAGIWQHXNSLU"
+                    },
+                    "NetworkInterfaces": [
+                        {
+                            "Association": {
+                                "IpOwnerId": "amazon",
+                                "PublicDnsName": "ec2-3-88-91-148.compute-1.amazonaws.com",
+                                "PublicIp": "3.88.91.148"
+                            },
+                            "Attachment": {
+                                "AttachTime": "2026-02-27T04:45:26+00:00",
+                                "AttachmentId": "eni-attach-05da2813e92c080b1",
+                                "DeleteOnTermination": true,
+                                "DeviceIndex": 0,
+                                "Status": "attached",
+                                "NetworkCardIndex": 0
+                            },
+                            "Description": "",
+                            "Groups": [
+                                {
+                                    "GroupId": "sg-0bf417d856b521efa",
+                                    "GroupName": "jobintel-dr-sg"
+                                }
+                            ],
+                            "Ipv6Addresses": [],
+                            "MacAddress": "0a:ff:c7:d7:15:91",
+                            "NetworkInterfaceId": "eni-0b8885112aad0c997",
+                            "OwnerId": "048622080012",
+                            "PrivateDnsName": "ip-172-31-29-47.ec2.internal",
+                            "PrivateIpAddress": "172.31.29.47",
+                            "PrivateIpAddresses": [
+                                {
+                                    "Association": {
+                                        "IpOwnerId": "amazon",
+                                        "PublicDnsName": "ec2-3-88-91-148.compute-1.amazonaws.com",
+                                        "PublicIp": "3.88.91.148"
+                                    },
+                                    "Primary": true,
+                                    "PrivateDnsName": "ip-172-31-29-47.ec2.internal",
+                                    "PrivateIpAddress": "172.31.29.47"
+                                }
+                            ],
+                            "SourceDestCheck": true,
+                            "Status": "in-use",
+                            "SubnetId": "subnet-11001d5c",
+                            "VpcId": "vpc-4362fc3e",
+                            "InterfaceType": "interface",
+                            "Operator": {
+                                "Managed": false
+                            }
+                        }
+                    ],
+                    "RootDeviceName": "/dev/sda1",
+                    "RootDeviceType": "ebs",
+                    "SecurityGroups": [
+                        {
+                            "GroupId": "sg-0bf417d856b521efa",
+                            "GroupName": "jobintel-dr-sg"
+                        }
+                    ],
+                    "SourceDestCheck": true,
+                    "Tags": [
+                        {
+                            "Key": "Name",
+                            "Value": "jobintel-dr-runner"
+                        },
+                        {
+                            "Key": "ManagedBy",
+                            "Value": "terraform"
+                        },
+                        {
+                            "Key": "Purpose",
+                            "Value": "jobintel-dr"
+                        }
+                    ],
+                    "VirtualizationType": "hvm",
+                    "CpuOptions": {
+                        "CoreCount": 2,
+                        "ThreadsPerCore": 1
+                    },
+                    "CapacityReservationSpecification": {
+                        "CapacityReservationPreference": "open"
+                    },
+                    "HibernationOptions": {
+                        "Configured": false
+                    },
+                    "MetadataOptions": {
+                        "State": "applied",
+                        "HttpTokens": "required",
+                        "HttpPutResponseHopLimit": 2,
+                        "HttpEndpoint": "enabled",
+                        "HttpProtocolIpv6": "disabled",
+                        "InstanceMetadataTags": "disabled"
+                    },
+                    "EnclaveOptions": {
+                        "Enabled": false
+                    },
+                    "BootMode": "uefi",
+                    "PlatformDetails": "Linux/UNIX",
+                    "UsageOperation": "RunInstances",
+                    "UsageOperationUpdateTime": "2026-02-27T04:45:26+00:00",
+                    "PrivateDnsNameOptions": {
+                        "HostnameType": "ip-name",
+                        "EnableResourceNameDnsARecord": false,
+                        "EnableResourceNameDnsAAAARecord": false
+                    },
+                    "MaintenanceOptions": {
+                        "AutoRecovery": "default",
+                        "RebootMigration": "default"
+                    },
+                    "CurrentInstanceBootMode": "uefi",
+                    "NetworkPerformanceOptions": {
+                        "BandwidthWeighting": "default"
+                    },
+                    "Operator": {
+                        "Managed": false
+                    },
+                    "InstanceId": "i-0313e98010ecef6e0",
+                    "ImageId": "ami-0f1b9964277dbd54e",
+                    "State": {
+                        "Code": 16,
+                        "Name": "running"
+                    },
+                    "PrivateDnsName": "ip-172-31-29-47.ec2.internal",
+                    "PublicDnsName": "ec2-3-88-91-148.compute-1.amazonaws.com",
+                    "StateTransitionReason": "",
+                    "AmiLaunchIndex": 0,
+                    "ProductCodes": [],
+                    "InstanceType": "t4g.small",
+                    "LaunchTime": "2026-02-27T04:45:26+00:00",
+                    "Placement": {
+                        "AvailabilityZoneId": "use1-az4",
+                        "GroupName": "",
+                        "Tenancy": "default",
+                        "AvailabilityZone": "us-east-1b"
+                    },
+                    "Monitoring": {
+                        "State": "disabled"
+                    },
+                    "SubnetId": "subnet-11001d5c",
+                    "VpcId": "vpc-4362fc3e",
+                    "PrivateIpAddress": "172.31.29.47",
+                    "PublicIpAddress": "3.88.91.148"
+                }
+            ]
+        }
+    ]
+}
