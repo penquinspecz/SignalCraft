@@ -352,9 +352,9 @@ Receipts Required
 ## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ◐
 
 Goal: DR detection and Kubernetes DR validation run unattended in AWS, with human-controlled promotion.
-Status: ◐ Orchestrator flow is landed; failure-path rehearsal is captured; full success-path remains unproven. Latest `force_run=true` rehearsal reached CodeBuild bringup and failed in `DOWNLOAD_SOURCE` with `YAML_FILE_ERROR` (`did not find expected key at line 15`) before `restore/validate/manual-approval`.
-Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`. Failure-path rehearsal: `docs/proof/m19b-orchestrator-failure-20260222T214946Z.md` (SUCCESS — proves failure handling). Earlier success-path attempt (quota blocker): `docs/proof/m19b-orchestrator-success-true-20260222T221006Z.md`. Latest success-path attempt (post-quota): `docs/proof/m19b-orchestrator-success-true-20260227T032245Z.md` (bringup failed with CodeBuild buildspec YAML parse error).
-Blocker: Bringup CodeBuild buildspec fails to parse (`YAML_FILE_ERROR` at line 15) in live orchestration run. To close 19B: fix buildspec parsing in orchestrator deployment, rerun full success-path rehearsal, and capture complete phase receipts.
+Status: ✅ Failure-path and success-path rehearsals are proven and receipted in-repo; success-path reaches `RequestManualApproval` (manual gate) with promote intentionally not executed in this rehearsal.
+Evidence: `ops/dr/orchestrator/main.tf`, `ops/dr/orchestrator/lambda/dr_orchestrator.py`, `docs/dr_orchestrator.md`, `ops/dr/orchestrator/README.md`, `scripts/ops/dr_drill.sh`, `Makefile`. Failure-path rehearsal: `docs/proof/m19b-orchestrator-failure-20260222T214946Z.md`. Success-path manual-gate proof: `docs/proof/m19b-successpath-reaches-manual-approval-20260227T050707Z.md`. Iterative unblock log: `docs/proof/m19b-successpath-iam-unblock-log-2026-02-27.md`.
+Blocker: none for M19B DoD closure; promotion remains manual/operator-gated by design.
 
 Definition of Done
 - [x] Batch-first health signals emitted: pipeline freshness and publish correctness
@@ -368,7 +368,7 @@ Definition of Done
 - [x] Control Plane Bundle continuity implemented (`publish_bundle.sh`, `fetch_bundle.sh`, `apply_bundle_k8s.sh`)
 - [x] DR restore applies same control-plane bundle as primary before validation
 - [x] Restore receipts include `bundle_uri`, `bundle_sha256`, and applied config counts
-- [ ] At least one full success-path rehearsal receipt bundle captured
+- [x] At least one full success-path rehearsal receipt bundle captured
 - [x] At least one failure-path rehearsal receipt bundle captured
 
 Receipts Required

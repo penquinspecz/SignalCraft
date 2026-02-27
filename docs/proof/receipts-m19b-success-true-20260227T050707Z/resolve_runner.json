@@ -1,0 +1,27 @@
+{
+  "payload": {
+    "input": {
+      "action": "resolve_runner",
+      "dr_runner_name": "jobintel-dr-runner",
+      "execution_id": "m19b-success-true-20260227T050707Z",
+      "expected_account_id": "048622080012",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1"
+    },
+    "result": {
+      "account_id": "048622080012",
+      "instance_id": "i-0313e98010ecef6e0",
+      "instance_state": "running",
+      "key_name": "",
+      "private_ip": "172.31.29.47",
+      "public_ip": "3.88.91.148",
+      "region": "us-east-1",
+      "security_group_id": "sg-0bf417d856b521efa"
+    }
+  },
+  "phase": "resolve_runner",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T05:08:40Z"
+}

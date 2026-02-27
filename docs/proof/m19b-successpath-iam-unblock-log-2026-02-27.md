@@ -61,3 +61,12 @@ Chronological log of least-privilege IAM unblocks on PR #236.
 - denied_resource: `n/a`
 - iam_change_made: `none`
 - result_next_blocker: `pipefail blocker cleared; Validate now fails because namespace jobintel is missing (k3s kubectl get ns jobintel returned NotFound).`
+
+## Entry 7
+- timestamp: `2026-02-27T05:07:07Z`
+- execution_arn: `arn:aws:states:us-east-1:048622080012:execution:signalcraft-dr-orchestrator-state-machine:m19b-success-true-20260227T050707Z`
+- failing_step: `n/a (no failure before manual gate)`
+- denied_action: `n/a`
+- denied_resource: `n/a`
+- iam_change_made: `none`
+- result_next_blocker: `Success-path reached RequestManualApproval (waitForTaskToken). Stop condition met; manual promote/record decision intentionally not executed in this rehearsal proof.`
