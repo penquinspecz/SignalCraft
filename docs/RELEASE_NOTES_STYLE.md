@@ -4,21 +4,23 @@ Defines how milestone (m*) and product (v*) releases should be written.
 
 ## Milestone Release (m*)
 
-- **Structured, proof-first.** No long narrative.
-- **Short rationale:** "Why this release exists" (1–3 bullets).
-- **Always include:** main SHA, IMAGE_REF (digest-pinned), architectures, PR list, receipt paths.
+- **Structured, proof-first, self-contained.** No external-doc dependency to understand status.
+- **Required headings:** Milestone Context, What was exercised, Execution Evidence, Images (Digest-pinned), Guardrails/Determinism checks, Outcome + Next steps, Proof References.
+- **Always include:** digest-pinned IMAGE_REF (unless explicit dev override), execution evidence, and receipt paths.
 - Use `scripts/release/render_release_notes.py --release-kind milestone` (default).
 
 ## Product Release (v*)
 
-- **Narrative + highlights + migration notes.**
-- **Sections:** Highlights, Breaking changes, Upgrade notes, Known issues.
-- **CHANGELOG-driven.** Optional IMAGE_REF.
+- **Readable first, auditable second.**
+- **Required headings (minor/patch):** Highlights, What's Proven (Operator Reality Check), Images (Digest-pinned), Upgrade / Operational Notes, Changes (categorized), Breaking Changes, Known Issues, Proof References, Integrity.
+- **Major adds required headings:** Why this release exists, Migration / Upgrade Guide, Compatibility Matrix, Deprecations Timeline.
+- **Digest-pinned IMAGE_REF required for non-dev releases.**
 - Use `scripts/release/render_release_notes.py --release-kind product`.
 
 ## Common
 
 - Both kinds: deterministic output given inputs.
+- Validator (`scripts/release/validate_release_body.py`) blocks non-compliant bodies before publish.
 - Receipt paths anchor proof.
 
-See also: `docs/RELEASE_TEMPLATE.md`, `docs/VERSIONING.md`.
+See also: `docs/RELEASE_TEMPLATE_PRODUCT.md`, `docs/RELEASE_TEMPLATE_MILESTONE.md`, `docs/VERSIONING.md`.

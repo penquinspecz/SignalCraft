@@ -1,34 +1,14 @@
-# Release Template (SignalCraft)
+# Release Templates (SignalCraft)
 
-> Use this template for GitHub Releases. Replace placeholders.
-> See `docs/RELEASE_NOTES_STYLE.md` for milestone vs product style. Use `scripts/release/render_release_notes.py` for deterministic output.
+Canonical release templates:
 
-[from-composer]
+- Product (`vX.Y.Z`): `docs/RELEASE_TEMPLATE_PRODUCT.md`
+- Milestone (`mNN-YYYYMMDDTHHMMSSZ`): `docs/RELEASE_TEMPLATE_MILESTONE.md`
 
-## Context
-This release advances <Milestone or Version>.
+Renderer:
 
-## main HEAD
-- SHA: `<sha>`
+- `scripts/release/render_release_notes.py`
 
-## IMAGE_REF (digest pinned)
-`<account>.dkr.ecr.<region>.amazonaws.com/<repo>@sha256:<digest>`
+Validator:
 
-Architectures verified: `<amd64, arm64>`
-
-## PRs included
-- #<id> ...
-- #<id> ...
-
-## Operational Impact
-- <bullet>
-- <bullet>
-- <bullet>
-
-## Proof / Receipts
-- Build/Push receipts: `<path>`
-- Arch verify receipts: `<path>`
-- DR proof receipts: `<path>` (if applicable)
-
-## Notes
-- <optional>
+- `scripts/release/validate_release_body.py`

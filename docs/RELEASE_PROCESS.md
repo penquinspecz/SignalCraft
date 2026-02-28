@@ -2,7 +2,7 @@
 
 This is the canonical release discipline for SignalCraft.
 
-See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE.md` (release body template), `docs/BRANCHING.md` (branch lifecycle).
+See also: `docs/VERSIONING.md` (dual-track versioning), `docs/RELEASE_TEMPLATE_PRODUCT.md`, `docs/RELEASE_TEMPLATE_MILESTONE.md`, `docs/BRANCHING.md` (branch lifecycle).
 
 ---
 
@@ -23,7 +23,7 @@ Cut a product release when:
 | Tags | `v0.2.0`, `v0.2.1` | `m19-20260222T201429Z` |
 | Purpose | User-facing capability; contract stability | Operational proof; DR drills; infra audit |
 | Frequency | At milestone boundaries | As needed to anchor proof |
-| Body | CHANGELOG-driven; optional IMAGE_REF | IMAGE_REF, digest, archs, PRs, receipts required |
+| Body | Self-contained release body (digest-pinned image + proof + integrity footer) | Self-contained operational evidence body (execution + receipts + digest image) |
 
 ---
 
@@ -115,8 +115,26 @@ If none of the above triggers, changelog update is not required.
 3. Update `CHANGELOG.md` and ensure release-intent policy passes.
 4. Bump version source of truth (`pyproject.toml`) if applicable.
 5. Merge release prep PR to `main`.
-6. Create annotated tag and push.
-7. Publish release notes from the tag.
+6. Run `release-ecr` on the release commit/tag to produce digest + proof metadata.
+7. Render self-contained release body with `scripts/release/render_release_notes.py`.
+8. Validate release body with `scripts/release/validate_release_body.py`.
+   - Validator blocks publish when required headings/evidence/digest policy are missing.
+9. Create annotated tag and push.
+10. Publish GitHub release using the validated body.
+
+### Major-release extra requirement
+
+For product MAJOR releases (`vX.0.0` with `X>=1`), release notes must include:
+- `Why this release exists`
+- `Migration / Upgrade Guide`
+- `Compatibility Matrix`
+- `Deprecations Timeline`
+
+Renderer supports these via:
+- `--why`
+- `--migration`
+- `--compatibility`
+- `--deprecations`
 
 ## Reproducible Build Verification (Clean Room)
 
@@ -169,7 +187,7 @@ For milestone releases, download the `release-metadata-<tag>` artifact from the 
 
 ## Release Notes Renderer
 
-Use `scripts/release/render_release_notes.py` for deterministic release bodies. See `docs/RELEASE_NOTES_STYLE.md`.
+Use `scripts/release/render_release_notes.py` for deterministic self-contained release bodies.
 
 **Milestone (m*):**
 ```bash
@@ -177,9 +195,14 @@ python scripts/release/render_release_notes.py --release-kind milestone \
   --tag m19-20260222T201429Z \
   --image-ref 123456789.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:abc123... \
   --arch amd64 --arch arm64 \
-  --prs 213,214,215,216 \
-  --receipts docs/proof/m19-dr-rehearsal-20260221.md \
-  --why "DR cost discipline guardrails" --why "S3 versioning proof" \
+  --milestone-context "DR drill bounded and deterministic" \
+  --exercised "success path to manual gate" \
+  --execution-arn arn:aws:states:... \
+  --terminal-state RequestManualApproval \
+  --terminal-status ABORTED \
+  --receipts-root docs/proof/receipts-m19-.../ \
+  --guardrail-check "./scripts/audit_determinism.sh: PASS" \
+  --receipts docs/proof/m19b-successpath-reaches-manual-approval-....md \
   --out /tmp/m19-notes.md
 ```
 
@@ -188,9 +211,26 @@ python scripts/release/render_release_notes.py --release-kind milestone \
 python scripts/release/render_release_notes.py --release-kind product \
   --tag v0.2.0 \
   --image-ref 123456789.dkr.ecr.us-east-1.amazonaws.com/jobintel@sha256:abc123... \
-  --prs 217,218,219 \
-  --highlights "Deterministic entrypoint" --highlights "Snapshot immutability" \
+  --semver-level minor \
+  --highlights "Deterministic entrypoint" \
+  --proven "M19B success-path reached manual gate" \
+  --change-fixed "IAM least-privilege unblocks" \
+  --ci-workflow release-ecr \
+  --ci-run-id 123456789 \
+  --ci-run-url https://github.com/org/repo/actions/runs/123456789 \
+  --receipts docs/proof/v0.2.0-release-....md \
   --out /tmp/v020-notes.md
+```
+
+Validate before publish:
+
+```bash
+python3 scripts/release/validate_release_body.py \
+  --release-kind product \
+  --semver-level minor \
+  --tag v0.2.0 \
+  --body-file /tmp/v020-notes.md \
+  --require-ci-evidence
 ```
 
 ## Determinism Notes

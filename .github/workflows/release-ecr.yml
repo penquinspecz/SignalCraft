@@ -7,6 +7,34 @@ on:
         description: "Image tag (defaults to commit SHA)"
         required: false
         default: ""
+      publish_release:
+        description: "Publish a GitHub release from this run"
+        required: false
+        default: "false"
+      release_tag:
+        description: "Release tag to publish (defaults to image_tag/commit SHA)"
+        required: false
+        default: ""
+      release_kind:
+        description: "Release kind for body validation (product|milestone)"
+        required: false
+        default: ""
+      semver_level:
+        description: "SemVer level for product releases (auto|major|minor|patch)"
+        required: false
+        default: "auto"
+      release_title:
+        description: "Release title (defaults to SignalCraft <tag>)"
+        required: false
+        default: ""
+      release_body:
+        description: "Release body markdown (validated before publish)"
+        required: false
+        default: ""
+      dev_mode:
+        description: "Allow non-digest IMAGE_REF for explicit dev-only releases (true|false)"
+        required: false
+        default: "false"
   push:
     branches: [main]
 
@@ -14,7 +42,7 @@ jobs:
   build-and-gate:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     env:
       AWS_REGION: us-east-1
@@ -124,6 +152,65 @@ jobs:
           PY
           )"
           CHECK_IMAGE_ONLY=1 CHECK_ARCH=arm64 IMAGE_REF="$image_ref" scripts/ops/dr_validate.sh
+
+      - name: Validate release body (pre-publish)
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true' }}
+        env:
+          RELEASE_KIND_INPUT: ${{ github.event.inputs.release_kind }}
+          SEMVER_LEVEL_INPUT: ${{ github.event.inputs.semver_level }}
+          RELEASE_TAG_INPUT: ${{ github.event.inputs.release_tag }}
+          RELEASE_BODY_INPUT: ${{ github.event.inputs.release_body }}
+          DEV_MODE_INPUT: ${{ github.event.inputs.dev_mode }}
+        run: |
+          set -euo pipefail
+          release_tag="$RELEASE_TAG_INPUT"
+          if [ -z "$release_tag" ]; then
+            release_tag="$IMAGE_TAG"
+          fi
+          release_kind="$RELEASE_KIND_INPUT"
+          if [ -z "$release_kind" ]; then
+            if [[ "$release_tag" == v* ]]; then
+              release_kind="product"
+            elif [[ "$release_tag" == m* ]]; then
+              release_kind="milestone"
+            else
+              echo "release_kind is required when release_tag does not start with 'v' or 'm'" >&2
+              exit 1
+            fi
+          fi
+
+          if [ -z "$RELEASE_BODY_INPUT" ]; then
+            echo "release_body is required when publish_release=true" >&2
+            exit 1
+          fi
+
+          printf "%s\n" "$RELEASE_BODY_INPUT" > /tmp/release-body.md
+          validate_args=( \
+            --release-kind "$release_kind" \
+            --semver-level "$SEMVER_LEVEL_INPUT" \
+            --tag "$release_tag" \
+            --body-file /tmp/release-body.md \
+            --require-ci-evidence \
+          )
+          if [[ "$DEV_MODE_INPUT" == "true" ]]; then
+            validate_args+=( --dev-mode )
+          fi
+          python3 scripts/release/validate_release_body.py "${validate_args[@]}"
+          echo "RELEASE_TAG=$release_tag" >> "$GITHUB_ENV"
+
+      - name: Publish GitHub release
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE_INPUT: ${{ github.event.inputs.release_title }}
+          RELEASE_BODY_INPUT: ${{ github.event.inputs.release_body }}
+        run: |
+          set -euo pipefail
+          release_title="$RELEASE_TITLE_INPUT"
+          if [ -z "$release_title" ]; then
+            release_title="SignalCraft ${RELEASE_TAG}"
+          fi
+          gh release create "$RELEASE_TAG" --title "$release_title" --notes "$RELEASE_BODY_INPUT"
 
       - name: Upload release metadata
         uses: actions/upload-artifact@v4
