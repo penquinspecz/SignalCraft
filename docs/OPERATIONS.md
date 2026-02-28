@@ -630,6 +630,18 @@ aws logs filter-log-events --region "$region" --log-group-name "$group" --filter
 aws logs get-log-events --region "$region" --log-group-name "$group" --log-stream-name "$stream"
 ```
 
+For committed proof exports, use the sanitized capture helper instead of writing
+raw `get-log-events` JSON directly:
+
+```bash
+scripts/ops/export_codebuild_cloudwatch_log_events.sh \
+  --log-group-name "$group" \
+  --log-stream-name "$stream" \
+  --output docs/proof/cloudwatch-log-events-<timestamp>.json \
+  --region "$region" \
+  --expected-account-id 048622080012
+```
+
 ## Replayability and verification
 
 Replay a prior run (strict verification):

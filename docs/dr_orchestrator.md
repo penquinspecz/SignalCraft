@@ -111,6 +111,21 @@ CodeBuild bringup/teardown also writes:
 
 `s3://<receipt_bucket>/<receipt_prefix>/<execution_id>/codebuild-<action>.json`
 
+CloudWatch export for proof artifacts (token-safe):
+
+```bash
+scripts/ops/export_codebuild_cloudwatch_log_events.sh \
+  --log-group-name /aws/codebuild/signalcraft-dr-orchestrator-dr-infra \
+  --log-stream-name <codebuild-log-stream> \
+  --output docs/proof/m19b-codebuild-cloudwatch-log-events-<timestamp>.json \
+  --region us-east-1 \
+  --expected-account-id 048622080012
+```
+
+`export_codebuild_cloudwatch_log_events.sh` preserves JSON shape and redacts
+CloudWatch pagination token values (`nextForwardToken`, `nextBackwardToken`,
+and other `next*Token` keys) so proof exports do not trip secret scanning.
+
 ## Manual Approval Operations
 
 ### Check orchestrator status
