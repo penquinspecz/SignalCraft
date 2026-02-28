@@ -73,7 +73,7 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-28 on commit `18f297fda068a177231bae21b0b51987c5b6da50` (mainline verification checks + merge-train CI were confirmed green on this SHA.)
+Last verified: 2026-02-28 on commit `854d53c63abc94fc122cbd8a0e1af0ccb5a195f2` (mainline checks `ci`, `Lint`, `secret-scan`, `release-ecr`, and `Docker Smoke` were confirmed green on this SHA.)
 Latest product release: v0.2.0
 Relevant milestone releases: m19-20260222T201429Z, m19-20260222T181245Z
 
@@ -103,6 +103,8 @@ Foundation exists:
 - Dashboard plumbing is now API-boring: `/version`, artifact index endpoint, bounded artifact serving, and smoke receipts are landed. Verified by `docs/proof/m17-api-boring-pack-2026-02-15.md`, `docs/proof/m17-artifact-index-endpoint-2026-02-14.md`, `docs/proof/m17-api-boring-pack-smoke-negative-2026-02-15.md`, `docs/proof/p1-artifact-download-size-cap-2026-02-17.md`, `docs/DASHBOARD_API.md`.
 - PR governance enforcement: labels (provenance, type, area), milestone required, provenance label-only (no `[from-composer]` in titles). Verified by `docs/LABELS.md`, `docs/proof/provenance-always-enforced-20260222T211953Z.md`, `.github/workflows/pr-governance.yml`.
 - Release governance now enforces canonical, self-contained release body structure with tier-aware product validation (major vs minor/patch) before publish. Verified by `scripts/release/render_release_notes.py`, `scripts/release/validate_release_body.py`, `.github/workflows/release-ecr.yml`, `docs/RELEASE_TEMPLATE_PRODUCT.md`, `docs/RELEASE_TEMPLATE_MILESTONE.md`, `docs/proof/release-body-policy-20260228T031653Z.md`, `docs/proof/release-workflow-tier-enforcement-20260228T032512Z.md`, `docs/proof/release-body-normalization-20260228T032035Z.md`.
+- PR area-label policy now prevents `area:docs` fallback on mixed-domain work and uses `area:unknown` only as explicit fallback. Verified by `.github/labeler.yml`, `.github/workflows/labeler.yml`, `.github/workflows/pr-governance.yml`, `docs/LABELS.md`, `docs/proof/area-label-policy-fix-20260228T042830Z.md`, `docs/proof/pr-area-label-retrofix-20260228T045022Z.md`.
+- CloudWatch proof export path now redacts pagination tokens (`next*Token`) before writing committed JSON artifacts, with deterministic idempotence checks. Verified by `scripts/ops/export_codebuild_cloudwatch_log_events.sh`, `scripts/ops/redact_cloudwatch_tokens.py`, `scripts/ops/test_redact_cloudwatch_tokens.sh`, `docs/proof/cloudwatch-redaction-fix-20260228T041657Z.md`.
 - M19 DR proof discipline: cost guardrails (validate-only default), branch auto-delete, cleanup rollup receipts. Verified by `docs/proof/20260222T211723Z-cleanup-rollup.md`, `scripts/ops/dr_drill.sh`, `scripts/ops/dr_validate.sh`.
 
 ---
