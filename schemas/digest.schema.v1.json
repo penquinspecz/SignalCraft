@@ -1,0 +1,378 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "digest schema v1",
+  "type": "object",
+  "required": [
+    "digest_schema_version",
+    "run_id",
+    "candidate_id",
+    "generated_at_utc",
+    "quiet_mode",
+    "notify",
+    "source_artifacts",
+    "current_run",
+    "cadence"
+  ],
+  "properties": {
+    "digest_schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "quiet_mode": {
+      "type": "boolean"
+    },
+    "notify": {
+      "type": "object",
+      "required": [
+        "requested",
+        "attempted",
+        "status"
+      ],
+      "properties": {
+        "requested": {
+          "type": "boolean"
+        },
+        "attempted": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_artifacts": {
+      "type": "object",
+      "required": [
+        "run_health",
+        "provider_availability",
+        "explanation",
+        "costs"
+      ],
+      "properties": {
+        "run_health": {
+          "$ref": "#/$defs/file_pointer"
+        },
+        "provider_availability": {
+          "$ref": "#/$defs/file_pointer"
+        },
+        "explanation": {
+          "$ref": "#/$defs/file_pointer"
+        },
+        "costs": {
+          "$ref": "#/$defs/file_pointer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "current_run": {
+      "type": "object",
+      "required": [
+        "run_health",
+        "provider_availability",
+        "costs",
+        "top_jobs"
+      ],
+      "properties": {
+        "run_health": {
+          "type": "object",
+          "required": [
+            "status",
+            "failed_stage",
+            "failure_codes"
+          ],
+          "properties": {
+            "status": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "failed_stage": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "failure_codes": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "provider_availability": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/provider_entry"
+          }
+        },
+        "costs": {
+          "$ref": "#/$defs/cost_totals"
+        },
+        "top_jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/top_job"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "cadence": {
+      "type": "object",
+      "required": [
+        "daily",
+        "weekly"
+      ],
+      "properties": {
+        "daily": {
+          "$ref": "#/$defs/cadence_window"
+        },
+        "weekly": {
+          "$ref": "#/$defs/cadence_window"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "file_pointer": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "signal": {
+      "type": "object",
+      "required": [
+        "name",
+        "contribution"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "contribution": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "top_job": {
+      "type": "object",
+      "required": [
+        "job_hash",
+        "rank",
+        "score_total",
+        "title",
+        "company",
+        "location",
+        "apply_url",
+        "provider",
+        "profile",
+        "notes",
+        "top_positive_signals",
+        "top_negative_signals"
+      ],
+      "properties": {
+        "job_hash": {
+          "type": "string"
+        },
+        "rank": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "score_total": {
+          "type": "number"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "company": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "apply_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "top_positive_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signal"
+          }
+        },
+        "top_negative_signals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/signal"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "provider_entry": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "availability",
+        "reason_code",
+        "attempts_made"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string"
+        },
+        "availability": {
+          "type": "string"
+        },
+        "reason_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempts_made": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "cost_totals": {
+      "type": "object",
+      "required": [
+        "ai_estimated_tokens",
+        "ai_estimated_cost_usd",
+        "embeddings_count"
+      ],
+      "properties": {
+        "ai_estimated_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ai_estimated_cost_usd": {
+          "type": "string"
+        },
+        "embeddings_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "cadence_window": {
+      "type": "object",
+      "required": [
+        "window_days",
+        "window_start_utc",
+        "window_end_utc",
+        "run_count",
+        "run_ids",
+        "status_counts",
+        "cost_totals"
+      ],
+      "properties": {
+        "window_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window_start_utc": {
+          "type": "string"
+        },
+        "window_end_utc": {
+          "type": "string"
+        },
+        "run_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "run_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status_counts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "cost_totals": {
+          "$ref": "#/$defs/cost_totals"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
