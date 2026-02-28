@@ -18,3 +18,73 @@ jobs:
       - uses: actions/labeler@v6
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Enforce area fallback policy
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            async function listLabels() {
+              const { data } = await github.rest.issues.listLabelsOnIssue({
+                owner,
+                repo,
+                issue_number,
+                per_page: 100,
+              });
+              return data.map((label) => label.name);
+            }
+
+            async function removeLabel(name) {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number,
+                  name,
+                });
+              } catch (error) {
+                if (error.status !== 404) {
+                  throw error;
+                }
+              }
+            }
+
+            let labels = await listLabels();
+            let areaLabels = labels.filter((label) => label.startsWith("area:"));
+            const nonDocsAreaLabels = areaLabels.filter(
+              (label) => label !== "area:docs" && label !== "area:unknown"
+            );
+
+            if (areaLabels.includes("area:docs") && nonDocsAreaLabels.length > 0) {
+              await removeLabel("area:docs");
+              core.info("Removed area:docs because a non-docs area label exists.");
+              labels = await listLabels();
+              areaLabels = labels.filter((label) => label.startsWith("area:"));
+            }
+
+            if (areaLabels.length === 0) {
+              try {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number,
+                  labels: ["area:unknown"],
+                });
+                core.info("No area label inferred; applied fallback area:unknown.");
+                labels = await listLabels();
+                areaLabels = labels.filter((label) => label.startsWith("area:"));
+              } catch (error) {
+                core.setFailed(
+                  "No area:* label inferred and fallback label area:unknown could not be applied. " +
+                  "Create label area:unknown in repository settings or add a specific area:* label to the PR."
+                );
+                return;
+              }
+            }
+
+            if (areaLabels.includes("area:unknown") && areaLabels.length > 1) {
+              await removeLabel("area:unknown");
+              core.info("Removed area:unknown because a specific area label exists.");
+            }

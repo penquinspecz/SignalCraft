@@ -18,8 +18,10 @@ Ensure branch is deletable; do not use permanent branch names. Head branches are
 - [ ] dr
 - [ ] release
 - [ ] infra
-- [ ] docs
-- [ ] other
+- [ ] docs (docs-only PRs)
+- [ ] unknown (fallback only when no specific area applies)
+
+`area:docs` is not a default label. Use it only for docs-only changes.
 
 ## Milestone
 
