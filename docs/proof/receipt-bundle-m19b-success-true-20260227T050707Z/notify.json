@@ -1,0 +1,46 @@
+{
+  "payload": {
+    "input": {
+      "action": "notify",
+      "execution_id": "m19b-success-true-20260227T050707Z",
+      "expected_account_id": "048622080012",
+      "notification_topic_arn": "arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "status": "dr_validation_completed",
+      "summary": {
+        "backup_uri": "s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z",
+        "instance_id": "i-0313e98010ecef6e0",
+        "needs_dr": true,
+        "public_ip": "3.88.91.148",
+        "reasons": [],
+        "validate": "Success"
+      }
+    },
+    "result": {
+      "account_id": "048622080012",
+      "message": {
+        "details": {
+          "backup_uri": "s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z",
+          "instance_id": "i-0313e98010ecef6e0",
+          "needs_dr": true,
+          "public_ip": "3.88.91.148",
+          "reasons": [],
+          "validate": "Success"
+        },
+        "execution_id": "m19b-success-true-20260227T050707Z",
+        "kind": "dr_orchestrator_status",
+        "status": "dr_validation_completed",
+        "timestamp_utc": "2026-02-27T05:08:51Z"
+      },
+      "message_id": "d0592f8a-b75e-5933-b521-4d919e7dab93",
+      "published": true,
+      "region": "us-east-1"
+    }
+  },
+  "phase": "notify",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T05:08:51Z"
+}

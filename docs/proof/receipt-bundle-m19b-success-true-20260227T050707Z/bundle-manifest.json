@@ -1,0 +1,52 @@
+{
+  "files": [
+    {
+      "path": "alarm-transition-evidence.json",
+      "sha256": "d159f1dc73292209e3ce60ecc74085d7fe495747f56ea391130b8a8ed1033d6b",
+      "size_bytes": 4015
+    },
+    {
+      "path": "bringup.json",
+      "sha256": "3ea036e2f919978cbf14f633041b1cccbf44d654610617187bd705e403da2f75",
+      "size_bytes": 1143
+    },
+    {
+      "path": "check_health.json",
+      "sha256": "09fc8b03af45aae73c6b9f362adc420832b9e743f398499e5f89f8538ce70678",
+      "size_bytes": 1250
+    },
+    {
+      "path": "notify.json",
+      "sha256": "e6b8248d1a80ec124ba9f1a88258522d14e6ab6c63cff0661c91c2ca3af6c507",
+      "size_bytes": 1516
+    },
+    {
+      "path": "request_manual_approval.json",
+      "sha256": "b04d5ec05efcb90c5072905494f026c1e47f848ce588f621ab44075b90abcc45",
+      "size_bytes": 1702
+    },
+    {
+      "path": "restore.json",
+      "sha256": "8389e5cf1da3a28269cea149c0b8d684a300019c4a03916d14c081e8e193a7c9",
+      "size_bytes": 1372
+    },
+    {
+      "path": "validate.json",
+      "sha256": "152090ff377a1029bbda4f2251647df0827c4f5a0df4a2f4c6e8d588bff2f7ed",
+      "size_bytes": 1104
+    }
+  ],
+  "optional_receipts": [
+    "record_manual_decision"
+  ],
+  "required_receipts": [
+    "check_health",
+    "bringup",
+    "restore",
+    "validate",
+    "notify",
+    "request_manual_approval"
+  ],
+  "schema_version": 1,
+  "source_receipts_dir": "docs/proof/receipts-m19b-success-true-20260227T050707Z"
+}

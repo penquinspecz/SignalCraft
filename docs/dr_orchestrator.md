@@ -126,6 +126,39 @@ scripts/ops/export_codebuild_cloudwatch_log_events.sh \
 CloudWatch pagination token values (`nextForwardToken`, `nextBackwardToken`,
 and other `next*Token` keys) so proof exports do not trip secret scanning.
 
+Canonical receipt-bundle normalization + completeness check:
+
+```bash
+aws cloudwatch describe-alarm-history \
+  --alarm-name signalcraft-dr-orchestrator-pipeline-freshness \
+  --history-item-type StateUpdate \
+  --max-records 50 \
+  --region us-east-1 \
+  --output json | jq '{AlarmHistoryItems: .AlarmHistoryItems}' \
+  > docs/proof/m19b-alarm-history-pipeline-freshness-<timestamp>.json
+
+aws cloudwatch describe-alarm-history \
+  --alarm-name signalcraft-dr-orchestrator-publish-correctness \
+  --history-item-type StateUpdate \
+  --max-records 50 \
+  --region us-east-1 \
+  --output json | jq '{AlarmHistoryItems: .AlarmHistoryItems}' \
+  > docs/proof/m19b-alarm-history-publish-correctness-<timestamp>.json
+
+python3 scripts/ops/collect_dr_receipt_bundle.py \
+  --source-dir docs/proof/receipts-m19b-success-true-<timestamp> \
+  --output-dir docs/proof/receipt-bundle-m19b-success-true-<timestamp> \
+  --alarm-history-json docs/proof/m19b-alarm-history-pipeline-freshness-<timestamp>.json \
+  --alarm-history-json docs/proof/m19b-alarm-history-publish-correctness-<timestamp>.json
+
+python3 scripts/ops/check_dr_receipt_bundle.py \
+  --bundle-dir docs/proof/receipt-bundle-m19b-success-true-<timestamp>
+```
+
+`check_dr_receipt_bundle.py` fails closed when any required receipt is missing:
+`check_health`, `bringup`, `restore`, `validate`, `notify`,
+`request_manual_approval`, and alarm transition evidence showing `OK->ALARM->OK`.
+
 ## Manual Approval Operations
 
 ### Check orchestrator status
