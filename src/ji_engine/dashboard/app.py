@@ -7,6 +7,7 @@ See LICENSE for permitted use.
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import logging
 import os
@@ -50,6 +51,7 @@ RUN_REPOSITORY: RunRepository = FileSystemRunRepository(RUN_METADATA_DIR)
 
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.:+-]{1,128}$")
 _DEFAULT_MAX_JSON_BYTES = 2 * 1024 * 1024
+_UI_V0_HTML = Path(__file__).with_name("static") / "ui_v0.html"
 
 
 class _RunIndexSchema(BaseModel):
@@ -110,7 +112,7 @@ def _validate_schema(payload: Dict[str, Any], schema: Optional[Type[BaseModel]])
         raise _DashboardJsonError("invalid_schema") from exc
 
 
-def _read_local_json_object(path: Path, *, schema: Optional[Type[BaseModel]] = None) -> Dict[str, Any]:
+def _read_local_json_value(path: Path) -> object:
     if not path.exists():
         raise _DashboardJsonError("not_found")
     max_bytes = _max_json_bytes()
@@ -121,11 +123,15 @@ def _read_local_json_object(path: Path, *, schema: Optional[Type[BaseModel]] = N
     if size_bytes > max_bytes:
         raise _DashboardJsonError("too_large")
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
         raise _DashboardJsonError("invalid_json") from exc
     except OSError as exc:
         raise _DashboardJsonError("io_error") from exc
+
+
+def _read_local_json_object(path: Path, *, schema: Optional[Type[BaseModel]] = None) -> Dict[str, Any]:
+    payload = _read_local_json_value(path)
     if not isinstance(payload, dict):
         raise _DashboardJsonError("invalid_shape")
     _validate_schema(payload, schema)
@@ -311,6 +317,79 @@ def _read_local_json(path: Path) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail="Local state has invalid shape") from exc
 
 
+def _artifact_map(index: Dict[str, Any]) -> Dict[str, str]:
+    artifacts = index.get("artifacts")
+    if isinstance(artifacts, dict):
+        return {str(k): str(v) for k, v in artifacts.items() if isinstance(k, str) and isinstance(v, str)}
+    return {}
+
+
+def _read_artifact_json_value(
+    run_id: str,
+    candidate_id: str,
+    index: Dict[str, Any],
+    artifact_name: str,
+    *,
+    required: bool,
+) -> Optional[object]:
+    if artifact_name not in _artifact_map(index):
+        if required:
+            raise HTTPException(status_code=404, detail=f"{artifact_name} not found")
+        return None
+    path = _resolve_artifact_path(run_id, candidate_id, index, artifact_name)
+    try:
+        return _read_local_json_value(path)
+    except _DashboardJsonError as exc:
+        if exc.code == "not_found":
+            if required:
+                raise HTTPException(status_code=404, detail=f"{artifact_name} not found") from exc
+            return None
+        if exc.code == "too_large":
+            raise HTTPException(status_code=413, detail=f"{artifact_name} payload too large") from exc
+        if exc.code == "invalid_json":
+            raise HTTPException(status_code=500, detail=f"{artifact_name} invalid JSON") from exc
+        raise HTTPException(status_code=500, detail=f"{artifact_name} invalid shape") from exc
+
+
+def _find_first_artifact_name(index: Dict[str, Any], pattern: str) -> Optional[str]:
+    matches = [name for name in sorted(_artifact_map(index).keys()) if fnmatch.fnmatch(name, pattern)]
+    return matches[0] if matches else None
+
+
+def _project_top_jobs(ranked_payload: object, *, top_n: int) -> List[Dict[str, Any]]:
+    if not isinstance(ranked_payload, list):
+        raise HTTPException(status_code=500, detail="Top jobs artifact invalid shape")
+    redacted = redact_forbidden_fields(ranked_payload)
+    _ensure_ui_safe(redacted, context="ui_latest.top_jobs")
+    if not isinstance(redacted, list):
+        raise HTTPException(status_code=500, detail="Top jobs artifact invalid shape")
+
+    allowed_fields = (
+        "job_id",
+        "job_hash",
+        "title",
+        "company",
+        "location",
+        "score",
+        "apply_url",
+        "provider",
+        "profile",
+    )
+    projected: List[Dict[str, Any]] = []
+    for idx, raw in enumerate(redacted):
+        if not isinstance(raw, dict):
+            continue
+        row: Dict[str, Any] = {"rank": idx + 1}
+        for field in allowed_fields:
+            value = raw.get(field)
+            if isinstance(value, (str, int, float, bool)):
+                row[field] = value
+        projected.append(row)
+        if len(projected) >= top_n:
+            break
+    return projected
+
+
 def _read_s3_json(bucket: str, key: str) -> Tuple[Optional[Dict[str, Any]], str]:
     s3 = boto3.client("s3")
     try:
@@ -421,6 +500,13 @@ def version() -> Dict[str, Any]:
 @app.get("/healthz")
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/ui")
+def ui_v0() -> Response:
+    if not _UI_V0_HTML.exists():
+        raise HTTPException(status_code=500, detail="UI bundle not found")
+    return FileResponse(_UI_V0_HTML, media_type="text/html")
 
 
 @app.get("/runs")
@@ -583,6 +669,65 @@ def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_
     entries.sort(key=lambda item: (str(item.get("provider") or ""), str(item.get("job_id") or "")))
     response: Dict[str, Any] = {"run_id": run_id, "profile": profile, "summary": summary, "entries": entries}
     _ensure_ui_safe(response, context="run_semantic_summary")
+    return response
+
+
+@app.get("/v1/ui/latest")
+def ui_latest(candidate_id: str = DEFAULT_CANDIDATE_ID, top_n: int = 10) -> Dict[str, Any]:
+    """
+    UI v0 aggregate payload for read-only product surface.
+    Reads only UI-safe fields with bounded artifact reads.
+    """
+    if top_n < 1 or top_n > 50:
+        raise HTTPException(status_code=400, detail="Invalid top_n")
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    latest_payload = latest(candidate_id=safe_candidate)
+    pointer = latest_payload.get("payload")
+    if not isinstance(pointer, dict):
+        raise HTTPException(status_code=500, detail="Latest payload has invalid shape")
+    run_id = pointer.get("run_id")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise HTTPException(status_code=404, detail="Latest run_id not found")
+
+    run_view = run_detail(run_id, candidate_id=safe_candidate)
+    index = _load_index(run_id, safe_candidate)
+    top_jobs_key = _find_first_artifact_name(index, "*ranked_jobs*.json")
+
+    explanation = _read_artifact_json_value(run_id, safe_candidate, index, "explanation_v1.json", required=False)
+    provider_availability = _read_artifact_json_value(
+        run_id,
+        safe_candidate,
+        index,
+        "provider_availability_v1.json",
+        required=False,
+    )
+    run_health = _read_artifact_json_value(run_id, safe_candidate, index, "run_health.v1.json", required=False)
+    top_jobs: List[Dict[str, Any]] = []
+    if top_jobs_key:
+        ranked_payload = _read_artifact_json_value(run_id, safe_candidate, index, top_jobs_key, required=True)
+        if ranked_payload is not None:
+            top_jobs = _project_top_jobs(ranked_payload, top_n=top_n)
+
+    response: Dict[str, Any] = {
+        "candidate_id": safe_candidate,
+        "run_id": run_id,
+        "latest_source": latest_payload.get("source"),
+        "run": {
+            "run_id": run_view.get("run_id"),
+            "timestamp": run_view.get("timestamp"),
+            "status": run_view.get("status"),
+            "semantic_enabled": bool(run_view.get("semantic_enabled", False)),
+            "semantic_mode": run_view.get("semantic_mode"),
+            "ai_prompt_version": run_view.get("ai_prompt_version"),
+            "cost_summary": run_view.get("cost_summary"),
+        },
+        "top_jobs": top_jobs,
+        "top_jobs_artifact": top_jobs_key,
+        "explanation": explanation if isinstance(explanation, dict) else None,
+        "provider_availability": provider_availability if isinstance(provider_availability, dict) else None,
+        "run_health": run_health if isinstance(run_health, dict) else None,
+    }
+    _ensure_ui_safe(response, context="ui_latest")
     return response
 
 

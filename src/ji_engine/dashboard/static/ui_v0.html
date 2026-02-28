@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SignalCraft UI v0</title>
+    <style>
+      :root {
+        --bg: #f3f4f6;
+        --panel: #ffffff;
+        --border: #d1d5db;
+        --text: #111827;
+        --muted: #4b5563;
+        --ok: #0f766e;
+        --warn: #b45309;
+        --err: #b91c1c;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      }
+      .wrap {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 16px;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 20px;
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .controls input,
+      .controls button {
+        font: inherit;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 12px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 12px;
+      }
+      .panel h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+      }
+      .kv {
+        display: grid;
+        grid-template-columns: 130px 1fr;
+        gap: 6px;
+        font-size: 12px;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .ok {
+        color: var(--ok);
+      }
+      .warn {
+        color: var(--warn);
+      }
+      .err {
+        color: var(--err);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+      }
+      th,
+      td {
+        border: 1px solid var(--border);
+        text-align: left;
+        padding: 4px 6px;
+      }
+      tbody tr:hover {
+        background: #f9fafb;
+        cursor: pointer;
+      }
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-size: 12px;
+      }
+      #status {
+        font-size: 12px;
+        margin: 4px 0 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>SignalCraft UI v0 (Read-Only)</h1>
+      <div class="controls">
+        <label for="candidate">candidate_id</label>
+        <input id="candidate" value="local" maxlength="64" />
+        <button id="refresh">Refresh</button>
+      </div>
+      <div id="status" class="muted">idle</div>
+
+      <div class="grid">
+        <section class="panel">
+          <h2>Latest Run</h2>
+          <div id="latest" class="kv"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Provider Availability</h2>
+          <div id="providers" class="muted">No data</div>
+        </section>
+
+        <section class="panel">
+          <h2>Run Health</h2>
+          <div id="health" class="muted">No data</div>
+        </section>
+
+        <section class="panel" style="grid-column: 1 / -1">
+          <h2>Top Jobs</h2>
+          <div id="jobs" class="muted">No data</div>
+        </section>
+
+        <section class="panel" style="grid-column: 1 / -1">
+          <h2>Explanation View</h2>
+          <pre id="explanation" class="muted">No data</pre>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const latestEl = document.getElementById("latest");
+      const providersEl = document.getElementById("providers");
+      const healthEl = document.getElementById("health");
+      const jobsEl = document.getElementById("jobs");
+      const explanationEl = document.getElementById("explanation");
+      const candidateEl = document.getElementById("candidate");
+
+      function setStatus(text, cls) {
+        statusEl.className = cls || "muted";
+        statusEl.textContent = text;
+      }
+
+      function renderLatest(payload) {
+        const run = payload.run || {};
+        const entries = [
+          ["run_id", payload.run_id || "-"],
+          ["candidate_id", payload.candidate_id || "-"],
+          ["latest_source", payload.latest_source || "-"],
+          ["status", run.status || "-"],
+          ["timestamp", run.timestamp || "-"],
+          ["semantic_enabled", String(Boolean(run.semantic_enabled))],
+          ["semantic_mode", run.semantic_mode || "-"],
+          ["ai_prompt_version", run.ai_prompt_version || "-"],
+        ];
+        latestEl.innerHTML = entries
+          .map(([k, v]) => `<div class="muted">${k}</div><div>${String(v)}</div>`)
+          .join("");
+      }
+
+      function renderProviders(payload) {
+        const providers = payload.provider_availability && Array.isArray(payload.provider_availability.providers)
+          ? payload.provider_availability.providers
+          : [];
+        if (!providers.length) {
+          providersEl.textContent = "No provider availability artifact for this run.";
+          return;
+        }
+        const rows = providers
+          .map(
+            (p) =>
+              `<tr><td>${p.provider_id || ""}</td><td>${p.mode || ""}</td><td>${p.availability || ""}</td><td>${p.reason_code || ""}</td></tr>`
+          )
+          .join("");
+        providersEl.innerHTML = `<table><thead><tr><th>provider</th><th>mode</th><th>availability</th><th>reason</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function renderHealth(payload) {
+        const health = payload.run_health || {};
+        if (!health || !health.status) {
+          healthEl.textContent = "No run_health artifact for this run.";
+          return;
+        }
+        const entries = [
+          ["status", health.status],
+          ["failed_stage", health.failed_stage || "-"],
+          ["failure_codes", Array.isArray(health.failure_codes) ? health.failure_codes.join(", ") : ""],
+          ["started_at", health.timestamps && health.timestamps.started_at ? health.timestamps.started_at : "-"],
+          ["ended_at", health.timestamps && health.timestamps.ended_at ? health.timestamps.ended_at : "-"],
+        ];
+        healthEl.innerHTML = `<div class="kv">${entries
+          .map(([k, v]) => `<div class="muted">${k}</div><div>${String(v)}</div>`)
+          .join("")}</div>`;
+      }
+
+      function renderJobs(payload) {
+        const jobs = Array.isArray(payload.top_jobs) ? payload.top_jobs : [];
+        if (!jobs.length) {
+          jobsEl.textContent = "No ranked jobs artifact available.";
+          return;
+        }
+        const rows = jobs
+          .map(
+            (j, idx) =>
+              `<tr data-idx="${idx}"><td>${j.rank || idx + 1}</td><td>${j.title || j.job_hash || j.job_id || ""}</td><td>${j.company || ""}</td><td>${j.score || ""}</td></tr>`
+          )
+          .join("");
+        jobsEl.innerHTML = `<table><thead><tr><th>rank</th><th>job</th><th>company</th><th>score</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function renderExplanation(payload, selectedIndex) {
+        const top = payload.explanation && Array.isArray(payload.explanation.top_jobs)
+          ? payload.explanation.top_jobs
+          : [];
+        const aggregation = payload.explanation && payload.explanation.aggregation
+          ? payload.explanation.aggregation
+          : {};
+        if (!top.length) {
+          explanationEl.textContent = "No explanation artifact for this run.";
+          return;
+        }
+        const safeIndex = Math.min(Math.max(selectedIndex || 0, 0), top.length - 1);
+        const view = {
+          selected_top_job: top[safeIndex],
+          aggregation: aggregation,
+        };
+        explanationEl.textContent = JSON.stringify(view, null, 2);
+      }
+
+      let latestPayload = null;
+      let selectedExplanationIndex = 0;
+
+      async function refresh() {
+        const candidate = (candidateEl.value || "local").trim() || "local";
+        setStatus("loading...", "muted");
+        try {
+          const resp = await fetch(`/v1/ui/latest?candidate_id=${encodeURIComponent(candidate)}&top_n=10`, {
+            method: "GET",
+            headers: { "Accept": "application/json" },
+          });
+          if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`HTTP ${resp.status} ${text}`);
+          }
+          latestPayload = await resp.json();
+          selectedExplanationIndex = 0;
+          renderLatest(latestPayload);
+          renderProviders(latestPayload);
+          renderHealth(latestPayload);
+          renderJobs(latestPayload);
+          renderExplanation(latestPayload, selectedExplanationIndex);
+          setStatus("ok", "ok");
+
+          const rows = jobsEl.querySelectorAll("tbody tr[data-idx]");
+          rows.forEach((row) => {
+            row.addEventListener("click", () => {
+              const idx = Number(row.getAttribute("data-idx") || "0");
+              selectedExplanationIndex = Number.isFinite(idx) ? idx : 0;
+              renderExplanation(latestPayload, selectedExplanationIndex);
+            });
+          });
+        } catch (err) {
+          latestEl.innerHTML = "";
+          providersEl.textContent = "No data";
+          healthEl.textContent = "No data";
+          jobsEl.textContent = "No data";
+          explanationEl.textContent = "No data";
+          setStatus(String(err), "err");
+        }
+      }
+
+      document.getElementById("refresh").addEventListener("click", refresh);
+      refresh();
+    </script>
+  </body>
+</html>
