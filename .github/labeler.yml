@@ -1,13 +1,18 @@
 # Auto-label area:* based on changed paths.
-# Labeler adds labels; pr-governance enforces at least one area:*.
+# Labeler adds initial area hints; workflow normalization enforces final governance labels.
 
 "area:docs":
   - changed-files:
-      - any-glob-to-all-files: docs/**
+      - any-glob-to-any-file:
+          - docs/**
+          - README*
+          - "**/README*"
 
 "area:dr":
   - changed-files:
-      - any-glob-to-any-file: ops/dr/**
+      - any-glob-to-any-file:
+          - scripts/ops/**
+          - ops/**
 
 "area:release":
   - changed-files:
@@ -15,7 +20,10 @@
 
 "area:infra":
   - changed-files:
-      - any-glob-to-any-file: scripts/ops/**
+      - any-glob-to-any-file:
+          - ops/aws/**
+          - ops/k8s/**
+          - ops/launchd/**
 
 "area:providers":
   - changed-files:
@@ -25,4 +33,5 @@
   - changed-files:
       - any-glob-to-any-file:
           - src/ji_engine/**
+          - src/jobintel/**
           - scripts/run_daily.py
