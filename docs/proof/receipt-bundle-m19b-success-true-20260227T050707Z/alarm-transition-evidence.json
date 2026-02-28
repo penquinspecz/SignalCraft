@@ -1,0 +1,130 @@
+{
+  "alarms": [
+    {
+      "alarm_name": "signalcraft-dr-orchestrator-pipeline-freshness",
+      "has_ok_alarm_ok_sequence": true,
+      "source_path": "docs/proof/m19b-alarm-history-pipeline-freshness-20260228T053429Z.json",
+      "transitions": [
+        {
+          "from": "INSUFFICIENT_DATA",
+          "summary": "Alarm updated from INSUFFICIENT_DATA to ALARM",
+          "timestamp": "2026-02-22T16:38:45.241000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-26T22:23:15.312000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-26T22:51:15.309000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-26T23:06:15.308000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-26T23:44:15.316000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-26T23:45:15.308000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-27T00:23:15.316000-05:00",
+          "to": "ALARM"
+        }
+      ]
+    },
+    {
+      "alarm_name": "signalcraft-dr-orchestrator-publish-correctness",
+      "has_ok_alarm_ok_sequence": true,
+      "source_path": "docs/proof/m19b-alarm-history-publish-correctness-20260228T053429Z.json",
+      "transitions": [
+        {
+          "from": "INSUFFICIENT_DATA",
+          "summary": "Alarm updated from INSUFFICIENT_DATA to ALARM",
+          "timestamp": "2026-02-22T16:39:04.618000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-22T16:47:04.617000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-22T17:02:04.617000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-22T17:10:04.618000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-22T17:25:04.623000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-26T22:23:04.618000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-26T22:51:04.619000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-26T23:06:04.617000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-26T23:44:04.617000-05:00",
+          "to": "ALARM"
+        },
+        {
+          "from": "ALARM",
+          "summary": "Alarm updated from ALARM to OK",
+          "timestamp": "2026-02-26T23:45:04.617000-05:00",
+          "to": "OK"
+        },
+        {
+          "from": "OK",
+          "summary": "Alarm updated from OK to ALARM",
+          "timestamp": "2026-02-27T00:23:04.626000-05:00",
+          "to": "ALARM"
+        }
+      ]
+    }
+  ],
+  "kind": "alarm_transition_evidence",
+  "ok_alarm_ok_sequence_found": true,
+  "required_transition": "OK->ALARM->OK",
+  "schema_version": 1
+}
