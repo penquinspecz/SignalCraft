@@ -1,115 +1,77 @@
 # SignalCraft Versioning & Releases
 
-SignalCraft uses **two parallel release tracks**:
+SignalCraft has two release tracks:
 
-1. **Product versions** (Semantic Versioning): `vMAJOR.MINOR.PATCH`
-2. **Operational milestone releases** (timestamped): `mNN-YYYYMMDDTHHMMSSZ`
+1. Product releases: `vMAJOR.MINOR.PATCH`
+2. Operational milestone releases: `mNN-YYYYMMDDTHHMMSSZ`
 
-This is intentional: SignalCraft is both a deterministic engine *and* an operable system.
+Product releases are customer/operator promises. Milestone releases are operational proof points.
 
----
+## Product SemVer policy
 
-## 1) Product Versions (SemVer)
+### MAJOR
+Use MAJOR when you introduce a breaking contract change.
 
-**Tags:** `v0.2.0`, `v0.2.1`, ...
+Examples:
+- artifact schema changes that break existing readers
+- replay/snapshot contract changes
+- CLI or config behavior changes that require migration
 
-Use product versions when changes affect:
+Explicit repo example:
+- Config schema contract change (`schemas/*.schema.v*.json`) is MAJOR.
 
-- Deterministic pipeline behavior (outputs, ordering, scoring)
-- Provider schema or ingestion semantics
-- Snapshot/replay contracts
-- Public artifacts (JSON/CSV/MD) formats or semantics
-- Canonical operator UX: entrypoints, runbooks, primary workflows
-- Security/guardrail contracts that users/operators rely on
+### MINOR
+Use MINOR when you add meaningful capability without breaking existing contracts.
 
-### SemVer rules
+Examples:
+- new deterministic DR workflow capability proven end-to-end
+- new non-breaking provider capability
+- new operational path available behind existing contracts
 
-#### MAJOR (v1.0.0 → v2.0.0)
-Increment when you introduce breaking changes to:
-- output schema/format
-- provider schema
-- replay/snapshot contract
-- CLI/entrypoint contracts
-- deployment manifests contracts
+Explicit repo example:
+- DR workflow proven through manual approval gate (M19B) maps to MINOR product capability maturity.
 
-#### MINOR (v0.2.0 → v0.3.0)
-Increment when you add capability without breaking contracts:
-- new providers
-- new scoring features behind defaults
-- new deterministic receipts/artifacts
-- new deploy surfaces that don't break existing ones
+### PATCH
+Use PATCH for fixes/hardening without contract changes.
 
-#### PATCH (v0.2.0 → v0.2.1)
-Increment when you fix behavior without changing contracts:
+Examples:
 - bug fixes
-- reliability improvements
-- doc/runbook fixes
-- CI hardening
+- least-privilege IAM permission adjustments
+- workflow reliability and docs corrections
 
----
+Explicit repo example:
+- IAM least-privilege unblock loop (`iam:ListRolePolicies`, `iam:ListAttachedRolePolicies`, etc.) maps to PATCH.
 
-## 2) Operational Milestone Releases (timestamped)
+## IMAGE_REF policy
 
-**Tags:** `m19-20260222T201429Z`
+- Non-dev product and milestone releases must include digest-pinned `IMAGE_REF`:
+  - `<account>.dkr.ecr.<region>.amazonaws.com/<repo>@sha256:<64-hex>`
+- Floating tags (including `:latest`) are not allowed for release notes.
+- Dev-only exceptions are allowed only with explicit `DEV_MODE` override in validation tooling.
 
-These releases are audit-first and are used to anchor operational proof:
-- DR drills + receipts
-- release image digests + architecture verification
-- infra automation changes
-- cost discipline guardrails
+## Milestone tags vs product tags
 
-### Required release body fields (milestone releases)
+- Milestone tags (`mNN-*`) capture operational evidence at a point in time.
+- Milestone tags do not imply product compatibility promises.
+- Product tags (`vX.Y.Z`) are the compatibility and upgrade contract.
+- A product release may summarize one or more prior milestone proof points.
 
-Each milestone release must include:
+## Minimum release proof requirements
 
-- `[from-composer]` marker when created via Cursor Composer
-- `main HEAD` SHA
-- `IMAGE_REF` (digest pinned)
-- Architectures verified (amd64, arm64 as applicable)
-- PRs included
-- Receipt paths for build/verify/drill proofs
-- Release proof bundle: `ops/proof/releases/release-<tag>.json` or CI artifact `release-metadata-<tag>` (includes `ci_run_url` for multi-arch gate evidence)
-- High-level "Operational Impact" summary (bullet list)
-
----
-
-## 3) Release Cadence
-
-- **Milestone releases**: as needed to anchor proof (e.g., DR hardening, infra workflow improvements).
-- **Product versions**: cut at milestone boundaries when a user-facing capability is complete and stable.
-- No release is considered valid unless the deterministic gates and policy checks pass.
-
----
-
-## 4) Proof Requirements (minimum)
-
-Before tagging either release type:
+Before publishing any release:
 
 - `./scripts/audit_determinism.sh` PASS
-- `python3 scripts/ops/check_dr_guardrails.py` PASS
 - `python3 scripts/ops/check_dr_docs.py` PASS
-- Terraform validate for DR modules (with `-backend=false`) PASS
-- Secret scan (gitleaks) PASS when available
-- For milestone releases: at least one DR proof run (bounded/cost-disciplined) with teardown verification
+- `python3 scripts/ops/check_dr_guardrails.py` PASS
+- release metadata proof bundle validated:
+  - `python3 scripts/release/check_release_proof_bundle.py <metadata_path> --require-ci-evidence`
 
----
+## Canonical release-body templates
 
-## 5) Naming Conventions
+- Product: `docs/RELEASE_TEMPLATE_PRODUCT.md`
+- Milestone: `docs/RELEASE_TEMPLATE_MILESTONE.md`
 
-### Milestone tags
-- Format: `mNN-YYYYMMDDTHHMMSSZ` (UTC)
-- Title format:
-  - `SignalCraft MNN — <theme>`
-  - Example: `SignalCraft M19 — DR Hardening + Cost Discipline`
+Renderer and validator:
 
-### Product tags
-- Format: `vMAJOR.MINOR.PATCH`
-- Title format:
-  - `SignalCraft vX.Y.Z — <theme>`
-  - Example: `SignalCraft v0.2.0 — Deterministic Releases + DR-Proven Operator Workflow`
-
----
-
-## 6) Release Notes Generator
-
-`scripts/release/render_release_notes.py` produces deterministic release body markdown from the required fields. Use it to generate GitHub release notes that conform to `docs/RELEASE_TEMPLATE.md`. Set `FROM_COMPOSER=1` to include the `[from-composer]` marker.
+- render: `scripts/release/render_release_notes.py`
+- validate: `scripts/release/validate_release_body.py`
