@@ -117,6 +117,41 @@ Foundation exists:
 
 ---
 
+# PHASE 2 — Hardening & Correction Epoch (Additive Overlay)
+
+This overlay integrates external architecture review concerns into a bounded hardening track.
+It is additive only and does not reorder or rewrite existing milestone history.
+
+## Correction Track Principles
+
+- No determinism regression.
+- No CI loosening.
+- No silent contract changes (shape changes require schema version bump).
+- Replay unchanged unless explicitly intended and proven.
+- Snapshot baseline unchanged unless explicitly intended.
+- Prefer surface reduction over feature growth.
+- Security fixes first.
+
+## Gemini Review Concerns → Roadmap Mapping
+
+- DNS rebinding SSRF (TOCTOU) → Milestone M22
+- Tar/zip slip in restore paths → Milestone M22
+- Symlink/path traversal in artifact resolution → Milestone M22
+- Warn-only/incomplete redaction posture → Milestone M23
+- Snapshot/fixture growth and repo bloat risk → Milestone M24
+- DR overinvestment and maintainability risk → Milestone M25
+- Sequential provider bottleneck at 10–20 providers → Milestone M26
+- Filesystem-as-DB and multi-tenant concurrency limits → Future Platform Phase (out of scope for Correction Epoch)
+
+## Recommended Sequence Lens (Additive Overlay)
+
+- Tier 0: M22, M23
+- Tier 1: M24 + small Surface Reduction addendum inside M24 (no milestone reorder)
+- Tier 2: M26
+- Tier 3: Future Platform Phase (DB/queue/auth/UI), explicitly deferred
+
+---
+
 # Roadmap Philosophy
 
 Fewer, thicker milestones.
@@ -360,6 +395,147 @@ Receipts Required
 - Screenshot proof
 - API contract validation proof
 - No raw JD leakage proof
+
+---
+
+## Correction Epoch Overlay — Milestones M22–M26 (Additive)
+
+These milestones are hardening-first overlays that preserve the existing roadmap and archive ordering.
+They are intentionally narrow and cloud-agnostic (Kubernetes-native, artifact-first, deterministic).
+
+## Milestone M22 — Security Corrections Pack v1 (Hardening Epoch) ◐
+
+Goal: Close critical traversal/egress correctness gaps with fail-closed behavior and explicit negative tests.
+Status: ◐ New
+
+Definition of Done
+- [ ] DNS rebinding SSRF TOCTOU fixed in Network Shield:
+  - single-resolution + pinned connect per redirect hop
+  - redirect-safe revalidation
+  - HTTPS remains verification-safe; fail-closed if safe pinning cannot be guaranteed without weakening TLS verification
+- [ ] Safe archive extraction contract enforced in restore paths:
+  - reject absolute paths
+  - reject `..` traversal
+  - reject suspicious/non-regular members including symlinks/hardlinks
+- [ ] Run artifact/path resolution hardening enforced:
+  - reject traversal and absolute paths
+  - reject symlink crossing
+  - `O_NOFOLLOW` where available, `lstat` nofollow checks otherwise
+- [ ] Negative tests added for each vulnerability class (egress TOCTOU, archive traversal, symlink/path traversal)
+- [ ] Documentation note landed clarifying egress validation + connect semantics
+
+Non-goals
+- Full WAF/service-mesh policy rollout
+- New user-submitted URL ingestion surfaces
+- Multi-tenant auth model implementation
+
+Receipts Required
+- Test receipts for each negative path
+- Proof doc summarizing fixes and fail-closed guarantees
+- Updated security documentation entry
+
+---
+
+## Milestone M23 — Redaction Enforcement Policy v1 (Fail-Closed Modes) ◐
+
+Goal: Make redaction enforcement mode-driven and fail-closed for any user-facing or user-input path.
+Status: ◐ New
+
+Definition of Done
+- [ ] Redaction mode contract defined (minimum modes: local-fixture/dev vs UI/export/user-input)
+- [ ] Default enforcement is ON for any mode that publishes UI-safe artifacts or processes user-controlled input
+- [ ] Explicit local override exists only for fixture-only workflows and is clearly labeled
+- [ ] CI/gate coverage proves expected mode behavior (tests and/or config validation)
+- [ ] Documentation explicitly states redaction is defense-in-depth, not a claim of perfect secret detection
+
+Non-goals
+- Full DLP platform implementation
+- Guarantee of detection for all secret formats
+
+Receipts Required
+- Mode contract doc + examples
+- CI evidence for fail-closed mode behavior
+- Proof artifact for override boundaries
+
+---
+
+## Milestone M24 — Snapshot/Fixture Scalability Contract v1 (Repo Growth Control) ◐
+
+Goal: Bound fixture growth while preserving deterministic replay and reproducibility.
+Status: ◐ New
+
+Definition of Done
+- [ ] Tiered fixture policy is defined and versioned:
+  - Tier A: canonical small fixtures in-git (size cap + rationale)
+  - Tier B: larger corpora externalized behind pinned manifest hashes (contract now, implementation may phase)
+- [ ] CI checks (or explicitly scheduled CI checks per roadmap contract) enforce:
+  - per-fixture max size cap
+  - fixture count cap or explicit growth policy
+  - documented refresh workflow
+- [ ] Contract explicitly states why “move everything to object storage” is not default:
+  - determinism + reproducibility require pinned manifests
+- [ ] Surface reduction addendum included for dead/duplicate fixture cleanup without milestone reordering
+
+Non-goals
+- Immediate migration of all fixtures out of git
+- Adopting Git LFS by default
+
+Receipts Required
+- Fixture policy contract doc
+- CI receipt (or committed CI plan artifact) for growth guardrails
+- Proof doc showing refresh workflow and determinism rationale
+
+---
+
+## Milestone M25 — DR Scope Freeze + Decomposition Plan (Correction Epoch Guardrail) ◐
+
+Goal: Prevent DR scope creep during correction work while retaining durable proof discipline.
+Status: ◐ New
+
+Definition of Done
+- [ ] Explicit DR scope freeze statement committed:
+  - only security/correctness fixes are in-scope during Correction Epoch
+- [ ] Decomposition plan captured with clear buckets:
+  - durable proofs retained (receipts, runbooks, verification scripts)
+  - archival-tooling candidates identified (without refactor execution in this milestone)
+  - Future Platform Phase deferrals documented in cloud-agnostic terms (for example managed failover orchestration, multi-AZ control planes)
+- [ ] Statement added that user-facing cutover/failover automation is out of scope in this epoch
+- [ ] Existing DR proof paths remain runnable and deterministic
+
+Non-goals
+- New Step Functions/Lambda-style orchestration surfaces
+- Automated DNS/edge cutover implementation now
+
+Receipts Required
+- DR scope freeze doc update
+- Decomposition plan artifact
+- Regression proof that existing DR receipts/runbooks still execute
+
+---
+
+## Milestone M26 — Provider Execution Scalability v1 (Bounded Parallelism, Deterministic) ◐
+
+Goal: Scale provider execution to 10–20 providers without sacrificing determinism or bounded resource behavior.
+Status: ◐ New
+
+Definition of Done
+- [ ] Provider scraping parallelized with deterministic ordering guarantees:
+  - stable provider iteration order
+  - stable aggregation order
+  - stable artifact write order
+- [ ] Memory safety guidance defined and enforced for provider fan-out (per-provider boundaries and/or streaming to avoid OOM)
+- [ ] CronJob time-budget guidance documented (including `activeDeadlineSeconds` sizing) without requiring queue adoption
+- [ ] Determinism tests added proving output ordering stability under parallel execution
+- [ ] Replay and artifact contracts remain unchanged unless explicitly versioned
+
+Non-goals
+- Adopting Celery/Temporal or equivalent queue orchestration in this epoch
+- Migrating run state to Postgres in this epoch
+
+Receipts Required
+- Parallel determinism test receipts
+- Memory-bound execution guidance artifact
+- Time-budget/runbook update with bounded execution assumptions
 
 ---
 
