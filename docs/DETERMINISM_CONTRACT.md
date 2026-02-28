@@ -181,3 +181,29 @@ python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --prof
 - Docker no-cache build is the source of truth.
 - Local fast gate is for quick feedback; it must match Docker behavior.
 - If CI is flaky, rerun the workflow or wait for GitHub Actions recovery.
+
+## 11) Scheduled replay drift canary
+
+A dedicated workflow runs daily using pinned fixture inputs only:
+- Workflow: `.github/workflows/replay-drift-canary.yml`
+- Script: `scripts/replay_drift_canary.py`
+- Trigger: daily schedule + manual `workflow_dispatch`
+- PR impact: none (this canary is not part of pull-request required checks)
+
+Canary contract:
+1. Run the fixture pipeline twice in isolated temp workdirs (`CAREERS_MODE=SNAPSHOT`, provider `openai`, profile `cs`).
+2. Compare deterministic outputs:
+   - normalized run artifacts (`run_summary`, `run_health`, `provider_availability`)
+   - ranked output hashes
+   - identity normalization artifact (`diff.json`)
+3. Run `scripts/compare_run_artifacts.py --allow-run-id-drift`.
+4. Emit machine-readable drift result at `artifacts/replay-drift-canary/replay_drift_diff.json`.
+5. Upload the JSON as a workflow artifact on both pass and fail.
+
+Interpretation:
+- `status: "pass"` means no deterministic drift across the two fixture runs.
+- `status: "fail"` means drift or execution error; inspect:
+  - `checks.artifact_hashes.mismatches`
+  - `checks.identity_normalization`
+  - `checks.provider_availability`
+  - `checks.compare_run_artifacts`
