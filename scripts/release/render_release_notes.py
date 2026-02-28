@@ -250,10 +250,18 @@ def _render_milestone(
     lines.append("")
 
     lines.append("## Execution Evidence")
-    lines.append(f"- execution_arn: `{execution_arn}`" if execution_arn else "- execution_arn: Not recorded at tag time")
-    lines.append(f"- terminal_state: `{terminal_state}`" if terminal_state else "- terminal_state: Not recorded at tag time")
-    lines.append(f"- terminal_status: `{terminal_status}`" if terminal_status else "- terminal_status: Not recorded at tag time")
-    lines.append(f"- receipts_root: `{receipts_root}`" if receipts_root else "- receipts_root: Not recorded at tag time")
+    lines.append(
+        f"- execution_arn: `{execution_arn}`" if execution_arn else "- execution_arn: Not recorded at tag time"
+    )
+    lines.append(
+        f"- terminal_state: `{terminal_state}`" if terminal_state else "- terminal_state: Not recorded at tag time"
+    )
+    lines.append(
+        f"- terminal_status: `{terminal_status}`" if terminal_status else "- terminal_status: Not recorded at tag time"
+    )
+    lines.append(
+        f"- receipts_root: `{receipts_root}`" if receipts_root else "- receipts_root: Not recorded at tag time"
+    )
     lines.append("")
 
     lines.append("## Images (Digest-pinned)")
