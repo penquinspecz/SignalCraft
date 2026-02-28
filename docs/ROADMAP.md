@@ -117,6 +117,168 @@ Foundation exists:
 
 ---
 
+# Phase 2: Hardening & Correction Epoch
+
+This section is an additive overlay for near-term correction work. It does not
+renumber, reorder, or replace existing milestone blocks in this document.
+
+## Correction Track Principles
+
+- No determinism regression.
+- No CI loosening.
+- No silent contract changes; any artifact/API shape change requires schema
+  versioning and explicit migration notes.
+- Replay unchanged unless explicitly intended and receipted.
+- Snapshot baseline unchanged unless explicitly intended and receipted.
+- Prefer surface reduction over feature growth.
+- Security and correctness fixes take priority over new feature plumbing.
+- **DR scope freeze during correction epoch:** no new DR feature work; only
+  security/correctness fixes are in-scope.
+
+## Gemini Review Concerns -> Roadmap Mapping
+
+- DNS rebinding SSRF TOCTOU in network egress flow -> `Phase2-C1`
+- Tar path traversal / tar slip in restore paths -> `Phase2-C2`
+- Symlink/path traversal in run artifact resolution -> `Phase2-C3`
+- PR governance automation gaps (label/milestone drift) -> `Phase2-C4`
+- Warn-only or incomplete redaction enforcement posture -> `Phase2-C5`
+- Snapshot/fixture growth and repository bloat risk -> `Phase2-C6`
+- DR overinvestment / maintainability risk -> correction-epoch DR freeze +
+  decomposition notes in `Phase2-C6`
+- Filesystem-as-DB limits + multi-tenant concurrency pressure -> **Future
+  Platform Phase (explicitly out of scope for correction epoch)**
+
+## Recommended Sequence Lens (Additive Overlay)
+
+Sequencing guidance only. This does not reorder milestone blocks.
+
+- Tier 0: `Phase2-C1`, `Phase2-C2`, `Phase2-C3`
+- Tier 1: `Phase2-C4`, `Phase2-C5`
+- Tier 2: `Phase2-C6`
+- Tier 3: Active product loop milestones (`M25`, `M28`, `M29`, `M34`)
+- Tier 4: Future Platform Phase (state backend migration, queue orchestration,
+  full multi-tenant auth/RBAC)
+
+## Correction Track Items (Non-Colliding IDs)
+
+### Phase2-C1 — Network Shield DNS Pinning + Redirect TOCTOU Closure
+
+Goal: Ensure each request hop validates and connects to a pinned destination
+without DNS rebinding bypass.
+Status: Planned / in-flight correction.
+PR mapping: `#252` (security: SSRF hardening).
+
+Definition of Done
+- [ ] Resolve and validate destination exactly once per hop.
+- [ ] Redirect hops revalidated under the same pinned-connect contract.
+- [ ] HTTPS behavior remains fail-closed (no TLS verification weakening).
+- [ ] Negative regression tests prove TOCTOU rebinding attempts are blocked.
+
+Receipts Required
+- Network shield tests proving single-resolution + redirect-safe enforcement
+- Proof note in `docs/security/` or equivalent operations docs
+
+### Phase2-C2 — Restore Safe Extraction (Tar Slip Guardrails)
+
+Goal: Reject traversal/non-regular archive members in restore flows.
+Status: Planned / in-flight correction.
+PR mapping: `#253` (security: safe extract).
+
+Definition of Done
+- [ ] Restore extraction rejects absolute paths and `..` traversal.
+- [ ] Symlink/hardlink and non-regular members are rejected by default.
+- [ ] Permission normalization avoids unsafe bit preservation.
+- [ ] Negative tests confirm no writes outside destination root.
+
+Receipts Required
+- Restore safety tests with malicious archive fixtures
+- Ops note confirming extraction policy
+
+### Phase2-C3 — Run Artifact Path Hardening (Traversal + Symlink Safety)
+
+Goal: Artifact resolution is provably bounded to run/candidate roots.
+Status: Planned / in-flight correction.
+PR mapping: `#254` (security: artifact path hardening).
+
+Definition of Done
+- [ ] Relative path normalization rejects absolute and traversal inputs.
+- [ ] Symlink traversal attempts are rejected.
+- [ ] Open-path behavior is no-follow (`O_NOFOLLOW` where available, explicit
+  symlink rejection fallback otherwise).
+- [ ] Tests cover both allowed normal paths and blocked symlink escape cases.
+
+Receipts Required
+- Run repository security tests
+- Proof note describing no-follow strategy and platform fallback behavior
+
+### Phase2-C4 — PR Governance Automation Consistency
+
+Goal: Required PR metadata is enforced programmatically, deterministically.
+Status: Planned / in-flight correction.
+PR mapping: `#256` (governance applier), `#257` (labeler determinism),
+`#258` (milestone sync).
+
+Definition of Done
+- [ ] Programmatic tooling can ensure required governance labels + milestone.
+- [ ] Label assignment remains deterministic (single provenance, single type,
+  >=1 area).
+- [ ] Required roadmap milestone IDs are syncable via repo-owned tooling.
+- [ ] Verification path matches `pr-governance` CI contract exactly.
+
+Receipts Required
+- CLI outputs showing pass/fail verification behavior
+- Docs updates in `docs/LABELS.md` with usage guidance
+
+### Phase2-C5 — Redaction Enforcement Policy Clarification
+
+Goal: Move redaction posture from advisory ambiguity to explicit fail-closed
+mode policy where required.
+Status: Planned.
+
+Definition of Done
+- [ ] Runtime modes clearly define where strict redaction enforcement is
+  mandatory.
+- [ ] CI/gate tests prove strict mode behavior in user-visible/export paths.
+- [ ] Docs explicitly state redaction is defense-in-depth, not perfect
+  detection.
+
+Receipts Required
+- Mode matrix documentation
+- Tests proving strict enforcement in governed modes
+
+### Phase2-C6 — Fixture Growth Control + DR Scope Freeze Guardrail
+
+Goal: Prevent entropy creep while preserving reproducibility and operator focus.
+Status: Planned.
+
+Definition of Done
+- [ ] Fixture policy documents bounded in-repo fixtures and external corpus
+  strategy with pinned manifests.
+- [ ] Growth limits are enforced (or explicitly scheduled) in CI policy.
+- [ ] DR scope freeze is explicit: no new DR features during correction epoch;
+  security/correctness-only changes permitted.
+- [ ] Decomposition notes separate durable DR proof artifacts from deferred
+  platform work.
+
+Receipts Required
+- Fixture policy contract in docs
+- CI/policy receipt and DR freeze/decomposition note
+
+## Product Loop v0 (Near-Term Focus)
+
+This is sequencing guidance only and does not reorder milestone blocks.
+
+1. Milestone 25 — Provider Availability Always-On (M12 closeout)
+2. Milestone 28 — Alerts & Digests v1
+3. Milestone 29 — Candidate Profile UX v1
+4. Milestone 34 — UI v0 (read-only surface)
+
+Interpretation: complete correction-track risk reduction in parallel with early
+M25 closeout, then bias execution toward the product feedback loop (`M28` ->
+`M29` -> `M34`) rather than new infrastructure plumbing.
+
+---
+
 # Roadmap Philosophy
 
 Fewer, thicker milestones.
