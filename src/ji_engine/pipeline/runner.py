@@ -1034,6 +1034,74 @@ def _write_provider_availability_fallback_artifact(
     return path
 
 
+def _fail_closed_provenance_for_provider_availability(
+    *,
+    selected_providers: List[str],
+    provenance_by_provider: Dict[str, Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    provider_ids = sorted(set(selected_providers) | set(provenance_by_provider.keys()))
+    fail_closed: Dict[str, Dict[str, Any]] = {}
+    for provider in provider_ids:
+        existing_meta = (
+            provenance_by_provider.get(provider) if isinstance(provenance_by_provider.get(provider), dict) else {}
+        )
+        meta = dict(existing_meta)
+        availability = str(meta.get("availability") or "").strip().lower()
+        if availability not in {"available", "unavailable"}:
+            meta["availability"] = "unavailable"
+        if str(meta.get("availability") or "").strip().lower() != "available":
+            if not str(meta.get("unavailable_reason") or "").strip():
+                meta["unavailable_reason"] = EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON
+            if meta.get("attempts_made") is None:
+                meta["attempts_made"] = 0
+        fail_closed[provider] = meta
+    return fail_closed
+
+
+def _ensure_provider_availability_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    selected_providers: List[str],
+    provenance_by_provider: Dict[str, Dict[str, Any]],
+    providers_config_path: Path,
+) -> Path:
+    try:
+        return _write_provider_availability_artifact(
+            run_id=run_id,
+            candidate_id=candidate_id,
+            selected_providers=selected_providers,
+            provenance_by_provider=provenance_by_provider,
+            providers_config_path=providers_config_path,
+        )
+    except Exception as exc:
+        logger.error("Failed to write provider availability artifact; retrying fail-closed fallback: %r", exc)
+        fail_closed_provenance = _fail_closed_provenance_for_provider_availability(
+            selected_providers=selected_providers,
+            provenance_by_provider=provenance_by_provider,
+        )
+        try:
+            return _write_provider_availability_artifact(
+                run_id=run_id,
+                candidate_id=candidate_id,
+                selected_providers=selected_providers,
+                provenance_by_provider=fail_closed_provenance,
+                providers_config_path=providers_config_path,
+            )
+        except Exception as fallback_exc:
+            logger.error(
+                "Provider availability primary+retry writer failed; using deterministic minimal fallback: %r",
+                fallback_exc,
+            )
+            return _write_provider_availability_fallback_artifact(
+                run_id=run_id,
+                candidate_id=candidate_id,
+                selected_providers=selected_providers,
+                provenance_by_provider=fail_closed_provenance,
+                providers_config_path=providers_config_path,
+            )
+
+
 def _resolve_trigger_type() -> str:
     raw = str(os.environ.get("JOBINTEL_TRIGGER_TYPE") or "").strip().lower()
     if raw in {"manual", "cron", "replay"}:
@@ -4924,6 +4992,16 @@ def main() -> int:
                 }
             provider_outputs[provider] = outputs_for_provider
 
+        providers_config_path = Path(args.providers_config)
+        provider_availability_path = _ensure_provider_availability_artifact(
+            run_id=run_id,
+            candidate_id=CANDIDATE_ID,
+            selected_providers=providers,
+            provenance_by_provider=provenance_by_provider,
+            providers_config_path=providers_config_path,
+        )
+        provider_availability_pointer = _artifact_pointer(provider_availability_path)
+
         config_fingerprint = _config_fingerprint(flag_payload, args.providers_config)
         environment_fingerprint = _environment_fingerprint()
         log_retention_summary: Dict[str, Any] = {
@@ -5038,55 +5116,6 @@ def main() -> int:
             telemetry["failed_stage"] = "scoring_model_metadata"
             telemetry["error"] = str(exc)
             _write_last_run(telemetry)
-        providers_config_path = Path(args.providers_config)
-        try:
-            provider_availability_path = _write_provider_availability_artifact(
-                run_id=run_id,
-                candidate_id=CANDIDATE_ID,
-                selected_providers=providers,
-                provenance_by_provider=provenance_by_provider,
-                providers_config_path=providers_config_path,
-            )
-        except Exception as exc:
-            logger.error("Failed to write provider availability artifact; retrying fail-closed fallback: %r", exc)
-            fail_closed_provenance: Dict[str, Dict[str, Any]] = {}
-            for provider in providers:
-                existing_meta = (
-                    provenance_by_provider.get(provider)
-                    if isinstance(provenance_by_provider.get(provider), dict)
-                    else {}
-                )
-                meta = dict(existing_meta)
-                availability = str(meta.get("availability") or "").strip().lower()
-                if availability not in {"available", "unavailable"}:
-                    meta["availability"] = "unavailable"
-                if str(meta.get("availability") or "").strip().lower() != "available":
-                    if not str(meta.get("unavailable_reason") or "").strip():
-                        meta["unavailable_reason"] = EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON
-                    if meta.get("attempts_made") is None:
-                        meta["attempts_made"] = 0
-                fail_closed_provenance[provider] = meta
-            try:
-                provider_availability_path = _write_provider_availability_artifact(
-                    run_id=run_id,
-                    candidate_id=CANDIDATE_ID,
-                    selected_providers=providers,
-                    provenance_by_provider=fail_closed_provenance,
-                    providers_config_path=providers_config_path,
-                )
-            except Exception as fallback_exc:
-                logger.error(
-                    "Provider availability primary+fallback writer failed; using deterministic minimal fallback: %r",
-                    fallback_exc,
-                )
-                provider_availability_path = _write_provider_availability_fallback_artifact(
-                    run_id=run_id,
-                    candidate_id=CANDIDATE_ID,
-                    selected_providers=providers,
-                    provenance_by_provider=fail_closed_provenance,
-                    providers_config_path=providers_config_path,
-                )
-        provider_availability_pointer = _artifact_pointer(provider_availability_path)
         run_audit_path = _write_run_audit_artifact(
             run_id=run_id,
             candidate_id=CANDIDATE_ID,
