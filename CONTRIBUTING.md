@@ -57,3 +57,12 @@ Your local environment can check these with:
 ```bash
 make format
 make lint
+```
+
+## PR Labeling Note (Internal)
+
+For internal PR hygiene:
+
+- Every PR must carry at least one `area:*` label.
+- `area:docs` is only for docs-only PRs and must not be used as a fallback.
+- If automation cannot infer a specific area, use `area:unknown` until triage assigns the correct area.
