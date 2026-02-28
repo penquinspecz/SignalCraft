@@ -137,8 +137,9 @@ Key failure codes:
 
 ### 4. provider_availability: policy vs network vs config
 
-- **Success**: `artifacts/provider_availability_v1.json` lists per-provider status.
-- **Early failure** (scrape, classify): provider_availability may be absent or show `"unknown"` (fail-closed).
+- **Terminal run invariant**: `artifacts/provider_availability_v1.json` is emitted once per finalized run (success, failure, or startup exit).
+- **Early failure** (startup/scrape/classify): entries are fail-closed (`availability: "unavailable"`, reason code such as `early_failure_unknown`).
+- **Zero-provider config**: disabled providers are still represented with `reason_code: "not_enabled"` so the state is explicit.
 - **Differentiate**:
   - **Policy block**: `policy_snapshot` or `snapshot_disabled` → config/ops decision
   - **Network issue**: `unavailable`, `timeout`, fetch errors → infra/connectivity

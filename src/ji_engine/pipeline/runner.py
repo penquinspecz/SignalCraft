@@ -4766,8 +4766,8 @@ def main() -> int:
         RAW_JOBS_JSON = OUTPUT_DIR / RAW_JOBS_JSON.name
         LABELED_JOBS_JSON = OUTPUT_DIR / LABELED_JOBS_JSON.name
         ENRICHED_JOBS_JSON = OUTPUT_DIR / ENRICHED_JOBS_JSON.name
-    providers = _resolve_providers(args)
-    openai_only = providers == ["openai"]
+    providers: List[str] = []
+    openai_only = False
     run_id = _resolve_run_id()
     print(f"JOBINTEL_RUN_ID={run_id}", flush=True)
     global USE_SUBPROCESS
@@ -4855,6 +4855,19 @@ def main() -> int:
         "history_keep_runs": history_keep_runs,
         "history_keep_days": history_keep_days,
     }
+    stage_context = StageContext(
+        candidate_id=CANDIDATE_ID,
+        run_id=run_id,
+        workspace=_workspace(),
+        providers=tuple(),
+        profiles=tuple(),
+        config_paths={
+            "providers": args.providers_config,
+            "profiles": str(PROFILES_CONFIG_PATH),
+            "scoring": str(SCORING_CONFIG_PATH),
+        },
+        provenance={},
+    )
 
     def _finalize(status: str, extra: Optional[Dict[str, Any]] = None) -> str:
         final_status = status
@@ -5578,6 +5591,9 @@ def main() -> int:
         return result
 
     try:
+        providers = _resolve_providers(args)
+        openai_only = providers == ["openai"]
+        flag_payload["providers"] = providers
         profiles = _resolve_profiles(args)
         profiles_list[:] = profiles
         workspace = _workspace()

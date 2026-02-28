@@ -396,6 +396,68 @@ def test_provider_availability_written_on_provider_policy_failure(tmp_path: Path
     assert providers["openai"]["policy"]["network_shield"]["allowlist_allowed"] is False
 
 
+def test_provider_availability_written_when_no_enabled_providers(tmp_path: Path, monkeypatch: Any) -> None:
+    """No-enabled-provider startup failure still emits provider_availability and run_health."""
+    _setup_env(monkeypatch, tmp_path)
+    providers_path = tmp_path / "providers-disabled.json"
+    providers_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "providers": [
+                    {
+                        "provider_id": "openai",
+                        "display_name": "OpenAI",
+                        "enabled": False,
+                        "careers_urls": ["https://jobs.ashbyhq.com/openai"],
+                        "extraction_mode": "ashby",
+                        "snapshot_path": "data/openai_snapshots/index.html",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--profiles",
+            "cs",
+            "--providers-config",
+            str(providers_path),
+            "--no_post",
+        ],
+    )
+
+    rc = run_daily.main()
+    assert rc == 2
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["status"] == "failed"
+    assert payload["failed_stage"] == "startup"
+
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["enabled"] is False
+    assert providers["openai"]["availability"] == "unavailable"
+    assert providers["openai"]["reason_code"] == "not_enabled"
+
+
 def test_provider_availability_written_when_primary_and_retry_writers_fail(tmp_path: Path, monkeypatch: Any) -> None:
     """If the primary+retry availability writers raise, deterministic minimal fallback is still emitted."""
     paths = _setup_env(monkeypatch, tmp_path)
