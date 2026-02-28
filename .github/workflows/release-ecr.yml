@@ -18,11 +18,36 @@ on:
       release_kind:
         description: "Release kind for body validation (product|milestone)"
         required: false
-        default: ""
+        default: "product"
+        type: choice
+        options:
+          - product
+          - milestone
+      release_tier:
+        description: "Release tier for product releases (major|minor|patch|auto)"
+        required: false
+        default: "minor"
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
       semver_level:
         description: "SemVer level for product releases (auto|major|minor|patch)"
         required: false
         default: "auto"
+        type: choice
+        options:
+          - auto
+          - major
+          - minor
+          - patch
+      major:
+        description: "Force major template enforcement"
+        required: false
+        default: false
+        type: boolean
       release_title:
         description: "Release title (defaults to SignalCraft <tag>)"
         required: false
@@ -37,6 +62,9 @@ on:
         default: "false"
   push:
     branches: [main]
+    tags:
+      - "v*"
+      - "m*"
 
 jobs:
   build-and-gate:
@@ -49,6 +77,8 @@ jobs:
       ECR_REPO: jobintel
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Resolve release tag
         run: |
@@ -58,6 +88,62 @@ jobs:
             tag="${GITHUB_SHA}"
           fi
           echo "IMAGE_TAG=$tag" >> "$GITHUB_ENV"
+
+      - name: Resolve release mode (kind/tier)
+        run: |
+          set -euo pipefail
+          release_kind="${{ github.event.inputs.release_kind || '' }}"
+          release_tier="${{ github.event.inputs.release_tier || '' }}"
+          semver_level_input="${{ github.event.inputs.semver_level || 'auto' }}"
+          major_override="${{ github.event.inputs.major || 'false' }}"
+          release_tag="${IMAGE_TAG}"
+
+          if [ -z "${release_tier}" ] || [ "${release_tier}" = "auto" ]; then
+            release_tier="${semver_level_input}"
+          fi
+
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            release_tag="${GITHUB_REF_NAME}"
+            if [[ "${GITHUB_REF_NAME}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+              release_kind="product"
+              curr_major="${BASH_REMATCH[1]}"
+              curr_minor="${BASH_REMATCH[2]}"
+              curr_patch="${BASH_REMATCH[3]}"
+              previous_tag="$(git tag -l 'v*' --sort=v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -Fvx "${GITHUB_REF_NAME}" | tail -n 1 || true)"
+              if [ -n "${previous_tag}" ] && [[ "${previous_tag}" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                prev_major="${BASH_REMATCH[1]}"
+                prev_minor="${BASH_REMATCH[2]}"
+                prev_patch="${BASH_REMATCH[3]}"
+                if [ "${curr_major}" -gt "${prev_major}" ]; then
+                  release_tier="major"
+                elif [ "${curr_minor}" -gt "${prev_minor}" ]; then
+                  release_tier="minor"
+                elif [ "${curr_patch}" -gt "${prev_patch}" ]; then
+                  release_tier="patch"
+                fi
+              fi
+            elif [[ "${GITHUB_REF_NAME}" =~ ^m[0-9]+- ]]; then
+              release_kind="milestone"
+            fi
+          fi
+
+          if [ "${major_override}" = "true" ]; then
+            release_tier="major"
+          fi
+
+          if [ -z "${release_kind}" ]; then
+            release_kind="product"
+          fi
+          if [ -z "${release_tier}" ]; then
+            release_tier="minor"
+          fi
+
+          echo "RELEASE_KIND=${release_kind}" >> "$GITHUB_ENV"
+          echo "RELEASE_TIER=${release_tier}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=${release_tag}" >> "$GITHUB_ENV"
+          echo "release_kind=${release_kind}"
+          echo "release_tier=${release_tier}"
+          echo "release_tag=${release_tag}"
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -71,7 +157,32 @@ jobs:
       - name: Buildx builder
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push multi-arch image
+      - name: Render release notes template
+        run: |
+          set -euo pipefail
+          IMAGE_REF_PLACEHOLDER="000000000000.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+          notes_path="/tmp/release-notes-${IMAGE_TAG}.md"
+          python3 scripts/release/render_release_notes.py \
+            --release-kind "${RELEASE_KIND}" \
+            --semver-level "${RELEASE_TIER}" \
+            --tag "${RELEASE_TAG}" \
+            --main-sha "${GITHUB_SHA}" \
+            --image-ref "${IMAGE_REF_PLACEHOLDER}" \
+            --arch amd64 \
+            --arch arm64 \
+            --out "${notes_path}"
+          echo "RELEASE_NOTES_PATH=${notes_path}" >> "$GITHUB_ENV"
+
+      - name: Validate release notes template mode
+        run: |
+          set -euo pipefail
+          python3 scripts/release/validate_release_body.py \
+            --release-kind "${RELEASE_KIND}" \
+            --semver-level "${RELEASE_TIER}" \
+            --tag "${RELEASE_TAG}" \
+            --body-file "${RELEASE_NOTES_PATH}"
+
+      - name: Publish image to ECR (multi-arch)
         run: |
           set -euo pipefail
           IMAGE_TAG="$IMAGE_TAG" \
@@ -157,7 +268,9 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true' }}
         env:
           RELEASE_KIND_INPUT: ${{ github.event.inputs.release_kind }}
+          RELEASE_TIER_INPUT: ${{ github.event.inputs.release_tier }}
           SEMVER_LEVEL_INPUT: ${{ github.event.inputs.semver_level }}
+          MAJOR_INPUT: ${{ github.event.inputs.major }}
           RELEASE_TAG_INPUT: ${{ github.event.inputs.release_tag }}
           RELEASE_BODY_INPUT: ${{ github.event.inputs.release_body }}
           DEV_MODE_INPUT: ${{ github.event.inputs.dev_mode }}
@@ -184,10 +297,21 @@ jobs:
             exit 1
           fi
 
+          semver_level="$SEMVER_LEVEL_INPUT"
+          if [ -z "$semver_level" ] || [ "$semver_level" = "auto" ]; then
+            semver_level="$RELEASE_TIER_INPUT"
+          fi
+          if [ -z "$semver_level" ] || [ "$semver_level" = "auto" ]; then
+            semver_level="auto"
+          fi
+          if [ "$MAJOR_INPUT" = "true" ]; then
+            semver_level="major"
+          fi
+
           printf "%s\n" "$RELEASE_BODY_INPUT" > /tmp/release-body.md
           validate_args=( \
             --release-kind "$release_kind" \
-            --semver-level "$SEMVER_LEVEL_INPUT" \
+            --semver-level "$semver_level" \
             --tag "$release_tag" \
             --body-file /tmp/release-body.md \
             --require-ci-evidence \
