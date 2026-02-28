@@ -2,6 +2,7 @@
 
 ## Why
 Some DR proof artifacts include raw CloudWatch `get-log-events` output. Those JSON payloads contain pagination tokens (`nextForwardToken`, `nextBackwardToken`, and similar `next*Token` keys) that can trigger secret scanning.
+These tokens are not authentication credentials, but they are high-entropy opaque values and are redacted to avoid scanner noise and accidental propagation in committed artifacts.
 
 ## What changed
 - Added deterministic redaction helper:
