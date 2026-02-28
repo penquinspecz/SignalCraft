@@ -31,6 +31,7 @@ python scripts/candidates.py bootstrap <candidate_id> --display-name "Candidate 
 python scripts/candidates.py doctor <candidate_id> --json
 python scripts/candidates.py validate --json
 python scripts/candidates.py ingest-text <candidate_id> --resume-file ./resume.txt --linkedin-file ./linkedin.txt --json
+python scripts/candidates.py ingest-resume <candidate_id> --resume-file ./resume.pdf --json
 ```
 
 ## 60-Second Happy Path
@@ -47,13 +48,19 @@ python scripts/candidates.py bootstrap alice --display-name "Alice Example"
 python scripts/candidates.py ingest-text alice --resume-file ./resume.txt --linkedin-file ./linkedin.txt --summary-file ./summary.txt --json
 ```
 
-3) Validate candidate scaffold/profile/pointers:
+3) Ingest local resume file into structured-only fields (offline, local-only):
+
+```bash
+python scripts/candidates.py ingest-resume alice --resume-file ./resume.pdf --json
+```
+
+4) Validate candidate scaffold/profile/pointers:
 
 ```bash
 python scripts/candidates.py doctor alice --json
 ```
 
-4) Run daily pipeline with candidate safety wrapper:
+5) Run daily pipeline with candidate safety wrapper:
 
 ```bash
 python -m jobintel.cli run daily --candidate-id alice --profiles cs --offline --no_post
@@ -94,3 +101,18 @@ python scripts/candidates.py --state-dir /tmp/signalcraft_state add alice --disp
   - immutable artifact is written under `inputs/artifacts/` with `sha256`, `captured_at_utc`, `size_bytes`
   - profile keeps pointer metadata under `text_input_artifacts`
 - Run report provenance includes pointer-only metadata (`candidate_input_provenance`); raw text is not copied into run reports.
+
+## Resume Ingestion Contract (v1)
+
+- Local-only input:
+  - `python scripts/candidates.py ingest-resume <candidate_id> --resume-file <local.pdf|local.txt> --json`
+  - no URL argument; no network fetch path
+- Structured-only output schema:
+  - `schemas/resume.schema.v1.json`
+  - fields include `skills`, `role_signals`, `experience_summary`, `education_signals`, `certification_signals`
+- Redaction boundary:
+  - raw resume body is not persisted in candidate profile, run artifacts, or CLI output
+  - only structured projection + deterministic hash are stored
+- Deterministic hashing:
+  - `resume_hash` uses canonicalized extracted text under `resume_hash.v1`
+  - profile hash updates deterministically when `resume_hash` changes

@@ -103,10 +103,29 @@ def cmd_ingest_text(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ingest_resume(args: argparse.Namespace) -> int:
+    candidate_registry = args.registry_module
+    try:
+        result = candidate_registry.ingest_resume_file(args.candidate_id, args.resume_file)
+    except (OSError, candidate_registry.CandidateValidationError, ValueError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(result, sort_keys=True))
+    else:
+        print(
+            "ingested resume (structured-only) "
+            f"candidate_id={result['candidate_id']} resume_hash={result['resume_structured']['resume_hash']}"
+        )
+    return 0
+
+
 def _print_bootstrap_next_steps(candidate_id: str) -> None:
     print("next_steps:")
     print(f"  python scripts/candidates.py ingest-text {candidate_id} --resume-file ./resume.txt --json")
     print(f"  python scripts/candidates.py ingest-text {candidate_id} --linkedin-file ./linkedin.txt --json")
+    print(f"  python scripts/candidates.py ingest-resume {candidate_id} --resume-file ./resume.pdf --json")
     print(f"  python -m jobintel.cli run daily --candidate-id {candidate_id} --profiles cs --offline --no_post")
 
 
@@ -205,6 +224,15 @@ def main(argv: Optional[list[str]] = None) -> int:
     ingest_cmd.add_argument("--summary-file")
     ingest_cmd.add_argument("--json", action="store_true")
     ingest_cmd.set_defaults(func=cmd_ingest_text)
+
+    ingest_resume_cmd = sub.add_parser(
+        "ingest-resume",
+        help="Ingest local resume file (pdf/txt) into structured-only profile fields",
+    )
+    ingest_resume_cmd.add_argument("candidate_id")
+    ingest_resume_cmd.add_argument("--resume-file", required=True)
+    ingest_resume_cmd.add_argument("--json", action="store_true")
+    ingest_resume_cmd.set_defaults(func=cmd_ingest_resume)
 
     set_profile_text_cmd = sub.add_parser("set-profile-text", help="Alias for ingest-text")
     set_profile_text_cmd.add_argument("candidate_id")

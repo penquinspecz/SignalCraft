@@ -1129,6 +1129,12 @@ def _resolve_actor() -> str:
 
 
 def _current_profile_hash(candidate_id: str) -> Optional[str]:
+    try:
+        from ji_engine.candidates import registry as candidate_registry
+
+        return candidate_registry.profile_hash(candidate_id)
+    except Exception:
+        pass
     primary = candidate_profile_path(candidate_id)
     digest = _hash_file(primary)
     if digest is not None:
