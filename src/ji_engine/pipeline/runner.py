@@ -4859,8 +4859,8 @@ def main() -> int:
         candidate_id=CANDIDATE_ID,
         run_id=run_id,
         workspace=_workspace(),
-        providers=tuple(),
-        profiles=tuple(),
+        providers=(),
+        profiles=(),
         config_paths={
             "providers": args.providers_config,
             "profiles": str(PROFILES_CONFIG_PATH),
@@ -5565,6 +5565,7 @@ def main() -> int:
 
     current_stage = "startup"
     stage_results: Dict[str, StageResult] = {}
+    provider_resolution_failed = False
 
     def record_stage(name: str, fn: Callable[[], Any]) -> Any:
         force_fail = os.environ.get("JOBINTEL_FORCE_FAIL_STAGE", "").strip()
@@ -5591,7 +5592,11 @@ def main() -> int:
         return result
 
     try:
-        providers = _resolve_providers(args)
+        try:
+            providers = _resolve_providers(args)
+        except SystemExit:
+            provider_resolution_failed = True
+            raise
         openai_only = providers == ["openai"]
         flag_payload["providers"] = providers
         profiles = _resolve_profiles(args)
@@ -6451,6 +6456,8 @@ def main() -> int:
             no_post=args.no_post,
         )
         _finalize("error", {"error": err_msg, "failed_stage": current_stage})
+        if provider_resolution_failed:
+            raise SystemExit(exit_code) from None
         return exit_code
     except Exception as e:
         logger.error(f"Stage '{current_stage}' failed unexpectedly: {e!r}")

@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
+
 from scripts.schema_validate import resolve_named_schema_path, validate_payload
 
 
@@ -440,8 +442,9 @@ def test_provider_availability_written_when_no_enabled_providers(tmp_path: Path,
         ],
     )
 
-    rc = run_daily.main()
-    assert rc == 2
+    with pytest.raises(SystemExit) as exc:
+        run_daily.main()
+    assert exc.value.code == 2
 
     payload = _latest_run_health(run_daily)
     _validate_run_health_schema(payload)
