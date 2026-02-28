@@ -1,0 +1,31 @@
+{
+  "payload": {
+    "input": {
+      "action": "request_manual_approval",
+      "execution_id": "m19b-success-true-20260227T050707Z",
+      "expected_account_id": "048622080012",
+      "notification_topic_arn": "arn:aws:sns:us-east-1:048622080012:signalcraft-dr-notifications",
+      "receipt_bucket": "jobintel-prod1",
+      "receipt_prefix": "jobintel/dr-orchestrator/receipts",
+      "region": "us-east-1",
+      "summary": {
+        "backup_uri": "s3://jobintel-prod1/jobintel/backups/backup-20260221T061624Z",
+        "instance_id": "i-0313e98010ecef6e0",
+        "public_ip": "3.88.91.148",
+        "validate": "Success"
+      },
+      "task_token": "AQCYAAAAKgAAAAMAAAAAAAAAAXx/n5c+7/XcWKJLYEpHDa6AXHsT5toNf9U6rILxO/xzZGDpfQ88AMcKPOELx7cnUfGdpXHTL3xTv7KR/NFvcxASJtTO6b/ipDgPCigVjsfIQRJurXtgDZSaR1yQ2vhn+uY=Ry3wmdNfE1uekLm1oEP09RshX7MIYmw51nDRLAYokuf5Rjsv20/TZ0EsYrkIft0hQ1eTzXoZVvNNbIK0Ku+X6E5baKQ/AELlxrJVoTGyCXOqYO6ij1kNBlhtlMqHqsZKhTrFaYaUwsaBQu7V4RIHdLRgDBycZONwlhDWlg5sGI2SbeWSRPoe4YRWqcX4OvyE2dQ9SRJBxAGUqELbpVuL43XY4sSGvzJrdgK/puADooC0z7EQ/s/Mz2+pKSQM2ihXhivh5AN6GYfpUhS3mGXcnhQeQI37PXxuFafwg6tvtqEs6/MmCev8D1SbpiHmVf9PP/OjaANdzxTEVjW5qi32A3LHdKFXItZXS/hh/BXb3hG+TOuFXg6BJj25P8Yi3mFTe3KUeOu4xlq0hqXCLmneG5qWJW27n9KXaPoF2vC4sI2MIpaqeeVBSyJXTWeChvsYCyTncrWv6pdcueN7gxlVu2bnB9gEWC+bwm0D1p5c6dVydPcG2GumiriyP6a2weV4yiguJncVmLwizM6Paab+"
+    },
+    "result": {
+      "account_id": "048622080012",
+      "message_id": "1cec6028-dee3-5502-8ece-0233f7c728e6",
+      "published": true,
+      "region": "us-east-1",
+      "task_token_hint": "AQCYAAAAKg...6Paab+"
+    }
+  },
+  "phase": "request_manual_approval",
+  "schema_version": 1,
+  "status": "ok",
+  "timestamp_utc": "2026-02-27T05:08:52Z"
+}

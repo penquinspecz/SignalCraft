@@ -79,3 +79,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/ops/check_dr_docs.py
+
+      - name: DR receipt bundle completeness check
+        run: |
+          set -euo pipefail
+          python3 scripts/ops/check_dr_receipt_bundle.py \
+            --bundle-dir docs/proof/receipt-bundle-m19b-success-true-20260227T050707Z
