@@ -1,0 +1,241 @@
+# Auto-apply governance labels for PRs using deterministic metadata/path rules.
+# Safety: uses pull_request + GitHub API only; does not checkout or execute PR code.
+name: pr-governance-apply
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+
+concurrency:
+  group: pr-governance-apply-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  apply-governance-labels:
+    name: apply-governance-labels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Apply governance labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = context.payload.pull_request.number;
+            const issue_number = pull_number;
+
+            const PROVENANCE = ["from-composer", "from-codex", "from-human"];
+            const TYPE_LABELS = ["type:feat", "type:fix", "type:chore", "type:docs", "type:refactor", "type:test"];
+            const AREA_ORDER = [
+              "area:engine",
+              "area:providers",
+              "area:dr",
+              "area:release",
+              "area:infra",
+              "area:docs",
+              "area:unknown",
+            ];
+            const AREA_SET = new Set(AREA_ORDER);
+
+            const REQUIRED_LABELS = {
+              "from-composer": { color: "5319E7", description: "PRs authored/executed via Composer flows" },
+              "from-codex": { color: "1D76DB", description: "PRs authored/executed directly by Codex" },
+              "from-human": { color: "0E8A16", description: "PRs authored directly by a human" },
+              "type:feat": { color: "0E8A16", description: "Feature change" },
+              "type:fix": { color: "D73A4A", description: "Bug fix" },
+              "type:chore": { color: "BFD4F2", description: "Maintenance or tooling change" },
+              "type:docs": { color: "0075CA", description: "Documentation-only or docs-primary change" },
+              "type:refactor": { color: "FBCA04", description: "Internal refactor with no intended behavior change" },
+              "type:test": { color: "C2E0C6", description: "Test-only change" },
+              "area:engine": { color: "0E8A16", description: "Engine/runtime pipeline logic" },
+              "area:providers": { color: "0052CC", description: "Provider integrations and registry" },
+              "area:dr": { color: "B60205", description: "Disaster recovery and restore tooling" },
+              "area:release": { color: "5319E7", description: "Release process and release tooling" },
+              "area:infra": { color: "1D76DB", description: "Infrastructure and deployment surface" },
+              "area:docs": { color: "0075CA", description: "Docs-only scope" },
+              "area:unknown": { color: "D4C5F9", description: "Fallback area when no specific area is inferred" },
+            };
+
+            function isReadmePath(path) {
+              return /(^|\/)README[^/]*$/i.test(path);
+            }
+
+            function isDocsPath(path) {
+              return path.startsWith("docs/") || isReadmePath(path);
+            }
+
+            function isEnginePath(path) {
+              return path.startsWith("src/ji_engine/") || path.startsWith("src/jobintel/");
+            }
+
+            function isProvidersPath(path) {
+              return path.startsWith("src/ji_engine/providers/");
+            }
+
+            function isDrPath(path) {
+              return path.startsWith("scripts/ops/") || path.startsWith("ops/");
+            }
+
+            function isInfraPath(path) {
+              return path.startsWith("ops/aws/") || path.startsWith("ops/k8s/");
+            }
+
+            function chooseProvenance(headRef) {
+              if (headRef.startsWith("codex/")) return "from-codex";
+              if (headRef.startsWith("composer/")) return "from-composer";
+              return "from-human";
+            }
+
+            function chooseType(title, changedPaths) {
+              const trimmed = (title || "").trim();
+              const docsOnly = changedPaths.length > 0 && changedPaths.every((path) => isDocsPath(path));
+              if (docsOnly || /^\s*docs(?:\(|:)/i.test(trimmed)) return "type:docs";
+              if (/^\s*fix(?:\(|:)/i.test(trimmed)) return "type:fix";
+              if (/^\s*feat(?:\(|:)/i.test(trimmed)) return "type:feat";
+              return "type:chore";
+            }
+
+            function inferAreas(changedPaths) {
+              const inferred = new Set();
+              if (changedPaths.some((path) => isDocsPath(path))) inferred.add("area:docs");
+              if (changedPaths.some((path) => isEnginePath(path))) inferred.add("area:engine");
+              if (changedPaths.some((path) => isProvidersPath(path))) inferred.add("area:providers");
+              if (changedPaths.some((path) => isDrPath(path))) inferred.add("area:dr");
+              if (changedPaths.some((path) => isInfraPath(path))) inferred.add("area:infra");
+              if (inferred.size === 0) inferred.add("area:unknown");
+
+              // Keep inferred areas aligned with governance semantics.
+              const nonDocs = [...inferred].filter((label) => !["area:docs", "area:unknown"].includes(label));
+              if (inferred.has("area:docs") && nonDocs.length > 0) inferred.delete("area:docs");
+              if (inferred.has("area:unknown") && inferred.size > 1) inferred.delete("area:unknown");
+              return inferred;
+            }
+
+            function sortAreas(areas) {
+              const areaOrder = new Map(AREA_ORDER.map((label, idx) => [label, idx]));
+              return [...areas].sort((a, b) => {
+                const ai = areaOrder.has(a) ? areaOrder.get(a) : 999;
+                const bi = areaOrder.has(b) ? areaOrder.get(b) : 999;
+                if (ai !== bi) return ai - bi;
+                return a.localeCompare(b);
+              });
+            }
+
+            function dedupePreserveOrder(labels) {
+              const out = [];
+              const seen = new Set();
+              for (const label of labels) {
+                if (seen.has(label)) continue;
+                seen.add(label);
+                out.push(label);
+              }
+              return out;
+            }
+
+            async function ensureRequiredLabelsExist() {
+              for (const [name, spec] of Object.entries(REQUIRED_LABELS)) {
+                try {
+                  await github.rest.issues.getLabel({ owner, repo, name });
+                } catch (error) {
+                  if (error.status !== 404) throw error;
+                  try {
+                    await github.rest.issues.createLabel({
+                      owner,
+                      repo,
+                      name,
+                      color: spec.color,
+                      description: spec.description,
+                    });
+                    core.info(`Created missing label: ${name}`);
+                  } catch (createError) {
+                    // Handle concurrent label creation races safely.
+                    if (createError.status !== 422) throw createError;
+                    core.info(`Label already created concurrently: ${name}`);
+                  }
+                }
+              }
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number,
+            });
+            const title = pr.title || "";
+            const headRef = (pr.head && pr.head.ref) ? pr.head.ref : "";
+
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+            const changedPaths = files
+              .map((item) => item.filename)
+              .filter((name) => typeof name === "string");
+
+            const chosenProvenance = chooseProvenance(headRef);
+            const chosenType = chooseType(title, changedPaths);
+            const inferredAreas = inferAreas(changedPaths);
+
+            await ensureRequiredLabelsExist();
+
+            const { data: currentLabelsData } = await github.rest.issues.listLabelsOnIssue({
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const currentLabels = currentLabelsData.map((item) => item.name);
+
+            const existingAreas = currentLabels.filter((label) => label.startsWith("area:"));
+            const mergedAreas = new Set(existingAreas);
+            for (const label of inferredAreas) {
+              mergedAreas.add(label);
+            }
+            if (mergedAreas.size === 0) {
+              mergedAreas.add("area:unknown");
+            }
+
+            const preserved = currentLabels.filter(
+              (label) => !PROVENANCE.includes(label) && !label.startsWith("type:") && !label.startsWith("area:")
+            );
+
+            const finalLabels = dedupePreserveOrder([
+              ...preserved.sort((a, b) => a.localeCompare(b)),
+              chosenProvenance,
+              chosenType,
+              ...sortAreas(mergedAreas),
+            ]);
+
+            const currentSet = new Set(currentLabels);
+            const finalSet = new Set(finalLabels);
+            let changed = currentSet.size !== finalSet.size;
+            if (!changed) {
+              for (const label of finalSet) {
+                if (!currentSet.has(label)) {
+                  changed = true;
+                  break;
+                }
+              }
+            }
+
+            if (changed) {
+              await github.rest.issues.setLabels({
+                owner,
+                repo,
+                issue_number,
+                labels: finalLabels,
+              });
+              core.info(`Updated labels on PR #${pull_number}`);
+            } else {
+              core.info(`Labels already normalized on PR #${pull_number}`);
+            }
+
+            core.info(
+              `Resolved labels: provenance=${chosenProvenance}, type=${chosenType}, inferred_areas=${sortAreas(inferredAreas).join(", ")}`
+            );
