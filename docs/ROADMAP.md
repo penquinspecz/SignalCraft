@@ -73,9 +73,9 @@ Evidence expectations:
 
 # Current State
 
-Last verified: 2026-02-22 on commit `72c3eaa7d726b551d1eb7b058a0158cb087acf73` (we ran mainline verification checks on this SHA; `main` may have advanced since. See CI + proof receipts.)
-Latest product release: v0.1.0
-Latest milestone release: m19-20260222T201429Z
+Last verified: 2026-02-28 on commit `18f297fda068a177231bae21b0b51987c5b6da50` (mainline verification checks + merge-train CI were confirmed green on this SHA.)
+Latest product release: v0.2.0
+Relevant milestone releases: m19-20260222T201429Z, m19-20260222T181245Z
 
 Foundation exists:
 - Deterministic scoring contract (versioned config + schema + replay checks).
@@ -102,7 +102,7 @@ Foundation exists:
 - Run indexing/read-path migration advanced: RunRepository-only run resolution and SQLite-backed history read path landed. Verified by `docs/proof/m13-no-run-filesystem-scan-outside-tests-2026-02-15.md`, `docs/proof/m13-readpath-history-sqlite-2026-02-15.md`, `src/ji_engine/run_repository.py`, `scripts/report_changes.py`, `tests/test_m13_no_run_filesystem_scan_repo_wide.py`, `tests/test_run_repository.py`.
 - Dashboard plumbing is now API-boring: `/version`, artifact index endpoint, bounded artifact serving, and smoke receipts are landed. Verified by `docs/proof/m17-api-boring-pack-2026-02-15.md`, `docs/proof/m17-artifact-index-endpoint-2026-02-14.md`, `docs/proof/m17-api-boring-pack-smoke-negative-2026-02-15.md`, `docs/proof/p1-artifact-download-size-cap-2026-02-17.md`, `docs/DASHBOARD_API.md`.
 - PR governance enforcement: labels (provenance, type, area), milestone required, provenance label-only (no `[from-composer]` in titles). Verified by `docs/LABELS.md`, `docs/proof/provenance-always-enforced-20260222T211953Z.md`, `.github/workflows/pr-governance.yml`.
-- Release-notes renderer: deterministic milestone vs product templates (`scripts/release/render_release_notes.py`). Verified by `docs/RELEASE_NOTES_STYLE.md`, `docs/proof/release-notes-render-m19-example-20260222.md`.
+- Release governance now enforces canonical, self-contained release body structure with tier-aware product validation (major vs minor/patch) before publish. Verified by `scripts/release/render_release_notes.py`, `scripts/release/validate_release_body.py`, `.github/workflows/release-ecr.yml`, `docs/RELEASE_TEMPLATE_PRODUCT.md`, `docs/RELEASE_TEMPLATE_MILESTONE.md`, `docs/proof/release-body-policy-20260228T031653Z.md`, `docs/proof/release-workflow-tier-enforcement-20260228T032512Z.md`, `docs/proof/release-body-normalization-20260228T032035Z.md`.
 - M19 DR proof discipline: cost guardrails (validate-only default), branch auto-delete, cleanup rollup receipts. Verified by `docs/proof/20260222T211723Z-cleanup-rollup.md`, `scripts/ops/dr_drill.sh`, `scripts/ops/dr_validate.sh`.
 
 ---
@@ -327,10 +327,10 @@ Receipts Required
 
 # INFRASTRUCTURE EVOLUTION
 
-## Milestone 19A — Release Integrity for DR Deployments ◐
+## Milestone 19A — Release Integrity for DR Deployments ✅
 
 Goal: Every DR deploy uses deterministic, architecture-safe release units.
-Status: ◐ Multi-arch build/publish and metadata tooling are landed; production adoption and receipts are still incomplete.
+Status: ✅ Multi-arch build/publish, digest-pinned release metadata, CI evidence, and DR image validation receipts are landed and proven for release discipline.
 Evidence: `scripts/release/build_and_push_ecr.sh`, `scripts/release/write_release_metadata.py`, `scripts/release/verify_ecr_image_arch.py`, `scripts/release/check_release_proof_bundle.py`, `.github/workflows/release-ecr.yml`, `scripts/ops/dr_validate.sh`, `scripts/ops/assert_image_ref_digest.py`, `ops/aws/EKS_ECR_GOLDEN_PATH.md`, `docs/proof/m19a-digest-pinning-release-proof-2026-02-22.md`.
 
 Definition of Done
@@ -349,7 +349,7 @@ Receipts Required
 
 ---
 
-## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ◐
+## Milestone 19B — DR Orchestration v1 (Auto-Detect -> Auto-Validate -> Manual Promote) ✅
 
 Goal: DR detection and Kubernetes DR validation run unattended in AWS, with human-controlled promotion.
 Status: ✅ Failure-path and success-path rehearsals are proven and receipted in-repo; success-path reaches `RequestManualApproval` (manual gate) with promote intentionally not executed in this rehearsal.
