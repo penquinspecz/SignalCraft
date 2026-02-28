@@ -11,8 +11,9 @@ import json
 import logging
 import os
 import sqlite3
+import stat
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Optional, Protocol
 
 from ji_engine.config import (
@@ -26,6 +27,72 @@ from ji_engine.config import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _invalid_artifact_path() -> ValueError:
+    return ValueError("Invalid artifact path")
+
+
+def _absolute_lexical(path: Path) -> Path:
+    return Path(os.path.abspath(path))
+
+
+def _path_is_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _assert_no_symlinks_in_existing_path(path: Path) -> None:
+    absolute = _absolute_lexical(path)
+    parts = absolute.parts
+    if not parts:
+        return
+
+    if absolute.anchor:
+        current = Path(absolute.anchor)
+        start = 1
+    else:
+        current = Path(parts[0])
+        start = 1
+
+    for part in parts[start:]:
+        current = current / part
+        try:
+            mode = os.lstat(current).st_mode
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise _invalid_artifact_path() from exc
+        if stat.S_ISLNK(mode):
+            raise _invalid_artifact_path()
+
+
+def _normalize_artifact_relative_path(relative_path: str) -> tuple[str, ...]:
+    if not isinstance(relative_path, str):
+        raise _invalid_artifact_path()
+    raw = relative_path.strip()
+    if not raw or "\\" in raw:
+        raise _invalid_artifact_path()
+    parsed = PurePosixPath(raw)
+    if parsed.is_absolute():
+        raise _invalid_artifact_path()
+    parts = tuple(part for part in parsed.parts if part not in ("", "."))
+    if not parts or any(part == ".." for part in parts):
+        raise _invalid_artifact_path()
+    return parts
+
+
+def _read_text_no_symlink(path: Path, *, encoding: str = "utf-8") -> str:
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    if nofollow:
+        fd = os.open(path, os.O_RDONLY | nofollow)
+        with os.fdopen(fd, "r", encoding=encoding) as handle:
+            return handle.read()
+    _assert_no_symlinks_in_existing_path(path)
+    return path.read_text(encoding=encoding)
 
 
 def _profiles_from_run_payload(payload: Dict[str, Any]) -> List[str]:
@@ -190,10 +257,19 @@ class FileSystemRunRepository(RunRepository):
         *,
         candidate_id: str = DEFAULT_CANDIDATE_ID,
     ) -> Path:
-        run_root = self.resolve_run_dir(run_id, candidate_id=candidate_id).resolve()
-        candidate = (run_root / relative_path).resolve()
-        if run_root not in candidate.parents and candidate != run_root:
-            raise ValueError("Invalid artifact path")
+        safe_candidate = sanitize_candidate_id(candidate_id)
+        run_root = _absolute_lexical(self.resolve_run_dir(run_id, candidate_id=safe_candidate))
+        allowed_roots = [_absolute_lexical(root) for root in self._candidate_run_roots(safe_candidate)]
+        if not any(_path_is_within(run_root, root) for root in allowed_roots):
+            raise _invalid_artifact_path()
+
+        parts = _normalize_artifact_relative_path(relative_path)
+        candidate = run_root.joinpath(*parts)
+        if not _path_is_within(candidate, run_root):
+            raise _invalid_artifact_path()
+
+        _assert_no_symlinks_in_existing_path(run_root)
+        _assert_no_symlinks_in_existing_path(candidate)
         return candidate
 
     def write_run_json(
@@ -214,7 +290,7 @@ class FileSystemRunRepository(RunRepository):
         if not path.exists() or not path.is_file():
             return None
         try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload = json.loads(_read_text_no_symlink(path))
         except (OSError, json.JSONDecodeError):
             return None
         if not isinstance(payload, dict):
