@@ -47,7 +47,14 @@ jobs:
               errors.push(`TYPE: Expected exactly 1 type:* label; found ${typeLabels.length}. Examples: type:feat, type:fix, type:chore, type:docs, type:refactor, type:test. Current: ${typeLabels.join(', ') || '(none)'}`);
             }
             if (areaLabels.length < 1) {
-              errors.push(`AREA: Expected at least 1 area:* label; found ${areaLabels.length}. Examples: area:engine, area:docs, area:dr, area:release, area:infra, area:providers. Current: ${areaLabels.join(', ') || '(none)'}`);
+              errors.push(`AREA: Expected at least 1 area:* label; found ${areaLabels.length}. Examples: area:engine, area:dr, area:release, area:infra, area:providers, area:docs (docs-only), area:unknown (fallback). Current: ${areaLabels.join(', ') || '(none)'}`);
+            }
+            const nonDocsAreas = areaLabels.filter(l => !['area:docs', 'area:unknown'].includes(l));
+            if (areaLabels.includes('area:docs') && nonDocsAreas.length > 0) {
+              errors.push('AREA: area:docs is docs-only and must not be used as a fallback when another specific area:* label exists.');
+            }
+            if (areaLabels.includes('area:unknown') && areaLabels.length > 1) {
+              errors.push('AREA: area:unknown is fallback-only; remove it when a specific area:* label is present.');
             }
             if (!milestone) {
               errors.push('MILESTONE: PR must have a milestone set (roadmap or bucket: Infra & Tooling, Docs & Governance, Backlog Cleanup).');

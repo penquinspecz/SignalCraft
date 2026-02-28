@@ -1,9 +1,9 @@
 # Auto-label area:* based on changed paths.
-# Labeler adds labels; pr-governance enforces exactly one area:*.
+# Labeler adds labels; pr-governance enforces at least one area:*.
 
 "area:docs":
   - changed-files:
-      - any-glob-to-any-file: docs/**
+      - any-glob-to-all-files: docs/**
 
 "area:dr":
   - changed-files:
