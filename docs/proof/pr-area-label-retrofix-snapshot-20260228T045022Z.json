@@ -1,0 +1,1382 @@
+[
+  {
+    "closedAt": "2026-02-28T04:44:44Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-28T04:44:44Z",
+    "number": 244,
+    "title": "chore(governance): stop area:docs fallback labeling",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/244"
+  },
+  {
+    "closedAt": "2026-02-28T04:49:34Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-28T04:49:34Z",
+    "number": 243,
+    "title": "chore(ops): sanitize CloudWatch pagination tokens in proof exports",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/243"
+  },
+  {
+    "closedAt": "2026-02-28T04:10:04Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      }
+    ],
+    "mergedAt": "2026-02-28T04:10:04Z",
+    "number": 242,
+    "title": "chore(docs): roadmap truth sync post v0.2.0",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/242"
+  },
+  {
+    "closedAt": "2026-02-28T03:48:41Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Release",
+        "id": "LA_kwDOQlBllM8AAAACY_B7hg",
+        "name": "area:release"
+      }
+    ],
+    "mergedAt": "2026-02-28T03:48:41Z",
+    "number": 241,
+    "title": "chore(release): enforce release template tier mode in release-ecr",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/241"
+  },
+  {
+    "closedAt": "2026-02-28T03:56:13Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Release",
+        "id": "LA_kwDOQlBllM8AAAACY_B7hg",
+        "name": "area:release"
+      }
+    ],
+    "mergedAt": "2026-02-28T03:56:13Z",
+    "number": 240,
+    "title": "chore(release): normalize legacy release bodies to canonical templates",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/240"
+  },
+  {
+    "closedAt": "2026-02-28T03:39:24Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Release",
+        "id": "LA_kwDOQlBllM8AAAACY_B7hg",
+        "name": "area:release"
+      }
+    ],
+    "mergedAt": "2026-02-28T03:39:24Z",
+    "number": 239,
+    "title": "chore(release): enforce canonical self-contained release body policy",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/239"
+  },
+  {
+    "closedAt": "2026-02-27T23:38:47Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-27T23:38:47Z",
+    "number": 238,
+    "title": "chore(m19c): rehearse deterministic failback pointers",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/238"
+  },
+  {
+    "closedAt": "2026-02-27T23:44:59Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-27T23:44:58Z",
+    "number": 237,
+    "title": "chore(m19b): prove success-path to manual approval",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/237"
+  },
+  {
+    "closedAt": "2026-02-27T23:44:56Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "d73a4a",
+        "description": "Bug fix",
+        "id": "LA_kwDOQlBllM8AAAACY_B7FA",
+        "name": "type:fix"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": null,
+    "number": 236,
+    "title": "fix(dr): least-privilege iam ListRolePolicies for orchestrator bringup",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/236"
+  },
+  {
+    "closedAt": "2026-02-27T03:45:35Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "d73a4a",
+        "description": "Bug fix",
+        "id": "LA_kwDOQlBllM8AAAACY_B7FA",
+        "name": "type:fix"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-27T03:45:35Z",
+    "number": 235,
+    "title": "fix(dr): eliminate CodeBuild buildspec YAML_FILE_ERROR in bringup",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/235"
+  },
+  {
+    "closedAt": "2026-02-27T23:39:27Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      },
+      {
+        "color": "C5DEF5",
+        "description": "Milestone 19 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY1Qg6A",
+        "name": "milestone:M19"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      }
+    ],
+    "mergedAt": "2026-02-27T23:39:27Z",
+    "number": 234,
+    "title": "docs(dr): capture m19b post-quota rehearsal receipts",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/234"
+  },
+  {
+    "closedAt": "2026-02-23T02:28:27Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Release",
+        "id": "LA_kwDOQlBllM8AAAACY_B7hg",
+        "name": "area:release"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-23T02:28:27Z",
+    "number": 233,
+    "title": "chore(m19a): digest pinning default + release proof bundle",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/233"
+  },
+  {
+    "closedAt": "2026-02-23T02:35:42Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-23T02:35:42Z",
+    "number": 232,
+    "title": "chore(m19c): deterministic failback pointers (dry-run + apply)",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/232"
+  },
+  {
+    "closedAt": "2026-02-23T02:39:39Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "ffffff",
+        "description": "Maintenance",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Jw",
+        "name": "type:chore"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      }
+    ],
+    "mergedAt": "2026-02-23T02:39:39Z",
+    "number": 231,
+    "title": "chore(roadmap): close Milestone 19B with success/failure rehearsal receipts",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/231"
+  },
+  {
+    "closedAt": "2026-02-22T22:08:08Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "d73a4a",
+        "description": "Bug fix",
+        "id": "LA_kwDOQlBllM8AAAACY_B7FA",
+        "name": "type:fix"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Infrastructure",
+        "id": "LA_kwDOQlBllM8AAAACY_B7rw",
+        "name": "area:infra"
+      }
+    ],
+    "mergedAt": "2026-02-22T22:08:07Z",
+    "number": 230,
+    "title": "fix(dr): M19B orchestrator deployment fixes + success-path rehearsal proof",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/230"
+  },
+  {
+    "closedAt": "2026-02-23T02:49:03Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-23T02:49:03Z",
+    "number": 229,
+    "title": "docs: roadmap truth sync \u2014 Last verified, release pointers, governance/release tooling",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/229"
+  },
+  {
+    "closedAt": "2026-02-22T21:32:51Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "0075ca",
+        "description": "Release",
+        "id": "LA_kwDOQlBllM8AAAACY_B7hg",
+        "name": "area:release"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:32:51Z",
+    "number": 228,
+    "title": "chore(release): milestone/product release notes style + render script",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/228"
+  },
+  {
+    "closedAt": "2026-02-22T21:30:07Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:30:07Z",
+    "number": 227,
+    "title": "chore(governance): provenance always enforced, add label snippet",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/227"
+  },
+  {
+    "closedAt": "2026-02-22T21:27:21Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:27:21Z",
+    "number": 226,
+    "title": "docs: add cleanup rollup receipt",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/226"
+  },
+  {
+    "closedAt": "2026-02-22T21:17:34Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:17:34Z",
+    "number": 225,
+    "title": "docs: add branch deletion rollup receipt",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/225"
+  },
+  {
+    "closedAt": "2026-02-22T21:08:30Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:08:30Z",
+    "number": 224,
+    "title": "chore(governance): enforce branch deletion on merge",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/224"
+  },
+  {
+    "closedAt": "2026-02-22T21:01:13Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:01:13Z",
+    "number": 223,
+    "title": "chore(governance): allow multiple area labels",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/223"
+  },
+  {
+    "closedAt": "2026-02-22T20:59:56Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": null,
+    "number": 222,
+    "title": "chore(governance): allow multiple area labels",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/222"
+  },
+  {
+    "closedAt": "2026-02-22T20:57:01Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T20:57:01Z",
+    "number": 221,
+    "title": "chore(governance): enforce PR labels, milestone, title via CI",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/221"
+  },
+  {
+    "closedAt": "2026-02-22T21:17:27Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": null,
+    "number": 220,
+    "title": "chore(governance): PR template + milestone policy (B)",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/220"
+  },
+  {
+    "closedAt": "2026-02-22T21:13:39Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:13:39Z",
+    "number": 219,
+    "title": "docs: define product release policy (v0.2.0 readiness)",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/219"
+  },
+  {
+    "closedAt": "2026-02-22T21:10:48Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      },
+      {
+        "color": "0075ca",
+        "description": "Release",
+        "id": "LA_kwDOQlBllM8AAAACY_B7hg",
+        "name": "area:release"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:10:48Z",
+    "number": 218,
+    "title": "chore(release): add release notes renderer",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/218"
+  },
+  {
+    "closedAt": "2026-02-22T21:09:25Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      },
+      {
+        "color": "0075ca",
+        "description": "Documentation changes",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGQ",
+        "name": "type:docs"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs domain",
+        "id": "LA_kwDOQlBllM8AAAACY_BxGw",
+        "name": "area:docs"
+      },
+      {
+        "color": "0075ca",
+        "description": "Disaster recovery",
+        "id": "LA_kwDOQlBllM8AAAACY_B7Tw",
+        "name": "area:dr"
+      }
+    ],
+    "mergedAt": "2026-02-22T21:09:25Z",
+    "number": 217,
+    "title": "chore(docs): establish versioning + release template",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/217"
+  },
+  {
+    "closedAt": "2026-02-22T20:14:17Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      }
+    ],
+    "mergedAt": "2026-02-22T20:14:17Z",
+    "number": 216,
+    "title": "[from-composer] fix(dr): land post-release script hardening + ignore tfplan artifacts",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/216"
+  },
+  {
+    "closedAt": "2026-02-22T18:12:02Z",
+    "labels": [
+      {
+        "color": "0E8A16",
+        "description": "PRs generated by Composer workflow/tooling",
+        "id": "LA_kwDOQlBllM8AAAACYNkWCA",
+        "name": "from-composer"
+      }
+    ],
+    "mergedAt": "2026-02-22T18:12:01Z",
+    "number": 215,
+    "title": "[from-composer] fix(dr): kubectl compat - ECR secret + Job image patch",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/215"
+  },
+  {
+    "closedAt": "2026-02-22T17:21:38Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      }
+    ],
+    "mergedAt": "2026-02-22T17:21:38Z",
+    "number": 214,
+    "title": "chore(dr): cost discipline + validate-only skip mode",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/214"
+  },
+  {
+    "closedAt": "2026-02-22T03:13:54Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      }
+    ],
+    "mergedAt": "2026-02-22T03:13:54Z",
+    "number": 213,
+    "title": "M19 DR merge prep: security guardrails, orchestrator flow, and canonical docs",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/213"
+  },
+  {
+    "closedAt": "2026-02-22T02:23:55Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "C5DEF5",
+        "description": "Milestone 19 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY1Qg6A",
+        "name": "milestone:M19"
+      }
+    ],
+    "mergedAt": null,
+    "number": 212,
+    "title": "fix(ops): use python3 in dr_restore for M19 DR flow",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/212"
+  },
+  {
+    "closedAt": "2026-02-21T05:45:46Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "C5DEF5",
+        "description": "Milestone 19 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY1Qg6A",
+        "name": "milestone:M19"
+      }
+    ],
+    "mergedAt": "2026-02-21T05:45:46Z",
+    "number": 211,
+    "title": "ops(aws): implement M19 Phase A S3 versioning+lifecycle hardening",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/211"
+  },
+  {
+    "closedAt": "2026-02-21T05:06:02Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 17 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0sIuA",
+        "name": "milestone:M17"
+      }
+    ],
+    "mergedAt": "2026-02-21T05:06:02Z",
+    "number": 210,
+    "title": "test(ci): make dashboard preflight test robust when make is unavailable",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/210"
+  },
+  {
+    "closedAt": "2026-02-21T05:14:30Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "0E8A16",
+        "description": "Milestone 12 work",
+        "id": "LA_kwDOQlBllM8AAAACY1I-jg",
+        "name": "milestone:M12"
+      }
+    ],
+    "mergedAt": "2026-02-21T05:14:30Z",
+    "number": 209,
+    "title": "fix(ops): guarantee provider_availability artifact on every run (M12)",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/209"
+  },
+  {
+    "closedAt": "2026-02-21T04:44:10Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      }
+    ],
+    "mergedAt": "2026-02-21T04:44:10Z",
+    "number": 208,
+    "title": "docs(roadmap): close M18 with reproducible-build receipt",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/208"
+  },
+  {
+    "closedAt": "2026-02-21T04:43:40Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      }
+    ],
+    "mergedAt": null,
+    "number": 207,
+    "title": "docs(roadmap): close M18 with reproducible-build receipt",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/207"
+  },
+  {
+    "closedAt": "2026-02-21T04:41:55Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 18 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY07LNQ",
+        "name": "milestone:M18"
+      }
+    ],
+    "mergedAt": "2026-02-21T04:41:55Z",
+    "number": 206,
+    "title": "build(m18): verify reproducible build instructions in clean room",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/206"
+  },
+  {
+    "closedAt": "2026-02-21T04:20:37Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      }
+    ],
+    "mergedAt": "2026-02-21T04:20:37Z",
+    "number": 205,
+    "title": "docs(roadmap): truth-sync M17 artifact/UI safety consolidation evidence",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/205"
+  },
+  {
+    "closedAt": "2026-02-21T04:17:25Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 17 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0sIuA",
+        "name": "milestone:M17"
+      }
+    ],
+    "mergedAt": "2026-02-21T04:17:25Z",
+    "number": 204,
+    "title": "test(m17): tighten artifact contract + UI safety registry parity",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/204"
+  },
+  {
+    "closedAt": "2026-02-21T04:02:15Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 18 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY07LNQ",
+        "name": "milestone:M18"
+      }
+    ],
+    "mergedAt": "2026-02-21T04:02:15Z",
+    "number": 203,
+    "title": "docs(roadmap): truth-sync M18 release-policy state",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/203"
+  },
+  {
+    "closedAt": "2026-02-21T03:59:04Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 18 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY07LNQ",
+        "name": "milestone:M18"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:59:03Z",
+    "number": 202,
+    "title": "ci(release): polish release-intent changelog guardrails",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/202"
+  },
+  {
+    "closedAt": "2026-02-21T03:46:59Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 17 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0sIuA",
+        "name": "milestone:M17"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:46:59Z",
+    "number": 201,
+    "title": "docs(roadmap): truth-sync M17 evidence after #199/#200",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/201"
+  },
+  {
+    "closedAt": "2026-02-21T03:42:58Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 17 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0sIuA",
+        "name": "milestone:M17"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:42:58Z",
+    "number": 200,
+    "title": "docs(dashboard): clarify offline/full modes and deterministic preflight",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/200"
+  },
+  {
+    "closedAt": "2026-02-21T03:41:05Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 17 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0sIuA",
+        "name": "milestone:M17"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:41:05Z",
+    "number": 199,
+    "title": "test(artifact): add CI-fast artifact contract consistency guardrail",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/199"
+  },
+  {
+    "closedAt": "2026-02-21T03:30:50Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 21 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0yA5A",
+        "name": "milestone:M21"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:30:50Z",
+    "number": 198,
+    "title": "docs(roadmap): truth-sync Milestone 21 harness vs execution",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/198"
+  },
+  {
+    "closedAt": "2026-02-21T03:26:49Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 21 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0yA5A",
+        "name": "milestone:M21"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:26:49Z",
+    "number": 197,
+    "title": "feat(ops): add M21 on-prem 72h proof harness starter kit",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/197"
+  },
+  {
+    "closedAt": "2026-02-21T03:11:36Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "5319E7",
+        "description": "Docs-only changes with no runtime behavior changes",
+        "id": "LA_kwDOQlBllM8AAAACYl6FGA",
+        "name": "docs-only"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:11:36Z",
+    "number": 196,
+    "title": "docs(roadmap): add M17 dashboard offline sanity evidence",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/196"
+  },
+  {
+    "closedAt": "2026-02-21T03:09:08Z",
+    "labels": [
+      {
+        "color": "1D76DB",
+        "description": "PRs authored/executed directly by Codex",
+        "id": "LA_kwDOQlBllM8AAAACYl6E_Q",
+        "name": "from-codex"
+      },
+      {
+        "color": "FBCA04",
+        "description": "Milestone 17 tracking",
+        "id": "LA_kwDOQlBllM8AAAACY0sIuA",
+        "name": "milestone:M17"
+      }
+    ],
+    "mergedAt": "2026-02-21T03:09:07Z",
+    "number": 195,
+    "title": "test(dashboard): add deterministic offline API sanity check",
+    "url": "https://github.com/penquinspecz/SignalCraft/pull/195"
+  }
+]
