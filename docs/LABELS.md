@@ -21,6 +21,18 @@ SignalCraft uses labels for PR governance: provenance, type, and area. **CI enfo
 
 See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 
+### Milestone Metadata Sync
+
+PR governance requires a GitHub milestone to be set. Roadmap tracking uses `M##`
+IDs, so sync repository milestones before assigning roadmap PRs:
+
+```bash
+make milestones-sync
+```
+
+This ensures `M22` through `M26` exist in GitHub metadata without removing any
+existing thematic milestones.
+
 ## Examples
 
 ### from-composer PR (docs-only)
