@@ -33,7 +33,7 @@ Primary security properties:
 ## Threat Categories
 
 ### SSRF / Egress bypass
-- Control: host/domain allowlists + DNS/IP classification + redirect revalidation + byte caps in `safe_get_text`.
+- Control: host/domain allowlists + single-resolution-per-hop DNS/IP classification + pinned-IP connect path (with HTTPS Host/SNI + cert verification on original hostname) + redirect revalidation + byte caps in `safe_get_text`.
 - Evidence: `src/ji_engine/utils/network_shield.py`, `tests/test_network_shield.py`, `tests/test_network_egress_shield_v1.py`.
 - Residual risk: policy misconfiguration in provider config can permit broader egress than intended.
 - Severity: P1.

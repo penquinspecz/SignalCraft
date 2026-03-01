@@ -27,6 +27,22 @@ SignalCraft uses labels for PR governance: provenance, type, and area. **CI enfo
 
 See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 
+## Milestone Metadata Sync
+
+PR governance requires a GitHub milestone (roadmap or bucket) on every PR.
+To align GitHub milestones with `docs/ROADMAP.md`, run:
+
+```bash
+make milestones-sync
+```
+
+Default behavior parses `## Milestone <number>` headings and ensures matching
+`M<number>` milestones exist, then ensures bucket milestones also exist:
+`Infra & Tooling`, `Docs & Governance`, and `Backlog Cleanup`.
+
+For roadmap headings with suffixes (for example `Milestone 19A/19B/19C`), sync
+maps them deterministically to the base numeric milestone (`M19`).
+
 ## Examples
 
 ### from-composer PR (docs-only)
@@ -49,7 +65,7 @@ See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 
 ## Auto-Labeling
 
-The `.github/workflows/labeler.yml` workflow normalizes governance labels deterministically:
+The `.github/workflows/pr-governance-apply.yml` workflow normalizes governance labels deterministically:
 
 - Exactly one provenance label based on branch prefix:
   - `composer/*` -> `from-composer`
@@ -61,7 +77,6 @@ The `.github/workflows/labeler.yml` workflow normalizes governance labels determ
   - title starts with `feat(` / `feat:` -> `type:feat`
   - fallback -> `type:chore`
 - Area labels are inferred from changed paths (see `.github/labeler.yml`) and normalized to keep docs/fallback semantics valid.
-
 - `area:docs` is removed for mixed-domain PRs when another specific area exists.
 - `area:unknown` is fallback-only and removed when a specific area exists.
 
@@ -72,4 +87,13 @@ python scripts/dev/simulate_pr_labeler.py \
   --title "fix(engine): harden resolver" \
   --head-ref "codex/security-fix" \
   --changed-file src/ji_engine/utils/network_shield.py
+```
+
+## Programmatic Application
+
+Use `scripts/dev/apply_pr_governance.py` to repair and verify governance metadata for open PRs.
+
+```bash
+python scripts/dev/apply_pr_governance.py --apply-open-prs
+python scripts/dev/apply_pr_governance.py --apply-open-prs --verify-only
 ```
