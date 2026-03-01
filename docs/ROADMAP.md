@@ -43,6 +43,7 @@ Every merged PR must:
 - Operational truth lives in artifacts
 - AI is last-mile augmentation only (bounded, cached, fail-closed)
 - No credentialed scraping
+- Provider extraction prefers structured sources (API > ATS > JSON-LD > RSS > HTML)
 - Legal constraints enforced in design
 - CI must prove determinism and safety properties
 - Cloud runs must be replayable locally
@@ -642,41 +643,79 @@ Receipts Required
 
 ---
 
-## Milestone 26 — Provider Onboarding Factory v1 (TOS + Robots + Scale) ◐
+## Milestone 26 — Provider Onboarding Factory v1 (Structured-First + Scale) ◐
 
-Goal: Add new career sites/providers safely at scale with a standardized, mostly automated onboarding flow.
-Status: ◐ New
+Goal: Add new career sites/providers safely at scale with a standardized onboarding
+flow that prefers structured data sources over HTML scraping.
+Status: ◐ New (scope expanded by Phase 3 audit)
 
 Rationale
-Provider expansion is the growth engine, but it must remain:
-- legally conservative,
-- reproducible,
-- and operationally boring.
+Provider expansion is the growth engine, but it must remain legally conservative,
+reproducible, and operationally boring. The onboarding factory must also enforce a
+**source preference hierarchy** — structured sources are more reliable, more
+deterministic, and less legally ambiguous than HTML scraping.
 
-This milestone formalizes a “provider onboarding factory” that:
-1) evaluates the site (structure + robots),
-2) performs a conservative TOS review and records the decision,
-3) builds tests + fixtures,
-4) generates config + proofs,
-5) and produces a go/no-go receipt bundle.
+### Source Preference Hierarchy (mandatory evaluation order)
+
+Every new provider onboarding MUST evaluate sources in this order and document the
+decision:
+
+1. **Public API** — Provider offers a documented, public jobs API (best: structured,
+   versioned, rate-limited by design). Example: company career API endpoints.
+2. **ATS Platform API** — Provider uses a known ATS (Ashby, Greenhouse, Lever,
+   Workday) with a structured API. Existing infrastructure: `AshbyProvider`,
+   `JsonLdProvider`.
+3. **JSON-LD / Microdata** — Career page embeds structured data in HTML.
+   Existing infrastructure: `JsonLdProvider`.
+4. **RSS / Atom Feed** — Provider publishes a job feed.
+5. **HTML Scraping** — Last resort. Hand-coded parser, fragile to layout changes.
+   Must include content fingerprint for drift detection.
+
+The onboarding receipt bundle MUST record which level was selected and why higher
+levels were rejected (e.g., "no public API exists", "Greenhouse API requires auth").
+
+### Extraction Resilience
+
+- **Content fingerprinting:** All HTML-scraped providers must have a content
+  fingerprint registered via `content_fingerprint.py`. Fingerprint drift triggers
+  a provider health warning (not silent failure).
+- **LLM-assisted extraction (future, bounded):** When `OpenAIProvider` becomes live,
+  LLM extraction may be used as a bounded fallback for HTML sources where CSS
+  selectors are too fragile. LLM extraction outputs are schema-validated and cached
+  by content hash. This is NOT a v1 requirement.
 
 Definition of Done
-- [ ] Provider onboarding “one command” entrypoint exists (offline-first), producing a deterministic receipt bundle:
-  - website metadata snapshot (host, canonical job URL patterns, robots status, crawl-delay if present)
-  - conservative TOS evaluation record (manual decision captured as structured artifact)
+- [ ] Provider onboarding "one command" entrypoint exists (offline-first), producing
+  a deterministic receipt bundle:
+  - website metadata snapshot (host, canonical job URL patterns, robots status,
+    crawl-delay if present)
+  - **source evaluation record** documenting preference hierarchy decision
+    (which levels evaluated, which selected, why)
+  - conservative TOS evaluation record (manual decision captured as structured
+    artifact)
   - scrape_mode decision (`snapshot_only` vs `live_allowed`) recorded
   - rate-limit plan recorded (per-host)
   - user-agent policy recorded
   - opt-out/tombstone plan recorded
-- [ ] A versioned schema exists for the onboarding receipt bundle (provider onboarding is auditable)
-- [ ] Provider registry tooling supports “pending provider” state until receipts exist
-- [ ] CI enforces: live-enabled providers MUST have onboarding receipts + policy block
-- [ ] At least 5 new providers onboarded using the factory (proving scale)
+- [ ] A versioned schema exists for the onboarding receipt bundle (provider
+  onboarding is auditable)
+- [ ] Source evaluation schema (`source_evaluation.v1`) added to receipt bundle
+- [ ] Provider registry tooling supports "pending provider" state until receipts
+  exist
+- [ ] CI enforces: live-enabled providers MUST have onboarding receipts + policy
+  block
+- [ ] At least 5 new providers onboarded using the factory (proving scale), with
+  at least 2 using structured sources (API/ATS/JSON-LD) and at least 1 using HTML
+  scraping (proving the full hierarchy)
+- [ ] Content fingerprint registered for all HTML-scraped providers
 
 Receipts Required
 - Versioned onboarding receipt schema + tests
-- Proof doc showing an end-to-end onboarding for one provider
-- “5 providers added” proof index (links to each receipt bundle)
+- Source evaluation schema + tests
+- Proof doc showing an end-to-end onboarding for one structured-source provider
+- Proof doc showing an end-to-end onboarding for one HTML-scraped provider
+- "5 providers added" proof index (links to each receipt bundle)
+- Content fingerprint registration proof for HTML providers
 
 ---
 
@@ -693,11 +732,19 @@ Definition of Done
 - [ ] Provider tombstone lifecycle documented and tested
 - [ ] CI enforces policy presence for live-enabled providers
 - [ ] At least 3 providers run live under policy-aware runtime with receipts
+- [ ] Source preference hierarchy compliance tracked per provider (which extraction
+  level is in use, whether higher levels have been re-evaluated since onboarding)
+- [ ] Content fingerprint drift detection integrated into run health: if an HTML
+  provider's fingerprint drifts, `run_health.v1.json` records a structured warning
+- [ ] Provider metadata includes `extraction_method` field (api, ats_api, json_ld,
+  rss, html_scrape) for operational visibility
 
 Receipts Required
 - Schema + invariants tests
 - Provenance proof showing policy decision fields in a real run
 - Proof doc showing rate limit enforcement and tombstone behavior
+- Extraction method distribution report (how many providers use each level)
+- Fingerprint drift detection proof
 
 ---
 
