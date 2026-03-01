@@ -1,11 +1,11 @@
-# Auto-label PRs by changed paths (area:*).
+# Auto-label PRs with deterministic governance normalization.
 # Uses pull_request_target: labeler needs pull-requests: write to add labels.
 # Safe: we only run actions/labeler (no checkout of PR code).
 name: labeler
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
 
 jobs:
   labeler:
@@ -18,13 +18,132 @@ jobs:
       - uses: actions/labeler@v6
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Enforce area fallback policy
+      - name: Normalize governance labels
         uses: actions/github-script@v7
         with:
           script: |
             const issue_number = context.payload.pull_request.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
+            const pull_number = issue_number;
+
+            const PROVENANCE_LABELS = ["from-composer", "from-codex", "from-human"];
+            const TYPE_LABELS = ["type:feat", "type:fix", "type:chore", "type:docs", "type:refactor", "type:test"];
+            const AREA_LABELS = [
+              "area:engine",
+              "area:providers",
+              "area:dr",
+              "area:release",
+              "area:infra",
+              "area:docs",
+              "area:unknown",
+            ];
+            const GOVERNANCE_LABELS = new Set([...PROVENANCE_LABELS, ...TYPE_LABELS, ...AREA_LABELS]);
+
+            function isReadmePath(path) {
+              return /(^|\/)README[^/]*$/i.test(path);
+            }
+
+            function isDocsPath(path) {
+              return path.startsWith("docs/") || isReadmePath(path);
+            }
+
+            function isEnginePath(path) {
+              return path.startsWith("src/ji_engine/") || path.startsWith("src/jobintel/") || path === "scripts/run_daily.py";
+            }
+
+            function isProvidersPath(path) {
+              return path.startsWith("src/ji_engine/providers/");
+            }
+
+            function isDrPath(path) {
+              if (path.startsWith("scripts/ops/")) {
+                return true;
+              }
+              if (!path.startsWith("ops/")) {
+                return false;
+              }
+              if (isInfraPath(path)) {
+                return false;
+              }
+              return true;
+            }
+
+            function isInfraPath(path) {
+              return path.startsWith("ops/aws/") || path.startsWith("ops/k8s/") || path.startsWith("ops/launchd/");
+            }
+
+            function isReleasePath(path) {
+              return path.startsWith("scripts/release/");
+            }
+
+            function chooseProvenance(headRef) {
+              if (headRef.startsWith("composer/")) {
+                return "from-composer";
+              }
+              if (headRef.startsWith("codex/")) {
+                return "from-codex";
+              }
+              return "from-human";
+            }
+
+            function chooseType(title, paths) {
+              const trimmed = title.trim();
+              const docsTitle = /^\s*docs(?:\(|:)/i.test(trimmed);
+              const fixTitle = /^\s*fix(?:\(|:)/i.test(trimmed);
+              const featTitle = /^\s*feat(?:\(|:)/i.test(trimmed);
+              const docsOnly = paths.length > 0 && paths.every((path) => isDocsPath(path));
+              if (docsOnly || docsTitle) {
+                return "type:docs";
+              }
+              if (fixTitle) {
+                return "type:fix";
+              }
+              if (featTitle) {
+                return "type:feat";
+              }
+              return "type:chore";
+            }
+
+            function chooseAreas(paths) {
+              const areas = new Set();
+              if (paths.some((path) => isDocsPath(path))) {
+                areas.add("area:docs");
+              }
+              if (paths.some((path) => isProvidersPath(path))) {
+                areas.add("area:providers");
+              }
+              if (paths.some((path) => isEnginePath(path))) {
+                areas.add("area:engine");
+              }
+              if (paths.some((path) => isDrPath(path))) {
+                areas.add("area:dr");
+              }
+              if (paths.some((path) => isReleasePath(path))) {
+                areas.add("area:release");
+              }
+              if (paths.some((path) => isInfraPath(path))) {
+                areas.add("area:infra");
+              }
+
+              if (areas.size === 0) {
+                areas.add("area:unknown");
+              }
+
+              const nonDocsAreas = [...areas].filter((label) => label !== "area:docs" && label !== "area:unknown");
+              if (areas.has("area:docs") && nonDocsAreas.length > 0) {
+                areas.delete("area:docs");
+              }
+              if (areas.has("area:unknown") && areas.size > 1) {
+                areas.delete("area:unknown");
+              }
+              return areas;
+            }
+
+            function sortedAreaLabels(labels) {
+              const order = new Map(AREA_LABELS.map((label, index) => [label, index]));
+              return [...labels].sort((a, b) => (order.get(a) ?? 999) - (order.get(b) ?? 999));
+            }
 
             async function listLabels() {
               const { data } = await github.rest.issues.listLabelsOnIssue({
@@ -36,55 +155,60 @@ jobs:
               return data.map((label) => label.name);
             }
 
-            async function removeLabel(name) {
-              try {
-                await github.rest.issues.removeLabel({
-                  owner,
-                  repo,
-                  issue_number,
-                  name,
-                });
-              } catch (error) {
-                if (error.status !== 404) {
-                  throw error;
+            async function setLabels(labels) {
+              await github.rest.issues.setLabels({
+                owner,
+                repo,
+                issue_number,
+                labels,
+              });
+            }
+
+            const pr = context.payload.pull_request;
+            const title = pr.title || "";
+            const headRef = pr.head && pr.head.ref ? pr.head.ref : "";
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number,
+              per_page: 100,
+            });
+            const changedPaths = files
+              .map((item) => item.filename)
+              .filter((name) => typeof name === "string");
+
+            const chosenProvenance = chooseProvenance(headRef);
+            const chosenType = chooseType(title, changedPaths);
+            const chosenAreas = chooseAreas(changedPaths);
+
+            const currentLabels = await listLabels();
+            const preservedLabels = currentLabels.filter((label) => !GOVERNANCE_LABELS.has(label));
+            const finalLabels = [
+              ...preservedLabels,
+              chosenProvenance,
+              chosenType,
+              ...sortedAreaLabels(chosenAreas),
+            ];
+
+            const currentSet = new Set(currentLabels);
+            const finalSet = new Set(finalLabels);
+            let changed = currentSet.size !== finalSet.size;
+            if (!changed) {
+              for (const label of finalSet) {
+                if (!currentSet.has(label)) {
+                  changed = true;
+                  break;
                 }
               }
             }
 
-            let labels = await listLabels();
-            let areaLabels = labels.filter((label) => label.startsWith("area:"));
-            const nonDocsAreaLabels = areaLabels.filter(
-              (label) => label !== "area:docs" && label !== "area:unknown"
+            if (changed) {
+              await setLabels(finalLabels);
+              core.info(`Updated labels on PR #${pull_number}.`);
+            } else {
+              core.info(`Labels already normalized on PR #${pull_number}.`);
+            }
+
+            core.info(
+              `Resolved governance labels: provenance=${chosenProvenance}, type=${chosenType}, areas=${sortedAreaLabels(chosenAreas).join(", ")}`
             );
-
-            if (areaLabels.includes("area:docs") && nonDocsAreaLabels.length > 0) {
-              await removeLabel("area:docs");
-              core.info("Removed area:docs because a non-docs area label exists.");
-              labels = await listLabels();
-              areaLabels = labels.filter((label) => label.startsWith("area:"));
-            }
-
-            if (areaLabels.length === 0) {
-              try {
-                await github.rest.issues.addLabels({
-                  owner,
-                  repo,
-                  issue_number,
-                  labels: ["area:unknown"],
-                });
-                core.info("No area label inferred; applied fallback area:unknown.");
-                labels = await listLabels();
-                areaLabels = labels.filter((label) => label.startsWith("area:"));
-              } catch (error) {
-                core.setFailed(
-                  "No area:* label inferred and fallback label area:unknown could not be applied. " +
-                  "Create label area:unknown in repository settings or add a specific area:* label to the PR."
-                );
-                return;
-              }
-            }
-
-            if (areaLabels.includes("area:unknown") && areaLabels.length > 1) {
-              await removeLabel("area:unknown");
-              core.info("Removed area:unknown because a specific area label exists.");
-            }
