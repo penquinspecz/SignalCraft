@@ -28,10 +28,16 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple
 
+from ji_engine.artifacts.catalog import (
+    ArtifactCategory,
+    assert_no_forbidden_fields,
+    validate_artifact_payload,
+)
 from ji_engine.config import (
     DEFAULT_CANDIDATE_ID,
     ENRICHED_JOBS_JSON,
@@ -55,6 +61,12 @@ from ji_engine.config import (
     shortlist_md as shortlist_md_path,
 )
 from ji_engine.history_retention import update_history_retention, write_history_run_artifacts
+from ji_engine.pipeline.artifact_paths import (
+    digest_path as _digest_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
+    digest_receipt_path as _digest_receipt_path_impl,
+)
 from ji_engine.pipeline.artifact_paths import (
     explanation_path as _explanation_path_impl,
 )
@@ -195,6 +207,7 @@ RUN_AUDIT_SCHEMA_VERSION = 1
 PROOF_RECEIPT_SCHEMA_VERSION = 1
 PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
 EXPLANATION_SCHEMA_VERSION = 1
+DIGEST_SCHEMA_VERSION = 1
 EARLY_FAILURE_UNKNOWN_REASON_CODE = "early_failure_unknown"
 EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON = "fail_closed:unknown_due_to_early_failure"
 try:
@@ -233,6 +246,7 @@ _RUN_SUMMARY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _RUN_AUDIT_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _PROVIDER_AVAILABILITY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _EXPLANATION_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_DIGEST_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 _EXPLANATION_REASON_NOTES: Dict[str, str] = {
     "penalty_irrelevant": "Role relevance penalty applied.",
@@ -699,6 +713,48 @@ def _update_run_metadata_publish(
     if status_override is not None:
         payload["status"] = status_override
     _write_json(path, payload)
+
+
+def _update_run_metadata_digest(
+    path: Path,
+    *,
+    digest_pointer: Dict[str, Any],
+    digest_receipt_pointer: Dict[str, Any],
+) -> None:
+    if not path.exists():
+        return
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return
+    payload["digest_artifact"] = digest_pointer
+    payload["digest_receipt_artifact"] = digest_receipt_pointer
+    _write_json(path, payload)
+
+
+def _update_run_registry_index_artifacts(run_id: str, extra_paths: List[Path]) -> None:
+    index_path = _run_registry_dir(run_id) / "index.json"
+    if not index_path.exists():
+        return
+    try:
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if not isinstance(payload, dict):
+        return
+    artifacts = payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        artifacts = {}
+    run_dir = _run_registry_dir(run_id)
+    for path in extra_paths:
+        if not path.exists():
+            continue
+        try:
+            rel = path.relative_to(run_dir).as_posix()
+        except ValueError:
+            continue
+        artifacts[path.name] = rel
+    payload["artifacts"] = {key: artifacts[key] for key in sorted(artifacts)}
+    index_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def _pointer_write_ok(pointer_write: Any) -> bool:
@@ -1461,6 +1517,583 @@ def _write_explanation_artifact(
     return path
 
 
+def _digest_top_n() -> int:
+    raw = os.environ.get("JOBINTEL_DIGEST_TOP_N")
+    if raw is None:
+        return 10
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return 10
+    return max(1, min(50, parsed))
+
+
+def _digest_window_days(cadence: str) -> int:
+    env_name = "JOBINTEL_DIGEST_WEEKLY_WINDOW_DAYS" if cadence == "weekly" else "JOBINTEL_DIGEST_DAILY_WINDOW_DAYS"
+    default = 7 if cadence == "weekly" else 1
+    raw = os.environ.get(env_name)
+    if raw is None:
+        return default
+    try:
+        parsed = int(raw)
+    except ValueError:
+        return default
+    return max(1, min(365, parsed))
+
+
+def _digest_notify_requested() -> bool:
+    return (os.environ.get("JOBINTEL_DIGEST_NOTIFY") or "").strip() == "1"
+
+
+def _safe_parse_timestamp_utc(value: str) -> Optional[datetime]:
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        parsed = None
+    if parsed is None:
+        for fmt in ("%Y%m%dT%H%M%SZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S.%fZ"):
+            try:
+                parsed = datetime.strptime(value.strip(), fmt).replace(tzinfo=timezone.utc)
+                break
+            except ValueError:
+                continue
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _utc_iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _run_timestamp_from_report_row(row: Dict[str, Any]) -> Optional[datetime]:
+    timestamps = row.get("timestamps")
+    if isinstance(timestamps, dict):
+        for key in ("ended_at", "started_at"):
+            raw = timestamps.get(key)
+            if isinstance(raw, str):
+                parsed = _safe_parse_timestamp_utc(raw)
+                if parsed is not None:
+                    return parsed
+    raw_timestamp = row.get("timestamp")
+    if isinstance(raw_timestamp, str):
+        parsed = _safe_parse_timestamp_utc(raw_timestamp)
+        if parsed is not None:
+            return parsed
+    run_id = row.get("run_id")
+    if isinstance(run_id, str):
+        return _safe_parse_timestamp_utc(run_id)
+    return None
+
+
+def _safe_digest_text(value: Any, *, max_len: int = 180) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    compact = " ".join(value.split()).strip()
+    if not compact:
+        return None
+    return compact[:max_len]
+
+
+def _safe_digest_location(value: Any) -> Optional[str]:
+    if isinstance(value, str):
+        return _safe_digest_text(value, max_len=120)
+    if isinstance(value, list):
+        parts = []
+        for item in value:
+            text = _safe_digest_text(item, max_len=60)
+            if text:
+                parts.append(text)
+        if not parts:
+            return None
+        return ", ".join(parts[:2])[:120]
+    return None
+
+
+def _safe_digest_url(value: Any) -> Optional[str]:
+    text = _safe_digest_text(value, max_len=512)
+    if text is None:
+        return None
+    if text.startswith("http://") or text.startswith("https://"):
+        return text
+    return None
+
+
+def _digest_ranked_jobs_lookup(
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+) -> Dict[str, Dict[str, Any]]:
+    lookup: Dict[str, Dict[str, Any]] = {}
+    for provider in sorted(provider_outputs):
+        profiles_payload = provider_outputs.get(provider)
+        if not isinstance(profiles_payload, dict):
+            continue
+        for profile in sorted(profiles_payload):
+            outputs = profiles_payload.get(profile)
+            if not isinstance(outputs, dict):
+                continue
+            ranked_meta = outputs.get("ranked_json")
+            if not isinstance(ranked_meta, dict):
+                continue
+            path_str = ranked_meta.get("path")
+            if not isinstance(path_str, str) or not path_str.strip():
+                continue
+            ranked_path = Path(path_str)
+            if not ranked_path.is_absolute():
+                ranked_path = (REPO_ROOT / ranked_path).resolve()
+            if not ranked_path.exists():
+                continue
+            try:
+                payload = json.loads(ranked_path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if not isinstance(payload, list):
+                continue
+            for job in payload:
+                if not isinstance(job, dict):
+                    continue
+                job_hash = _explanation_job_hash(job)
+                score = round(_coerce_float(job.get("score"), _coerce_float(job.get("final_score"), 0.0)), 6)
+                candidate = {
+                    "job_hash": job_hash,
+                    "score_total": score,
+                    "title": _safe_digest_text(job.get("title"), max_len=180),
+                    "company": _safe_digest_text(job.get("company"), max_len=120),
+                    "location": _safe_digest_location(job.get("location")),
+                    "apply_url": _safe_digest_url(job.get("apply_url") or job.get("url")),
+                    "provider": provider,
+                    "profile": profile,
+                }
+                existing = lookup.get(job_hash)
+                if existing is None:
+                    lookup[job_hash] = candidate
+                    continue
+                current_score = _coerce_float(existing.get("score_total"), 0.0)
+                if score > current_score:
+                    lookup[job_hash] = candidate
+                    continue
+                if score == current_score:
+                    current_key = (str(existing.get("provider") or ""), str(existing.get("profile") or ""))
+                    candidate_key = (provider, profile)
+                    if candidate_key < current_key:
+                        lookup[job_hash] = candidate
+    return lookup
+
+
+def _digest_signal_list(raw: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = _safe_digest_text(item.get("name"), max_len=80)
+        if not name:
+            continue
+        out.append({"name": name, "contribution": round(_coerce_float(item.get("contribution"), 0.0), 6)})
+    return out
+
+
+def _build_digest_top_jobs(
+    explanation_payload: Dict[str, Any],
+    ranked_lookup: Dict[str, Dict[str, Any]],
+    *,
+    top_n: int,
+) -> List[Dict[str, Any]]:
+    top_jobs_raw = explanation_payload.get("top_jobs")
+    if not isinstance(top_jobs_raw, list):
+        return []
+    prepared: List[Dict[str, Any]] = []
+    for item in top_jobs_raw:
+        if not isinstance(item, dict):
+            continue
+        job_hash = _safe_digest_text(item.get("job_hash"), max_len=128)
+        if not job_hash:
+            continue
+        ranked = ranked_lookup.get(job_hash) or {}
+        notes: List[str] = []
+        raw_notes = item.get("notes")
+        if isinstance(raw_notes, list):
+            for note in raw_notes:
+                normalized = _safe_digest_text(note, max_len=180)
+                if normalized:
+                    notes.append(normalized)
+        dedup_notes = list(dict.fromkeys(notes))
+        prepared.append(
+            {
+                "job_hash": job_hash,
+                "rank": max(1, _coerce_int(item.get("rank"), len(prepared) + 1)),
+                "score_total": round(
+                    _coerce_float(
+                        item.get("score_total"),
+                        _coerce_float(ranked.get("score_total"), 0),
+                    ),
+                    6,
+                ),
+                "title": ranked.get("title"),
+                "company": ranked.get("company"),
+                "location": ranked.get("location"),
+                "apply_url": ranked.get("apply_url"),
+                "provider": ranked.get("provider"),
+                "profile": ranked.get("profile"),
+                "notes": dedup_notes,
+                "top_positive_signals": _digest_signal_list(item.get("top_positive_signals")),
+                "top_negative_signals": _digest_signal_list(item.get("top_negative_signals")),
+            }
+        )
+    prepared.sort(key=lambda row: (_coerce_int(row.get("rank"), 999999), str(row.get("job_hash") or "")))
+    normalized: List[Dict[str, Any]] = []
+    for idx, row in enumerate(prepared[:top_n], start=1):
+        normalized.append({**row, "rank": idx})
+    return normalized
+
+
+def _load_json_object(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _decimal_from_value(value: Any) -> Decimal:
+    if isinstance(value, Decimal):
+        return value
+    if value is None:
+        return Decimal("0")
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
+
+
+def _digest_cost_totals(ai_tokens: int, ai_cost: Decimal, embeddings_count: int) -> Dict[str, Any]:
+    quantized = ai_cost.quantize(Decimal("0.000001"))
+    return {
+        "ai_estimated_tokens": max(0, int(ai_tokens)),
+        "ai_estimated_cost_usd": f"{quantized:.6f}",
+        "embeddings_count": max(0, int(embeddings_count)),
+    }
+
+
+def _digest_cost_totals_from_cost_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    return _digest_cost_totals(
+        _coerce_int(payload.get("ai_estimated_tokens"), 0),
+        _decimal_from_value(payload.get("ai_estimated_cost_usd")),
+        _coerce_int(payload.get("embeddings_count"), 0),
+    )
+
+
+def _digest_cost_totals_from_run_report(payload: Dict[str, Any]) -> Dict[str, Any]:
+    ai_totals = {}
+    ai_accounting = payload.get("ai_accounting")
+    if isinstance(ai_accounting, dict):
+        maybe_totals = ai_accounting.get("totals")
+        if isinstance(maybe_totals, dict):
+            ai_totals = maybe_totals
+    return _digest_cost_totals(
+        _coerce_int(ai_totals.get("tokens_total"), 0),
+        _decimal_from_value(ai_totals.get("estimated_cost_usd")),
+        0,
+    )
+
+
+def _digest_window_payload(
+    *,
+    entries: List[Dict[str, Any]],
+    reference_dt: datetime,
+    cadence: str,
+) -> Dict[str, Any]:
+    window_days = _digest_window_days(cadence)
+    window_start_dt = reference_dt - timedelta(days=window_days)
+    filtered = [
+        entry
+        for entry in entries
+        if isinstance(entry.get("timestamp"), datetime) and window_start_dt < entry["timestamp"] <= reference_dt
+    ]
+    filtered.sort(key=lambda row: (row["timestamp"], str(row.get("run_id") or "")), reverse=True)
+    status_counts: Dict[str, int] = {}
+    ai_tokens = 0
+    ai_cost = Decimal("0")
+    embeddings_count = 0
+    run_ids: List[str] = []
+    for entry in filtered:
+        run_id = str(entry.get("run_id") or "")
+        if run_id:
+            run_ids.append(run_id)
+        status = str(entry.get("status") or "unknown")
+        status_counts[status] = status_counts.get(status, 0) + 1
+        costs = entry.get("costs") if isinstance(entry.get("costs"), dict) else {}
+        ai_tokens += _coerce_int(costs.get("ai_estimated_tokens"), 0)
+        ai_cost += _decimal_from_value(costs.get("ai_estimated_cost_usd"))
+        embeddings_count += _coerce_int(costs.get("embeddings_count"), 0)
+
+    return {
+        "window_days": window_days,
+        "window_start_utc": _utc_iso(window_start_dt),
+        "window_end_utc": _utc_iso(reference_dt),
+        "run_count": len(filtered),
+        "run_ids": run_ids,
+        "status_counts": {key: status_counts[key] for key in sorted(status_counts)},
+        "cost_totals": _digest_cost_totals(ai_tokens, ai_cost, embeddings_count),
+    }
+
+
+def _build_digest_payload(
+    *,
+    run_id: str,
+    candidate_id: str,
+    reference_dt: datetime,
+    run_health_payload: Dict[str, Any],
+    provider_availability_payload: Dict[str, Any],
+    explanation_payload: Dict[str, Any],
+    costs_payload: Dict[str, Any],
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+    current_run_report: Dict[str, Any],
+) -> Dict[str, Any]:
+    notify_requested = _digest_notify_requested()
+    quiet_mode = not notify_requested
+    notify_status = "disabled_quiet_mode" if quiet_mode else "external_opt_in_stubbed"
+    provider_rows: List[Dict[str, Any]] = []
+    providers = provider_availability_payload.get("providers")
+    if isinstance(providers, list):
+        for item in providers:
+            if not isinstance(item, dict):
+                continue
+            provider_rows.append(
+                {
+                    "provider_id": str(item.get("provider_id") or ""),
+                    "availability": str(item.get("availability") or "unknown"),
+                    "reason_code": _safe_digest_text(item.get("reason_code"), max_len=120),
+                    "attempts_made": max(0, _coerce_int(item.get("attempts_made"), 0)),
+                }
+            )
+    provider_rows.sort(key=lambda row: row["provider_id"])
+
+    ranked_lookup = _digest_ranked_jobs_lookup(provider_outputs)
+    top_jobs = _build_digest_top_jobs(explanation_payload, ranked_lookup, top_n=_digest_top_n())
+
+    rows = _run_repository().list_runs(candidate_id=candidate_id, limit=500)
+    entries: List[Dict[str, Any]] = []
+    seen_run_ids: set[str] = set()
+    current_costs = _digest_cost_totals_from_cost_payload(costs_payload)
+    current_entry = {
+        "run_id": run_id,
+        "timestamp": reference_dt,
+        "status": str(run_health_payload.get("status") or current_run_report.get("status") or "unknown"),
+        "costs": current_costs,
+    }
+    entries.append(current_entry)
+    seen_run_ids.add(run_id)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        row_run_id = row.get("run_id")
+        if not isinstance(row_run_id, str) or not row_run_id:
+            continue
+        if row_run_id in seen_run_ids:
+            continue
+        timestamp = _run_timestamp_from_report_row(row)
+        if timestamp is None:
+            continue
+        run_dir = _run_repository().resolve_run_dir(row_run_id, candidate_id=candidate_id)
+        costs_obj = _load_json_object(run_dir / "costs.json")
+        row_costs = (
+            _digest_cost_totals_from_cost_payload(costs_obj) if costs_obj else _digest_cost_totals_from_run_report(row)
+        )
+        entries.append(
+            {
+                "run_id": row_run_id,
+                "timestamp": timestamp,
+                "status": str(row.get("status") or "unknown"),
+                "costs": row_costs,
+            }
+        )
+        seen_run_ids.add(row_run_id)
+
+    run_health_failure_codes = run_health_payload.get("failure_codes")
+    failure_codes = []
+    if isinstance(run_health_failure_codes, list):
+        failure_codes = [str(item) for item in run_health_failure_codes if isinstance(item, str)]
+
+    return {
+        "digest_schema_version": DIGEST_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": _utc_iso(reference_dt),
+        "quiet_mode": quiet_mode,
+        "notify": {
+            "requested": notify_requested,
+            "attempted": False,
+            "status": notify_status,
+        },
+        "source_artifacts": {
+            "run_health": _artifact_reference_pointer(_run_health_path(run_id)),
+            "provider_availability": _artifact_reference_pointer(_provider_availability_path(run_id)),
+            "explanation": _artifact_reference_pointer(_explanation_path(run_id)),
+            "costs": _artifact_reference_pointer(_run_registry_dir(run_id) / "costs.json"),
+        },
+        "current_run": {
+            "run_health": {
+                "status": run_health_payload.get("status"),
+                "failed_stage": run_health_payload.get("failed_stage"),
+                "failure_codes": sorted(set(failure_codes)),
+            },
+            "provider_availability": provider_rows,
+            "costs": current_costs,
+            "top_jobs": top_jobs,
+        },
+        "cadence": {
+            "daily": _digest_window_payload(entries=entries, reference_dt=reference_dt, cadence="daily"),
+            "weekly": _digest_window_payload(entries=entries, reference_dt=reference_dt, cadence="weekly"),
+        },
+    }
+
+
+def _write_digest_artifacts(
+    *,
+    run_id: str,
+    candidate_id: str,
+    run_health_path: Optional[Path],
+    costs_path: Path,
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+    run_report_path: Path,
+) -> Tuple[Path, Path]:
+    run_report_payload = _load_json_object(run_report_path)
+    run_health_payload = _load_json_object(run_health_path) if run_health_path else {}
+    provider_availability_payload = _load_json_object(_provider_availability_path(run_id))
+    explanation_payload = _load_json_object(_explanation_path(run_id))
+    costs_payload = _load_json_object(costs_path)
+
+    # Prefer run_id-derived timestamp for deterministic digest output across reruns.
+    reference_dt = _safe_parse_timestamp_utc(run_id)
+    if reference_dt is None:
+        reference_dt = _run_timestamp_from_report_row(run_report_payload)
+    if reference_dt is None:
+        reference_dt = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    payload = _build_digest_payload(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        reference_dt=reference_dt,
+        run_health_payload=run_health_payload,
+        provider_availability_payload=provider_availability_payload,
+        explanation_payload=explanation_payload,
+        costs_payload=costs_payload,
+        provider_outputs=provider_outputs,
+        current_run_report=run_report_payload,
+    )
+    errors = validate_payload(payload, _digest_schema())
+    if errors:
+        raise RuntimeError(f"digest schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    validate_artifact_payload(payload, "digest_v1.json", run_id, ArtifactCategory.UI_SAFE)
+
+    digest_path = _digest_path(run_id)
+    _write_canonical_json(digest_path, payload)
+    digest_pointer = _artifact_pointer(digest_path)
+    receipt_payload = {
+        "schema_version": "digest_receipt.v1",
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": payload["generated_at_utc"],
+        "quiet_mode": payload["quiet_mode"],
+        "notify": payload["notify"],
+        "digest_artifact": digest_pointer,
+        "cadences_written": ["daily", "weekly"],
+        "window_run_counts": {
+            "daily": payload["cadence"]["daily"]["run_count"],
+            "weekly": payload["cadence"]["weekly"]["run_count"],
+        },
+    }
+    assert_no_forbidden_fields(receipt_payload, context="digest_receipt_v1")
+    receipt_path = _digest_receipt_path(run_id)
+    _write_canonical_json(receipt_path, receipt_payload)
+    return digest_path, receipt_path
+
+
+def _write_digest_fallback_artifacts(
+    *,
+    run_id: str,
+    candidate_id: str,
+    error_message: str,
+) -> Tuple[Path, Path]:
+    reference_dt = _safe_parse_timestamp_utc(run_id) or datetime(1970, 1, 1, tzinfo=timezone.utc)
+    payload = {
+        "digest_schema_version": DIGEST_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": _utc_iso(reference_dt),
+        "quiet_mode": True,
+        "notify": {
+            "requested": False,
+            "attempted": False,
+            "status": "disabled_quiet_mode",
+        },
+        "source_artifacts": {
+            "run_health": _artifact_reference_pointer(_run_health_path(run_id)),
+            "provider_availability": _artifact_reference_pointer(_provider_availability_path(run_id)),
+            "explanation": _artifact_reference_pointer(_explanation_path(run_id)),
+            "costs": _artifact_reference_pointer(_run_registry_dir(run_id) / "costs.json"),
+        },
+        "current_run": {
+            "run_health": {
+                "status": "unknown",
+                "failed_stage": None,
+                "failure_codes": [],
+            },
+            "provider_availability": [],
+            "costs": _digest_cost_totals(0, Decimal("0"), 0),
+            "top_jobs": [],
+        },
+        "cadence": {
+            "daily": {
+                "window_days": _digest_window_days("daily"),
+                "window_start_utc": _utc_iso(reference_dt - timedelta(days=_digest_window_days("daily"))),
+                "window_end_utc": _utc_iso(reference_dt),
+                "run_count": 0,
+                "run_ids": [],
+                "status_counts": {},
+                "cost_totals": _digest_cost_totals(0, Decimal("0"), 0),
+            },
+            "weekly": {
+                "window_days": _digest_window_days("weekly"),
+                "window_start_utc": _utc_iso(reference_dt - timedelta(days=_digest_window_days("weekly"))),
+                "window_end_utc": _utc_iso(reference_dt),
+                "run_count": 0,
+                "run_ids": [],
+                "status_counts": {},
+                "cost_totals": _digest_cost_totals(0, Decimal("0"), 0),
+            },
+        },
+    }
+    digest_path = _digest_path(run_id)
+    _write_canonical_json(digest_path, payload)
+    digest_pointer = _artifact_pointer(digest_path)
+    receipt_payload = {
+        "schema_version": "digest_receipt.v1",
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": payload["generated_at_utc"],
+        "quiet_mode": True,
+        "notify": payload["notify"],
+        "digest_artifact": digest_pointer,
+        "cadences_written": ["daily", "weekly"],
+        "window_run_counts": {"daily": 0, "weekly": 0},
+        "fallback_error": error_message[:500],
+    }
+    receipt_path = _digest_receipt_path(run_id)
+    _write_canonical_json(receipt_path, receipt_payload)
+    return digest_path, receipt_path
+
+
 def _get_env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
     if raw is None:
@@ -1663,6 +2296,14 @@ def _explanation_path(run_id: str) -> Path:
     return _explanation_path_impl(_run_registry_dir(run_id))
 
 
+def _digest_path(run_id: str) -> Path:
+    return _digest_path_impl(_run_registry_dir(run_id))
+
+
+def _digest_receipt_path(run_id: str) -> Path:
+    return _digest_receipt_path_impl(_run_registry_dir(run_id))
+
+
 def _provider_availability_schema() -> Dict[str, Any]:
     global _PROVIDER_AVAILABILITY_SCHEMA_CACHE
     if _PROVIDER_AVAILABILITY_SCHEMA_CACHE is None:
@@ -1687,6 +2328,14 @@ def _explanation_schema() -> Dict[str, Any]:
     return _EXPLANATION_SCHEMA_CACHE
 
 
+def _digest_schema() -> Dict[str, Any]:
+    global _DIGEST_SCHEMA_CACHE
+    if _DIGEST_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("digest", DIGEST_SCHEMA_VERSION)
+        _DIGEST_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _DIGEST_SCHEMA_CACHE
+
+
 def _summary_path_text(path: Path) -> str:
     return _summary_path_text_impl(path, repo_root=REPO_ROOT)
 
@@ -1695,19 +2344,32 @@ def _resolve_summary_path(path_value: str) -> Path:
     return _resolve_summary_path_impl(path_value, repo_root=REPO_ROOT)
 
 
-def _artifact_pointer(path: Optional[Path], *, sha_hint: Optional[str] = None) -> Dict[str, Any]:
+def _artifact_pointer(
+    path: Optional[Path],
+    *,
+    sha_hint: Optional[str] = None,
+    include_hash: bool = True,
+    include_bytes: bool = True,
+) -> Dict[str, Any]:
     if path is None:
-        return {"path": None, "sha256": sha_hint, "bytes": None}
-    sha = _hash_file(path)
-    if sha is None:
-        sha = sha_hint
+        return {"path": None, "sha256": sha_hint if include_hash else None, "bytes": None}
+    sha: Optional[str] = None
+    if include_hash:
+        sha = _hash_file(path)
+        if sha is None:
+            sha = sha_hint
     size: Optional[int] = None
-    if path.exists():
+    if include_bytes and path.exists():
         try:
             size = path.stat().st_size
         except OSError:
             size = None
     return {"path": _summary_path_text(path), "sha256": sha, "bytes": size}
+
+
+def _artifact_reference_pointer(path: Optional[Path]) -> Dict[str, Any]:
+    # Keep digest source references deterministic by storing only relative paths.
+    return _artifact_pointer(path, include_hash=False, include_bytes=False)
 
 
 def _run_report_pointer(run_id: str) -> Dict[str, Any]:
@@ -1842,6 +2504,26 @@ def _primary_artifacts(
                     else None,
                 }
             )
+    for artifact_key, report_key in (
+        ("digest", "digest_artifact"),
+        ("digest_receipt", "digest_receipt_artifact"),
+    ):
+        pointer = run_report_payload.get(report_key)
+        if not isinstance(pointer, dict):
+            continue
+        artifact_path = pointer.get("path")
+        if not isinstance(artifact_path, str) or not artifact_path:
+            continue
+        primary.append(
+            {
+                "artifact_key": artifact_key,
+                "provider": "all",
+                "profile": "all",
+                "path": artifact_path,
+                "sha256": pointer.get("sha256") if isinstance(pointer.get("sha256"), str) else None,
+                "bytes": pointer.get("bytes") if isinstance(pointer.get("bytes"), int) else None,
+            }
+        )
     return primary
 
 
@@ -5556,6 +6238,47 @@ def main() -> int:
             )
         except Exception as exc:
             logger.warning("Failed to write run summary artifact: %r", exc)
+        digest_path: Optional[Path] = None
+        digest_receipt_path: Optional[Path] = None
+        try:
+            digest_path, digest_receipt_path = _write_digest_artifacts(
+                run_id=run_id,
+                candidate_id=CANDIDATE_ID,
+                run_health_path=run_health_path,
+                costs_path=costs_path,
+                provider_outputs=provider_outputs,
+                run_report_path=run_metadata_path,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write digest artifacts; writing fail-closed fallback: %r", exc)
+            digest_path, digest_receipt_path = _write_digest_fallback_artifacts(
+                run_id=run_id,
+                candidate_id=CANDIDATE_ID,
+                error_message=repr(exc),
+            )
+
+        if digest_path and digest_receipt_path:
+            try:
+                digest_pointer = _artifact_pointer(digest_path)
+                digest_receipt_pointer = _artifact_pointer(digest_receipt_path)
+                _update_run_metadata_digest(
+                    run_metadata_path,
+                    digest_pointer=digest_pointer,
+                    digest_receipt_pointer=digest_receipt_pointer,
+                )
+                _update_run_metadata_digest(
+                    _run_registry_dir(run_id) / "run_report.json",
+                    digest_pointer=digest_pointer,
+                    digest_receipt_pointer=digest_receipt_pointer,
+                )
+                _update_run_registry_index_artifacts(run_id, [digest_path, digest_receipt_path])
+                run_summary_path = _write_run_summary_artifact(
+                    run_id=run_id,
+                    final_status=final_status,
+                    run_health_path=run_health_path,
+                )
+            except Exception as exc:
+                logger.warning("Failed to attach digest pointers to run metadata/summary: %r", exc)
 
         # Best-effort local run index; run artifacts remain source of truth.
         try:
