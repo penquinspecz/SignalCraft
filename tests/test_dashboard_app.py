@@ -467,6 +467,117 @@ def test_dashboard_latest_local(tmp_path: Path, monkeypatch) -> None:
     assert "openai_ranked_jobs.cs.json" in artifacts.json()["paths"][0]
 
 
+def test_dashboard_profile_get_put_contract(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.candidates.registry as candidate_registry
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    candidate_registry = importlib.reload(candidate_registry)
+    dashboard = importlib.reload(dashboard)
+
+    candidate_registry.bootstrap_candidate("alice", "Alice Example")
+    candidate_registry.switch_active_candidate("alice")
+
+    client = TestClient(dashboard.app)
+    read_initial = client.get("/v1/profile")
+    assert read_initial.status_code == 200
+    initial_payload = read_initial.json()
+    assert initial_payload["candidate_id"] == "alice"
+    assert initial_payload["profile_schema_version"] == 1
+    assert initial_payload["profile_fields"]["schema_version"] == 1
+    assert "text_inputs" not in initial_payload
+    assert "text_input_artifacts" not in initial_payload
+
+    update_resp = client.put(
+        "/v1/profile",
+        json={
+            "display_name": "Alice Product",
+            "profile_fields": {
+                "seniority": "Senior",
+                "role_archetype": "Staff IC",
+                "location": "Remote",
+                "skills": ["Python", "Leadership", "Distributed Systems"],
+            },
+        },
+    )
+    assert update_resp.status_code == 200
+    updated_payload = update_resp.json()
+    assert updated_payload["candidate_id"] == "alice"
+    assert updated_payload["display_name"] == "Alice Product"
+    assert updated_payload["profile_fields"]["skills"] == ["distributed systems", "leadership", "python"]
+    assert updated_payload["profile_hash"] != initial_payload["profile_hash"]
+
+    read_after = client.get("/v1/profile", params={"candidate_id": "alice"})
+    assert read_after.status_code == 200
+    assert read_after.json()["profile_hash"] == updated_payload["profile_hash"]
+
+
+def test_dashboard_profile_candidate_isolation(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.candidates.registry as candidate_registry
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    candidate_registry = importlib.reload(candidate_registry)
+    dashboard = importlib.reload(dashboard)
+
+    candidate_registry.bootstrap_candidate("alice")
+    candidate_registry.bootstrap_candidate("bob")
+
+    client = TestClient(dashboard.app)
+    assert (
+        client.put(
+            "/v1/profile",
+            params={"candidate_id": "alice"},
+            json={"profile_fields": {"location": "Remote", "skills": ["python"]}},
+        ).status_code
+        == 200
+    )
+
+    alice = client.get("/v1/profile", params={"candidate_id": "alice"}).json()
+    bob = client.get("/v1/profile", params={"candidate_id": "bob"}).json()
+    assert alice["profile_fields"]["location"] == "Remote"
+    assert bob["profile_fields"]["location"] != "Remote"
+    assert alice["profile_hash"] != bob["profile_hash"]
+
+
+def test_dashboard_latest_local_candidate_query_returns_candidate_id(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.candidate_run_metadata_dir("alice") / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "index.json").write_text(json.dumps({"run_id": run_id, "timestamp": run_id}), encoding="utf-8")
+    pointer_path = config.candidate_last_success_pointer_path("alice")
+    pointer_path.parent.mkdir(parents=True, exist_ok=True)
+    pointer_path.write_text(json.dumps({"run_id": run_id}), encoding="utf-8")
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/v1/latest", params={"candidate_id": "alice"})
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["source"] == "local"
+    assert payload["candidate_id"] == "alice"
+    assert payload["payload"]["run_id"] == run_id
+
+
 def test_dashboard_runs_candidate_isolation(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
 
@@ -970,6 +1081,7 @@ def _find_forbidden_keys(obj: object, path: str = "") -> list[str]:
         ("/runs/20260122T000000Z", "GET"),
         ("/runs/20260122T000000Z/artifact/openai_ranked_jobs.cs.json", "GET"),
         ("/runs/20260122T000000Z/semantic_summary/cs", "GET"),
+        ("/v1/profile", "GET"),
         ("/v1/latest", "GET"),
         ("/v1/runs/20260122T000000Z/artifacts", "GET"),
     ],
