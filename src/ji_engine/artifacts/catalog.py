@@ -29,6 +29,8 @@ _ARTIFACT_CATALOG: Dict[str, str] = {
     "run_report.json": "replay_safe",
     "provider_availability_v1.json": "ui_safe",
     "explanation_v1.json": "ui_safe",
+    "digest_v1.json": "ui_safe",
+    "digest_receipt_v1.json": "replay_safe",
 }
 
 # Pattern -> category (checked in order; first match wins)
@@ -58,6 +60,7 @@ UI_SAFE_SCHEMA_SPECS: Dict[str, Tuple[str, int]] = {
     "run_summary.v1.json": ("run_summary", 1),
     "provider_availability_v1.json": ("provider_availability", 1),
     "explanation_v1.json": ("explanation", 1),
+    "digest_v1.json": ("digest", 1),
     "ai_insights.cs.json": ("ai_insights_output", 1),
     "ai_job_briefs.cs.json": ("ai_job_brief", 1),
 }
@@ -71,6 +74,7 @@ DASHBOARD_SCHEMA_VERSION_BY_ARTIFACT_KEY: Dict[str, int] = {
     "run_health.v1.json": 1,
     "provider_availability_v1.json": 1,
     "explanation_v1.json": 1,
+    "digest_v1.json": 1,
     "run_report.json": 1,
 }
 
@@ -81,6 +85,7 @@ _SCHEMA_SPECS_BY_EXACT_ARTIFACT_KEY: Dict[str, Tuple[str, int]] = {
     "run_summary.v1.json": ("run_summary", 1),
     "provider_availability_v1.json": ("provider_availability", 1),
     "explanation_v1.json": ("explanation", 1),
+    "digest_v1.json": ("digest", 1),
 }
 
 
