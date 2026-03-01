@@ -9,11 +9,15 @@ See LICENSE for permitted use.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List
 
 from ji_engine.models import RawJobPosting
+from ji_engine.utils.network_shield import NetworkShieldError
+
+logger = logging.getLogger(__name__)
 
 
 class BaseJobProvider(ABC):
@@ -29,9 +33,13 @@ class BaseJobProvider(ABC):
         self.mode = mode.upper()
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
+        self._fallback_triggered = False
+        self._fallback_reason: str | None = None
 
     def fetch_jobs(self) -> List[RawJobPosting]:
         """Top-level orchestrator for fetching jobs."""
+        self._fallback_triggered = False
+        self._fallback_reason = None
         if self.mode == "SNAPSHOT":
             print(f"[{self.__class__.__name__}] Mode=SNAPSHOT → loading from snapshot")
             return self.load_from_snapshot()
@@ -39,9 +47,25 @@ class BaseJobProvider(ABC):
             print(f"[{self.__class__.__name__}] Mode=LIVE → attempting live scrape")
             try:
                 return self.scrape_live()
-            except Exception as e:
-                print(f"[{self.__class__.__name__}] Live scrape failed: {e}")
-                print(f"[{self.__class__.__name__}] Falling back to snapshot...")
+            except NetworkShieldError:
+                raise
+            except (ConnectionError, TimeoutError, OSError) as exc:
+                logger.warning(
+                    "[%s] Live scrape failed (network), falling back to snapshot: %s",
+                    self.__class__.__name__,
+                    exc,
+                )
+                self._fallback_triggered = True
+                self._fallback_reason = f"{type(exc).__name__}: {exc}"
+                return self.load_from_snapshot()
+            except Exception as exc:
+                logger.error(
+                    "[%s] Live scrape failed (unexpected), falling back to snapshot: %s",
+                    self.__class__.__name__,
+                    exc,
+                )
+                self._fallback_triggered = True
+                self._fallback_reason = f"{type(exc).__name__}: {exc}"
                 return self.load_from_snapshot()
 
     @abstractmethod

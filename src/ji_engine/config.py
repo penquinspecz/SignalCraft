@@ -188,6 +188,14 @@ def state_last_ranked(profile: str) -> Path:
 LOCK_PATH = STATE_DIR / "run_daily.lock"
 
 
+def get_careers_mode() -> str:
+    """
+    Resolve scrape mode override from environment with a deterministic default.
+    """
+    raw = (os.environ.get("JOBINTEL_SCRAPE_MODE") or os.environ.get("CAREERS_MODE") or "SNAPSHOT").strip()
+    return raw.upper() if raw else "SNAPSHOT"
+
+
 def ensure_dirs() -> None:
     """
     Ensure key data directories exist. Safe to call repeatedly.
