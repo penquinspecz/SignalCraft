@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and follows SemVer.
 
 - Added deterministic digest artifacts and receipts in quiet mode, including candidate-aware daily/weekly generation and UI-safe contract coverage.
 - Added candidate profile UX v1 contracts, including a versioned profile schema, deterministic profile hashing, and candidate-aware API/CLI profile flows.
+- Added offline resume ingestion v1 with structured-only artifacts, deterministic resume hashing, and candidate profile hash updates without raw resume text storage.
 
 ## [v0.1.0] - 2026-02-12
 
