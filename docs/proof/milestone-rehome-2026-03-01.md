@@ -71,3 +71,12 @@ Second apply pass (idempotent reconciliation):
 - `catchall_milestone_count: 0`
 - `nonroadmap_milestone_count: 0`
 - Status: `MILESTONE_REHOME_VERIFY_OK`
+
+Post-PR creation reconciliation:
+- Opening this tooling PR introduced one new PR without a milestone (`#274`).
+- Re-ran `--apply`; PR `#274` was deterministically assigned to `M0 - Triage`.
+- Re-ran `--verify`:
+  - `total_prs: 272`
+  - `missing_milestone_count: 0`
+  - `catchall_milestone_count: 0`
+  - `nonroadmap_milestone_count: 0`
