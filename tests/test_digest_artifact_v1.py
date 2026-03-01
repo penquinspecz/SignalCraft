@@ -157,6 +157,9 @@ def test_digest_artifact_deterministic_and_no_jd_leak(tmp_path: Path, monkeypatc
     assert payload["current_run"]["top_jobs"][0]["title"] == "Staff Engineer"
     assert payload["cadence"]["daily"]["window_days"] == 1
     assert payload["cadence"]["weekly"]["window_days"] == 7
+    assert payload["source_artifacts"]["role_drift"]["path"] == "artifacts/role_drift_v1.json"
+    assert payload["company_drift_highlights"]["window_days"] == 30
+    assert payload["company_drift_highlights"]["companies"] == []
 
     forbidden = _find_forbidden_keys(payload)
     assert forbidden == []
@@ -211,3 +214,5 @@ def test_digest_candidate_isolation(tmp_path: Path, monkeypatch: Any) -> None:
     assert "/candidates/beta/runs/" in beta["path"].as_posix()
     assert alpha["payload"]["current_run"]["top_jobs"][0]["title"] == "Alpha Engineer"
     assert beta["payload"]["current_run"]["top_jobs"][0]["title"] == "Beta Engineer"
+    assert alpha["payload"]["company_drift_highlights"]["companies"] == []
+    assert beta["payload"]["company_drift_highlights"]["companies"] == []

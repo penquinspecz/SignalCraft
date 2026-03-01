@@ -6,6 +6,7 @@ from ji_engine.pipeline.artifact_paths import (
     digest_path,
     digest_receipt_path,
     provider_availability_path,
+    role_drift_path,
     run_audit_path,
     run_health_path,
     run_metadata_path,
@@ -28,3 +29,4 @@ def test_run_registry_paths_match_contract_filenames(tmp_path: Path) -> None:
     assert run_audit_path(run_dir) == run_dir / "artifacts" / "run_audit_v1.json"
     assert digest_path(run_dir) == run_dir / "artifacts" / "digest_v1.json"
     assert digest_receipt_path(run_dir) == run_dir / "artifacts" / "digest_receipt_v1.json"
+    assert role_drift_path(run_dir) == run_dir / "artifacts" / "role_drift_v1.json"

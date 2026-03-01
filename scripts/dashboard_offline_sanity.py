@@ -187,6 +187,53 @@ def _provider_availability_payload() -> Dict[str, Any]:
     }
 
 
+def _role_drift_payload() -> Dict[str, Any]:
+    company_entry = {
+        "company_key": "openai::acme",
+        "company": "Acme",
+        "provider_id": "openai",
+        "job_count": 1,
+        "change_event_count": 1,
+        "skills_rising": [{"token": "python", "count": 2}],
+        "skills_falling": [{"token": "flask", "count": 1}],
+        "seniority_shift_count": 1,
+        "location_shift_count": 0,
+        "seniority_shift_roles": ["Staff Security Engineer"],
+        "location_shift_roles": [],
+    }
+    return {
+        "role_drift_schema_version": 1,
+        "run_id": _RUN_ID,
+        "candidate_id": _CANDIDATE_ID,
+        "generated_at_utc": _RUN_ID,
+        "source_artifact": {
+            "path": "artifacts/job_timeline_v1.json",
+            "sha256": None,
+            "bytes": None,
+        },
+        "windows": {
+            "last_7_days": {
+                "window_days": 7,
+                "window_start_utc": "2026-02-14T12:00:00Z",
+                "window_end_utc": _RUN_ID,
+                "companies": [company_entry],
+            },
+            "last_14_days": {
+                "window_days": 14,
+                "window_start_utc": "2026-02-07T12:00:00Z",
+                "window_end_utc": _RUN_ID,
+                "companies": [company_entry],
+            },
+            "last_30_days": {
+                "window_days": 30,
+                "window_start_utc": "2026-01-22T12:00:00Z",
+                "window_end_utc": _RUN_ID,
+                "companies": [company_entry],
+            },
+        },
+    }
+
+
 def _digest_payload() -> Dict[str, Any]:
     return {
         "digest_schema_version": 1,
@@ -208,6 +255,7 @@ def _digest_payload() -> Dict[str, Any]:
             },
             "explanation": {"path": "artifacts/explanation_v1.json", "sha256": "c" * 64, "bytes": 220},
             "costs": {"path": "costs.json", "sha256": "d" * 64, "bytes": 80},
+            "role_drift": {"path": "artifacts/role_drift_v1.json", "sha256": "e" * 64, "bytes": 160},
         },
         "current_run": {
             "run_health": {"status": "success", "failed_stage": None, "failure_codes": []},
@@ -268,6 +316,22 @@ def _digest_payload() -> Dict[str, Any]:
                     "embeddings_count": 0,
                 },
             },
+        },
+        "company_drift_highlights": {
+            "window_days": 30,
+            "window_start_utc": "2026-01-22T12:00:00Z",
+            "window_end_utc": _RUN_ID,
+            "companies": [
+                {
+                    "company_key": "openai::acme",
+                    "company": "Acme",
+                    "provider_id": "openai",
+                    "skills_rising": [{"token": "python", "count": 2}],
+                    "skills_falling": [{"token": "flask", "count": 1}],
+                    "seniority_shift_roles": ["Staff Security Engineer"],
+                    "location_shift_roles": [],
+                }
+            ],
         },
     }
 
@@ -469,6 +533,7 @@ def _validate_ai_job_briefs_error_payload(payload: Dict[str, Any]) -> List[str]:
 def artifact_cases() -> Dict[str, Dict[str, Any]]:
     builders: Dict[str, Callable[[], Dict[str, Any]]] = {
         "digest_v1.json": _digest_payload,
+        "role_drift_v1.json": _role_drift_payload,
         "run_summary.v1.json": _run_summary_payload,
         "provider_availability_v1.json": _provider_availability_payload,
         "explanation_v1.json": _explanation_payload,

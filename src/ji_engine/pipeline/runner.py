@@ -74,6 +74,9 @@ from ji_engine.pipeline.artifact_paths import (
     provider_availability_path as _provider_availability_path_impl,
 )
 from ji_engine.pipeline.artifact_paths import (
+    role_drift_path as _role_drift_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
     run_audit_path as _run_audit_path_impl,
 )
 from ji_engine.pipeline.artifact_paths import (
@@ -208,6 +211,7 @@ PROOF_RECEIPT_SCHEMA_VERSION = 1
 PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
 EXPLANATION_SCHEMA_VERSION = 1
 DIGEST_SCHEMA_VERSION = 1
+ROLE_DRIFT_SCHEMA_VERSION = 1
 EARLY_FAILURE_UNKNOWN_REASON_CODE = "early_failure_unknown"
 EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON = "fail_closed:unknown_due_to_early_failure"
 try:
@@ -247,6 +251,7 @@ _RUN_AUDIT_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _PROVIDER_AVAILABILITY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _EXPLANATION_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _DIGEST_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_ROLE_DRIFT_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 _EXPLANATION_REASON_NOTES: Dict[str, str] = {
     "penalty_irrelevant": "Role relevance penalty applied.",
@@ -1761,6 +1766,326 @@ def _build_digest_top_jobs(
     return normalized
 
 
+def _role_drift_window_key(days: int) -> str:
+    return f"last_{days}_days"
+
+
+def _safe_role_drift_token(value: Any, *, max_len: int = 64) -> Optional[str]:
+    token = _safe_digest_text(value, max_len=max_len)
+    if token is None:
+        return None
+    return token.lower()
+
+
+def _safe_role_drift_tokens(raw: Any, *, max_items: int = 64, max_len: int = 64) -> List[str]:
+    if not isinstance(raw, list):
+        return []
+    values: List[str] = []
+    for item in raw:
+        token = _safe_role_drift_token(item, max_len=max_len)
+        if token:
+            values.append(token)
+    return sorted(set(values))[:max_items]
+
+
+def _normalized_company_key(provider_id: Optional[str], company: Optional[str]) -> str:
+    provider_part = (provider_id or "unknown").strip().lower() or "unknown"
+    company_part = (company or "unknown").strip().lower() or "unknown"
+    company_part = " ".join(company_part.split())
+    return f"{provider_part}::{company_part}"
+
+
+def _empty_role_drift_payload(
+    *,
+    run_id: str,
+    candidate_id: str,
+    reference_dt: datetime,
+    timeline_path: Path,
+) -> Dict[str, Any]:
+    windows: Dict[str, Any] = {}
+    for days in (7, 14, 30):
+        window_start = reference_dt - timedelta(days=days)
+        windows[_role_drift_window_key(days)] = {
+            "window_days": days,
+            "window_start_utc": _utc_iso(window_start),
+            "window_end_utc": _utc_iso(reference_dt),
+            "companies": [],
+        }
+    return {
+        "role_drift_schema_version": ROLE_DRIFT_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": _utc_iso(reference_dt),
+        "source_artifact": _artifact_pointer(timeline_path),
+        "windows": windows,
+    }
+
+
+def _role_drift_observation_time_map(job_payload: Dict[str, Any]) -> Dict[str, datetime]:
+    observations = job_payload.get("observations")
+    if not isinstance(observations, list):
+        return {}
+    out: Dict[str, datetime] = {}
+    for item in observations:
+        if not isinstance(item, dict):
+            continue
+        observation_id = item.get("observation_id")
+        observed_at = item.get("observed_at_utc")
+        if not isinstance(observation_id, str) or not isinstance(observed_at, str):
+            continue
+        parsed = _safe_parse_timestamp_utc(observed_at)
+        if parsed is None:
+            continue
+        out[observation_id] = parsed
+    return out
+
+
+def _role_drift_token_rows(counts: Dict[str, int], *, top_n: int) -> List[Dict[str, Any]]:
+    rows = [{"token": token, "count": int(count)} for token, count in counts.items() if count > 0]
+    rows.sort(key=lambda row: (-int(row["count"]), str(row["token"])))
+    return rows[: max(1, top_n)]
+
+
+def _role_drift_role_rows(counts: Dict[str, int], *, top_n: int) -> List[str]:
+    rows = [{"title": title, "count": int(count)} for title, count in counts.items() if title and count > 0]
+    rows.sort(key=lambda row: (-int(row["count"]), str(row["title"])))
+    return [str(row["title"]) for row in rows[: max(1, top_n)]]
+
+
+def _build_role_drift_payload(
+    *,
+    run_id: str,
+    candidate_id: str,
+    reference_dt: datetime,
+    timeline_path: Path,
+    timeline_payload: Dict[str, Any],
+    ranked_lookup: Dict[str, Dict[str, Any]],
+    top_companies: int = 10,
+    top_tokens: int = 5,
+    top_roles: int = 5,
+) -> Dict[str, Any]:
+    payload = _empty_role_drift_payload(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        reference_dt=reference_dt,
+        timeline_path=timeline_path,
+    )
+    jobs = timeline_payload.get("jobs")
+    if not isinstance(jobs, list):
+        return payload
+
+    events: List[Dict[str, Any]] = []
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        job_hash = _safe_digest_text(job.get("job_hash"), max_len=128)
+        if not job_hash:
+            continue
+        ranked = ranked_lookup.get(job_hash) or {}
+        provider_id = _safe_digest_text(job.get("provider_id") or ranked.get("provider"), max_len=64)
+        company = _safe_digest_text(job.get("company") or ranked.get("company"), max_len=120)
+        title = _safe_digest_text(job.get("title") or ranked.get("title"), max_len=180)
+        company_key = _normalized_company_key(provider_id, company)
+        observation_map = _role_drift_observation_time_map(job)
+        changes = job.get("changes")
+        if not isinstance(changes, list):
+            continue
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            to_observation_id = change.get("to_observation_id")
+            if not isinstance(to_observation_id, str):
+                continue
+            observed_dt = observation_map.get(to_observation_id)
+            if observed_dt is None:
+                continue
+            changed_fields_raw = change.get("changed_fields")
+            changed_fields = (
+                sorted(str(item).lower() for item in changed_fields_raw if isinstance(item, str))
+                if isinstance(changed_fields_raw, list)
+                else []
+            )
+            field_diffs = change.get("field_diffs")
+            field_diffs = field_diffs if isinstance(field_diffs, dict) else {}
+            set_fields = field_diffs.get("set_fields")
+            set_fields = set_fields if isinstance(set_fields, dict) else {}
+            skills_diff = set_fields.get("skills")
+            if not isinstance(skills_diff, dict):
+                skills_diff = set_fields.get("skills_tokens")
+            skills_diff = skills_diff if isinstance(skills_diff, dict) else {}
+            skill_tokens_added = _safe_role_drift_tokens(skills_diff.get("added"), max_items=64, max_len=64)
+            skill_tokens_removed = _safe_role_drift_tokens(skills_diff.get("removed"), max_items=64, max_len=64)
+            seniority_shift = "seniority" in changed_fields or "seniority_tokens" in changed_fields
+            location_shift = "location" in changed_fields
+            if not (skill_tokens_added or skill_tokens_removed or seniority_shift or location_shift):
+                continue
+            events.append(
+                {
+                    "company_key": company_key,
+                    "provider_id": provider_id,
+                    "company": company,
+                    "job_hash": job_hash,
+                    "title": title,
+                    "observed_dt": observed_dt,
+                    "skill_tokens_added": skill_tokens_added,
+                    "skill_tokens_removed": skill_tokens_removed,
+                    "seniority_shift": seniority_shift,
+                    "location_shift": location_shift,
+                }
+            )
+
+    for window_days in (7, 14, 30):
+        window_start = reference_dt - timedelta(days=window_days)
+        buckets: Dict[str, Dict[str, Any]] = {}
+        for event in events:
+            observed_dt = event["observed_dt"]
+            if not isinstance(observed_dt, datetime):
+                continue
+            if not (window_start < observed_dt <= reference_dt):
+                continue
+            company_key = str(event.get("company_key") or "unknown::unknown")
+            bucket = buckets.setdefault(
+                company_key,
+                {
+                    "company_key": company_key,
+                    "provider_id": event.get("provider_id"),
+                    "company": event.get("company"),
+                    "job_hashes": set(),
+                    "change_event_count": 0,
+                    "rising": {},
+                    "falling": {},
+                    "seniority_shift_count": 0,
+                    "location_shift_count": 0,
+                    "seniority_shift_roles": {},
+                    "location_shift_roles": {},
+                },
+            )
+            bucket["change_event_count"] += 1
+            bucket["job_hashes"].add(str(event.get("job_hash") or ""))
+            for token in event.get("skill_tokens_added", []):
+                bucket["rising"][token] = int(bucket["rising"].get(token, 0)) + 1
+            for token in event.get("skill_tokens_removed", []):
+                bucket["falling"][token] = int(bucket["falling"].get(token, 0)) + 1
+            title = str(event.get("title") or "")
+            if event.get("seniority_shift"):
+                bucket["seniority_shift_count"] += 1
+                if title:
+                    bucket["seniority_shift_roles"][title] = int(bucket["seniority_shift_roles"].get(title, 0)) + 1
+            if event.get("location_shift"):
+                bucket["location_shift_count"] += 1
+                if title:
+                    bucket["location_shift_roles"][title] = int(bucket["location_shift_roles"].get(title, 0)) + 1
+
+        rows: List[Dict[str, Any]] = []
+        for bucket in buckets.values():
+            rows.append(
+                {
+                    "company_key": bucket["company_key"],
+                    "company": bucket.get("company"),
+                    "provider_id": bucket.get("provider_id"),
+                    "job_count": len(bucket["job_hashes"]),
+                    "change_event_count": int(bucket["change_event_count"]),
+                    "skills_rising": _role_drift_token_rows(bucket["rising"], top_n=top_tokens),
+                    "skills_falling": _role_drift_token_rows(bucket["falling"], top_n=top_tokens),
+                    "seniority_shift_count": int(bucket["seniority_shift_count"]),
+                    "location_shift_count": int(bucket["location_shift_count"]),
+                    "seniority_shift_roles": _role_drift_role_rows(bucket["seniority_shift_roles"], top_n=top_roles),
+                    "location_shift_roles": _role_drift_role_rows(bucket["location_shift_roles"], top_n=top_roles),
+                }
+            )
+        rows.sort(
+            key=lambda row: (
+                -int(row.get("change_event_count") or 0),
+                -int(row.get("job_count") or 0),
+                str(row.get("company_key") or ""),
+            )
+        )
+        payload["windows"][_role_drift_window_key(window_days)] = {
+            "window_days": window_days,
+            "window_start_utc": _utc_iso(window_start),
+            "window_end_utc": _utc_iso(reference_dt),
+            "companies": rows[: max(1, top_companies)],
+        }
+    return payload
+
+
+def _digest_company_drift_highlights(
+    role_drift_payload: Dict[str, Any],
+    *,
+    reference_dt: datetime,
+    top_companies: int = 3,
+) -> Dict[str, Any]:
+    empty = {
+        "window_days": 30,
+        "window_start_utc": _utc_iso(reference_dt - timedelta(days=30)),
+        "window_end_utc": _utc_iso(reference_dt),
+        "companies": [],
+    }
+    windows = role_drift_payload.get("windows")
+    if not isinstance(windows, dict):
+        return empty
+    last_30 = windows.get("last_30_days")
+    if not isinstance(last_30, dict):
+        return empty
+    companies = last_30.get("companies")
+    if not isinstance(companies, list):
+        return {
+            "window_days": int(last_30.get("window_days") or 30),
+            "window_start_utc": str(last_30.get("window_start_utc") or empty["window_start_utc"]),
+            "window_end_utc": str(last_30.get("window_end_utc") or empty["window_end_utc"]),
+            "companies": [],
+        }
+    projected: List[Dict[str, Any]] = []
+    for item in companies:
+        if not isinstance(item, dict):
+            continue
+        projected.append(
+            {
+                "company_key": _safe_digest_text(item.get("company_key"), max_len=160) or "unknown::unknown",
+                "company": _safe_digest_text(item.get("company"), max_len=120),
+                "provider_id": _safe_digest_text(item.get("provider_id"), max_len=64),
+                "skills_rising": _role_drift_token_rows(
+                    {
+                        str(row.get("token") or ""): _coerce_int(row.get("count"), 0)
+                        for row in item.get("skills_rising", [])
+                        if isinstance(row, dict)
+                    },
+                    top_n=5,
+                ),
+                "skills_falling": _role_drift_token_rows(
+                    {
+                        str(row.get("token") or ""): _coerce_int(row.get("count"), 0)
+                        for row in item.get("skills_falling", [])
+                        if isinstance(row, dict)
+                    },
+                    top_n=5,
+                ),
+                "seniority_shift_roles": _role_drift_role_rows(
+                    {
+                        str(title): 1
+                        for title in item.get("seniority_shift_roles", [])
+                        if isinstance(title, str) and title.strip()
+                    },
+                    top_n=5,
+                ),
+                "location_shift_roles": _role_drift_role_rows(
+                    {
+                        str(title): 1
+                        for title in item.get("location_shift_roles", [])
+                        if isinstance(title, str) and title.strip()
+                    },
+                    top_n=5,
+                ),
+            }
+        )
+    return {
+        "window_days": _coerce_int(last_30.get("window_days"), 30),
+        "window_start_utc": str(last_30.get("window_start_utc") or empty["window_start_utc"]),
+        "window_end_utc": str(last_30.get("window_end_utc") or empty["window_end_utc"]),
+        "companies": projected[: max(1, top_companies)],
+    }
+
+
 def _load_json_object(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {}
@@ -1769,6 +2094,55 @@ def _load_json_object(path: Path) -> Dict[str, Any]:
     except Exception:
         return {}
     return payload if isinstance(payload, dict) else {}
+
+
+def _write_role_drift_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    reference_dt: datetime,
+    provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
+) -> Tuple[Path, Dict[str, Any]]:
+    timeline_path = _run_registry_dir(run_id) / "artifacts" / "job_timeline_v1.json"
+    timeline_payload = _load_json_object(timeline_path)
+    ranked_lookup = _digest_ranked_jobs_lookup(provider_outputs)
+    payload = _build_role_drift_payload(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        reference_dt=reference_dt,
+        timeline_path=timeline_path,
+        timeline_payload=timeline_payload,
+        ranked_lookup=ranked_lookup,
+    )
+    errors = validate_payload(payload, _role_drift_schema())
+    if errors:
+        raise RuntimeError(f"role_drift schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    validate_artifact_payload(payload, "role_drift_v1.json", run_id, ArtifactCategory.UI_SAFE)
+    path = _role_drift_path(run_id)
+    _write_canonical_json(path, payload)
+    return path, payload
+
+
+def _write_role_drift_fallback_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    reference_dt: datetime,
+) -> Tuple[Path, Dict[str, Any]]:
+    timeline_path = _run_registry_dir(run_id) / "artifacts" / "job_timeline_v1.json"
+    payload = _empty_role_drift_payload(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        reference_dt=reference_dt,
+        timeline_path=timeline_path,
+    )
+    errors = validate_payload(payload, _role_drift_schema())
+    if errors:
+        raise RuntimeError(f"role_drift fallback schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    validate_artifact_payload(payload, "role_drift_v1.json", run_id, ArtifactCategory.UI_SAFE)
+    path = _role_drift_path(run_id)
+    _write_canonical_json(path, payload)
+    return path, payload
 
 
 def _decimal_from_value(value: Any) -> Decimal:
@@ -1865,6 +2239,8 @@ def _build_digest_payload(
     costs_payload: Dict[str, Any],
     provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
     current_run_report: Dict[str, Any],
+    role_drift_payload: Dict[str, Any],
+    role_drift_path: Path,
 ) -> Dict[str, Any]:
     notify_requested = _digest_notify_requested()
     quiet_mode = not notify_requested
@@ -1887,6 +2263,7 @@ def _build_digest_payload(
 
     ranked_lookup = _digest_ranked_jobs_lookup(provider_outputs)
     top_jobs = _build_digest_top_jobs(explanation_payload, ranked_lookup, top_n=_digest_top_n())
+    company_drift_highlights = _digest_company_drift_highlights(role_drift_payload, reference_dt=reference_dt)
 
     rows = _run_repository().list_runs(candidate_id=candidate_id, limit=500)
     entries: List[Dict[str, Any]] = []
@@ -1943,10 +2320,13 @@ def _build_digest_payload(
             "status": notify_status,
         },
         "source_artifacts": {
-            "run_health": _artifact_reference_pointer(_run_health_path(run_id)),
-            "provider_availability": _artifact_reference_pointer(_provider_availability_path(run_id)),
-            "explanation": _artifact_reference_pointer(_explanation_path(run_id)),
-            "costs": _artifact_reference_pointer(_run_registry_dir(run_id) / "costs.json"),
+            "run_health": _artifact_reference_pointer_for_run(_run_health_path(run_id), run_id=run_id),
+            "provider_availability": _artifact_reference_pointer_for_run(
+                _provider_availability_path(run_id), run_id=run_id
+            ),
+            "explanation": _artifact_reference_pointer_for_run(_explanation_path(run_id), run_id=run_id),
+            "costs": _artifact_reference_pointer_for_run(_run_registry_dir(run_id) / "costs.json", run_id=run_id),
+            "role_drift": _artifact_reference_pointer_for_run(role_drift_path, run_id=run_id),
         },
         "current_run": {
             "run_health": {
@@ -1962,6 +2342,7 @@ def _build_digest_payload(
             "daily": _digest_window_payload(entries=entries, reference_dt=reference_dt, cadence="daily"),
             "weekly": _digest_window_payload(entries=entries, reference_dt=reference_dt, cadence="weekly"),
         },
+        "company_drift_highlights": company_drift_highlights,
     }
 
 
@@ -1973,7 +2354,7 @@ def _write_digest_artifacts(
     costs_path: Path,
     provider_outputs: Dict[str, Dict[str, Dict[str, Dict[str, Optional[str]]]]],
     run_report_path: Path,
-) -> Tuple[Path, Path]:
+) -> Tuple[Path, Path, Path]:
     run_report_payload = _load_json_object(run_report_path)
     run_health_payload = _load_json_object(run_health_path) if run_health_path else {}
     provider_availability_payload = _load_json_object(_provider_availability_path(run_id))
@@ -1987,6 +2368,23 @@ def _write_digest_artifacts(
     if reference_dt is None:
         reference_dt = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
+    role_drift_path: Path
+    role_drift_payload: Dict[str, Any]
+    try:
+        role_drift_path, role_drift_payload = _write_role_drift_artifact(
+            run_id=run_id,
+            candidate_id=candidate_id,
+            reference_dt=reference_dt,
+            provider_outputs=provider_outputs,
+        )
+    except Exception as exc:
+        logger.warning("Failed to write role_drift artifact; writing fail-closed fallback: %r", exc)
+        role_drift_path, role_drift_payload = _write_role_drift_fallback_artifact(
+            run_id=run_id,
+            candidate_id=candidate_id,
+            reference_dt=reference_dt,
+        )
+
     payload = _build_digest_payload(
         run_id=run_id,
         candidate_id=candidate_id,
@@ -1997,6 +2395,8 @@ def _write_digest_artifacts(
         costs_payload=costs_payload,
         provider_outputs=provider_outputs,
         current_run_report=run_report_payload,
+        role_drift_payload=role_drift_payload,
+        role_drift_path=role_drift_path,
     )
     errors = validate_payload(payload, _digest_schema())
     if errors:
@@ -2023,7 +2423,7 @@ def _write_digest_artifacts(
     assert_no_forbidden_fields(receipt_payload, context="digest_receipt_v1")
     receipt_path = _digest_receipt_path(run_id)
     _write_canonical_json(receipt_path, receipt_payload)
-    return digest_path, receipt_path
+    return digest_path, receipt_path, role_drift_path
 
 
 def _write_digest_fallback_artifacts(
@@ -2031,8 +2431,13 @@ def _write_digest_fallback_artifacts(
     run_id: str,
     candidate_id: str,
     error_message: str,
-) -> Tuple[Path, Path]:
+) -> Tuple[Path, Path, Path]:
     reference_dt = _safe_parse_timestamp_utc(run_id) or datetime(1970, 1, 1, tzinfo=timezone.utc)
+    role_drift_path, role_drift_payload = _write_role_drift_fallback_artifact(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        reference_dt=reference_dt,
+    )
     payload = {
         "digest_schema_version": DIGEST_SCHEMA_VERSION,
         "run_id": run_id,
@@ -2045,10 +2450,13 @@ def _write_digest_fallback_artifacts(
             "status": "disabled_quiet_mode",
         },
         "source_artifacts": {
-            "run_health": _artifact_reference_pointer(_run_health_path(run_id)),
-            "provider_availability": _artifact_reference_pointer(_provider_availability_path(run_id)),
-            "explanation": _artifact_reference_pointer(_explanation_path(run_id)),
-            "costs": _artifact_reference_pointer(_run_registry_dir(run_id) / "costs.json"),
+            "run_health": _artifact_reference_pointer_for_run(_run_health_path(run_id), run_id=run_id),
+            "provider_availability": _artifact_reference_pointer_for_run(
+                _provider_availability_path(run_id), run_id=run_id
+            ),
+            "explanation": _artifact_reference_pointer_for_run(_explanation_path(run_id), run_id=run_id),
+            "costs": _artifact_reference_pointer_for_run(_run_registry_dir(run_id) / "costs.json", run_id=run_id),
+            "role_drift": _artifact_reference_pointer_for_run(role_drift_path, run_id=run_id),
         },
         "current_run": {
             "run_health": {
@@ -2080,6 +2488,7 @@ def _write_digest_fallback_artifacts(
                 "cost_totals": _digest_cost_totals(0, Decimal("0"), 0),
             },
         },
+        "company_drift_highlights": _digest_company_drift_highlights(role_drift_payload, reference_dt=reference_dt),
     }
     digest_path = _digest_path(run_id)
     _write_canonical_json(digest_path, payload)
@@ -2098,7 +2507,7 @@ def _write_digest_fallback_artifacts(
     }
     receipt_path = _digest_receipt_path(run_id)
     _write_canonical_json(receipt_path, receipt_payload)
-    return digest_path, receipt_path
+    return digest_path, receipt_path, role_drift_path
 
 
 def _get_env_float(name: str, default: float) -> float:
@@ -2311,6 +2720,10 @@ def _digest_receipt_path(run_id: str) -> Path:
     return _digest_receipt_path_impl(_run_registry_dir(run_id))
 
 
+def _role_drift_path(run_id: str) -> Path:
+    return _role_drift_path_impl(_run_registry_dir(run_id))
+
+
 def _provider_availability_schema() -> Dict[str, Any]:
     global _PROVIDER_AVAILABILITY_SCHEMA_CACHE
     if _PROVIDER_AVAILABILITY_SCHEMA_CACHE is None:
@@ -2341,6 +2754,14 @@ def _digest_schema() -> Dict[str, Any]:
         schema_path = resolve_named_schema_path("digest", DIGEST_SCHEMA_VERSION)
         _DIGEST_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
     return _DIGEST_SCHEMA_CACHE
+
+
+def _role_drift_schema() -> Dict[str, Any]:
+    global _ROLE_DRIFT_SCHEMA_CACHE
+    if _ROLE_DRIFT_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("role_drift", ROLE_DRIFT_SCHEMA_VERSION)
+        _ROLE_DRIFT_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _ROLE_DRIFT_SCHEMA_CACHE
 
 
 def _summary_path_text(path: Path) -> str:
@@ -2377,6 +2798,17 @@ def _artifact_pointer(
 def _artifact_reference_pointer(path: Optional[Path]) -> Dict[str, Any]:
     # Keep digest source references deterministic by storing only relative paths.
     return _artifact_pointer(path, include_hash=False, include_bytes=False)
+
+
+def _artifact_reference_pointer_for_run(path: Optional[Path], *, run_id: str) -> Dict[str, Any]:
+    pointer = _artifact_reference_pointer(path)
+    if path is None:
+        return pointer
+    try:
+        pointer["path"] = path.relative_to(_run_registry_dir(run_id)).as_posix()
+    except ValueError:
+        pass
+    return pointer
 
 
 def _run_report_pointer(run_id: str) -> Dict[str, Any]:
@@ -6247,8 +6679,9 @@ def main() -> int:
             logger.warning("Failed to write run summary artifact: %r", exc)
         digest_path: Optional[Path] = None
         digest_receipt_path: Optional[Path] = None
+        role_drift_path: Optional[Path] = None
         try:
-            digest_path, digest_receipt_path = _write_digest_artifacts(
+            digest_path, digest_receipt_path, role_drift_path = _write_digest_artifacts(
                 run_id=run_id,
                 candidate_id=CANDIDATE_ID,
                 run_health_path=run_health_path,
@@ -6258,7 +6691,7 @@ def main() -> int:
             )
         except Exception as exc:
             logger.warning("Failed to write digest artifacts; writing fail-closed fallback: %r", exc)
-            digest_path, digest_receipt_path = _write_digest_fallback_artifacts(
+            digest_path, digest_receipt_path, role_drift_path = _write_digest_fallback_artifacts(
                 run_id=run_id,
                 candidate_id=CANDIDATE_ID,
                 error_message=repr(exc),
@@ -6278,7 +6711,10 @@ def main() -> int:
                     digest_pointer=digest_pointer,
                     digest_receipt_pointer=digest_receipt_pointer,
                 )
-                _update_run_registry_index_artifacts(run_id, [digest_path, digest_receipt_path])
+                index_paths = [digest_path, digest_receipt_path]
+                if role_drift_path:
+                    index_paths.append(role_drift_path)
+                _update_run_registry_index_artifacts(run_id, index_paths)
                 run_summary_path = _write_run_summary_artifact(
                     run_id=run_id,
                     final_status=final_status,

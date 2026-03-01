@@ -11,7 +11,8 @@
     "notify",
     "source_artifacts",
     "current_run",
-    "cadence"
+    "cadence",
+    "company_drift_highlights"
   ],
   "properties": {
     "digest_schema_version": {
@@ -58,7 +59,8 @@
         "run_health",
         "provider_availability",
         "explanation",
-        "costs"
+        "costs",
+        "role_drift"
       ],
       "properties": {
         "run_health": {
@@ -71,6 +73,9 @@
           "$ref": "#/$defs/file_pointer"
         },
         "costs": {
+          "$ref": "#/$defs/file_pointer"
+        },
+        "role_drift": {
           "$ref": "#/$defs/file_pointer"
         }
       },
@@ -147,6 +152,9 @@
         }
       },
       "additionalProperties": false
+    },
+    "company_drift_highlights": {
+      "$ref": "#/$defs/company_drift_highlights"
     }
   },
   "$defs": {
@@ -369,6 +377,105 @@
         },
         "cost_totals": {
           "$ref": "#/$defs/cost_totals"
+        }
+      },
+      "additionalProperties": false
+    },
+    "token_count": {
+      "type": "object",
+      "required": [
+        "token",
+        "count"
+      ],
+      "properties": {
+        "token": {
+          "type": "string"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "company_drift_entry": {
+      "type": "object",
+      "required": [
+        "company_key",
+        "company",
+        "provider_id",
+        "skills_rising",
+        "skills_falling",
+        "seniority_shift_roles",
+        "location_shift_roles"
+      ],
+      "properties": {
+        "company_key": {
+          "type": "string"
+        },
+        "company": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "provider_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "skills_rising": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/token_count"
+          }
+        },
+        "skills_falling": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/token_count"
+          }
+        },
+        "seniority_shift_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "location_shift_roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "company_drift_highlights": {
+      "type": "object",
+      "required": [
+        "window_days",
+        "window_start_utc",
+        "window_end_utc",
+        "companies"
+      ],
+      "properties": {
+        "window_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window_start_utc": {
+          "type": "string"
+        },
+        "window_end_utc": {
+          "type": "string"
+        },
+        "companies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/company_drift_entry"
+          }
         }
       },
       "additionalProperties": false
