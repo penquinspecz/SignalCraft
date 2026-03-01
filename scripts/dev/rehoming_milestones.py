@@ -14,6 +14,8 @@ from pathlib import Path
 DEFAULT_ROADMAP_PATH = Path("docs/ROADMAP.md")
 CATCH_ALL_MILESTONES = ("Infra & Tooling", "Docs & Governance", "Backlog Cleanup")
 TRIAGE_MILESTONE_TITLE = "M0 - Triage"
+M0_COMMENT_MARKER = "[governance-m0-triage]"
+M0_DESCRIPTION_TEXT = "Only ambiguous items allowed. Add explicit `Milestone <N>` or `M<N>` context in issue body for deterministic rehome."
 
 ROADMAP_MILESTONE_HEADING_RE = re.compile(r"^\s*#{2,6}\s+Milestone\s+(\d+)([A-Za-z]?)\b")
 ANY_HEADING_RE = re.compile(r"^\s*#{1,6}\s+")
@@ -52,6 +54,16 @@ class RehomeDecision:
     target_milestone: str
     reason: str
     ambiguous: bool
+
+
+@dataclass(frozen=True)
+class M0DrainDecision:
+    number: int
+    current_milestone: str | None
+    target_milestone: str
+    reason: str
+    ambiguous: bool
+    commented: bool
 
 
 def _run(cmd: Sequence[str], *, input_text: str | None = None) -> str:
@@ -459,6 +471,97 @@ def _set_item_milestone(
     print(f"updated-milestone {item_kind}=#{item_number} -> {milestone_title}")
 
 
+def _set_milestone_description(
+    *,
+    repo_slug: str,
+    milestone_title: str,
+    milestones_by_title: dict[str, dict[str, object]],
+    dry_run: bool,
+) -> None:
+    row = milestones_by_title.get(milestone_title)
+    if not isinstance(row, dict):
+        raise RehomeError(f"missing milestone metadata for {milestone_title}")
+    number = row.get("number")
+    current_description = row.get("description")
+    if not isinstance(number, int):
+        raise RehomeError(f"invalid milestone number for {milestone_title}")
+    if isinstance(current_description, str) and current_description.strip() == M0_DESCRIPTION_TEXT:
+        return
+    if dry_run:
+        print(f"DRY-RUN set-milestone-description milestone={milestone_title}")
+        return
+    patched = _gh_api_json(
+        f"repos/{repo_slug}/milestones/{number}",
+        method="PATCH",
+        payload={"description": M0_DESCRIPTION_TEXT},
+    )
+    if isinstance(patched, dict):
+        milestones_by_title[milestone_title] = patched
+    print(f"updated-milestone-description milestone={milestone_title}")
+
+
+def _list_open_issues_for_milestone(repo_slug: str, milestone_number: int) -> list[IssueRecord]:
+    rows = _list_paginated(repo_slug, f"issues?state=open&milestone={milestone_number}&per_page=100")
+    out: list[IssueRecord] = []
+    for row in rows:
+        if isinstance(row.get("pull_request"), dict):
+            continue
+        number = row.get("number")
+        title = row.get("title")
+        if not isinstance(number, int) or not isinstance(title, str):
+            continue
+        body = row.get("body") if isinstance(row.get("body"), str) else ""
+        labels_raw = row.get("labels")
+        labels: set[str] = set()
+        if isinstance(labels_raw, list):
+            for item in labels_raw:
+                if isinstance(item, dict):
+                    name = item.get("name")
+                    if isinstance(name, str) and name.strip():
+                        labels.add(name.strip())
+        out.append(
+            IssueRecord(
+                number=number,
+                title=title.strip(),
+                body=body,
+                labels=tuple(sorted(labels)),
+                milestone=TRIAGE_MILESTONE_TITLE,
+            )
+        )
+    return sorted(out, key=lambda item: item.number)
+
+
+def _issue_has_m0_comment(repo_slug: str, issue_number: int) -> bool:
+    rows = _list_paginated(repo_slug, f"issues/{issue_number}/comments?per_page=100")
+    for row in rows:
+        body = row.get("body")
+        if isinstance(body, str) and M0_COMMENT_MARKER in body:
+            return True
+    return False
+
+
+def _add_m0_ambiguity_comment(repo_slug: str, issue_number: int, reason: str, *, dry_run: bool) -> bool:
+    if _issue_has_m0_comment(repo_slug, issue_number):
+        return False
+    body = (
+        f"{M0_COMMENT_MARKER} Unable to deterministically map this issue to a roadmap milestone.\n\n"
+        f"- reason: `{reason}`\n"
+        "- kept in: `M0 - Triage`\n"
+        "- required to rehome: add explicit `Milestone <N>` or `M<N>` reference in issue title/body "
+        "or link this issue from the matching milestone block in `docs/ROADMAP.md`."
+    )
+    if dry_run:
+        print(f"DRY-RUN add-m0-comment issue=#{issue_number}")
+        return True
+    _gh_api_json(
+        f"repos/{repo_slug}/issues/{issue_number}/comments",
+        method="POST",
+        payload={"body": body},
+    )
+    print(f"added-m0-comment issue=#{issue_number}")
+    return True
+
+
 def _count_prs_in_milestone(repo_slug: str, milestone_number: int) -> int:
     rows = _list_paginated(repo_slug, f"issues?state=all&milestone={milestone_number}&per_page=100")
     return sum(1 for row in rows if isinstance(row.get("pull_request"), dict))
@@ -631,6 +734,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--rehome-issues", action="store_true", help="Operate on issues instead of pull requests.")
     parser.add_argument(
+        "--drain-m0-open",
+        action="store_true",
+        help="Process open issues in M0 - Triage: rehome deterministically or add ambiguity comments.",
+    )
+    parser.add_argument(
         "--repo", default=None, help="GitHub repository slug (<owner>/<repo>). Defaults to origin remote."
     )
     parser.add_argument(
@@ -679,6 +787,100 @@ def main(argv: Sequence[str] | None = None) -> int:
         roadmap_set = set(roadmap_milestones)
         milestones_by_title = _list_repo_milestones(repo_slug)
         report_path = Path(args.report) if args.report else None
+
+        if args.rehome_issues and args.drain_m0_open:
+            raise RehomeError("cannot combine --rehome-issues with --drain-m0-open")
+
+        if args.drain_m0_open:
+            entity = "issues"
+            m0_row = milestones_by_title.get(TRIAGE_MILESTONE_TITLE)
+            if not isinstance(m0_row, dict):
+                raise RehomeError(f"{TRIAGE_MILESTONE_TITLE} milestone not found")
+            m0_number = m0_row.get("number")
+            if not isinstance(m0_number, int):
+                raise RehomeError(f"invalid milestone number for {TRIAGE_MILESTONE_TITLE}")
+
+            open_issues = _list_open_issues_for_milestone(repo_slug, m0_number)
+            decisions: list[M0DrainDecision] = []
+            for issue in open_issues:
+                proposal = _decide_issue_target(
+                    issue=issue, roadmap_set=roadmap_set, roadmap_issue_map=roadmap_issue_map
+                )
+                target = proposal.target_milestone
+                ambiguous = proposal.ambiguous or target == TRIAGE_MILESTONE_TITLE
+                commented = False
+                decisions.append(
+                    M0DrainDecision(
+                        number=issue.number,
+                        current_milestone=issue.milestone,
+                        target_milestone=target,
+                        reason=proposal.reason,
+                        ambiguous=ambiguous,
+                        commented=commented,
+                    )
+                )
+
+            print("M0_DRAIN_SUMMARY")
+            print(f"mode: {mode}")
+            print(f"repo: {repo_slug}")
+            print(f"open_m0_issues: {len(decisions)}")
+            print(f"rehome_candidates: {sum(1 for d in decisions if d.target_milestone != TRIAGE_MILESTONE_TITLE)}")
+            print(f"ambiguous_candidates: {sum(1 for d in decisions if d.target_milestone == TRIAGE_MILESTONE_TITLE)}")
+
+            if mode == "verify":
+                unresolved: list[int] = []
+                for d in decisions:
+                    if d.target_milestone == TRIAGE_MILESTONE_TITLE and not _issue_has_m0_comment(repo_slug, d.number):
+                        unresolved.append(d.number)
+                print(f"m0_issues_without_comment: {', '.join(str(n) for n in unresolved) if unresolved else '(none)'}")
+                if unresolved:
+                    print("M0_DRAIN_VERIFY_FAILED", file=sys.stderr)
+                    return 1
+                print("M0_DRAIN_VERIFY_OK")
+                return 0
+
+            if mode == "dry-run":
+                for d in decisions:
+                    print(
+                        f"proposal issue=#{d.number} current={d.current_milestone or '(none)'} "
+                        f"target={d.target_milestone} reason={d.reason}"
+                    )
+                print("M0_DRAIN_DRY_RUN_OK")
+                return 0
+
+            # apply
+            _set_milestone_description(
+                repo_slug=repo_slug,
+                milestone_title=TRIAGE_MILESTONE_TITLE,
+                milestones_by_title=milestones_by_title,
+                dry_run=False,
+            )
+            applied_comments = 0
+            for d in decisions:
+                if d.target_milestone != TRIAGE_MILESTONE_TITLE:
+                    _ensure_milestone_exists(
+                        repo_slug=repo_slug,
+                        milestone_title=d.target_milestone,
+                        milestones_by_title=milestones_by_title,
+                        dry_run=False,
+                    )
+                    _set_item_milestone(
+                        repo_slug=repo_slug,
+                        item_number=d.number,
+                        milestone_title=d.target_milestone,
+                        milestones_by_title=milestones_by_title,
+                        dry_run=False,
+                        item_kind="issue",
+                    )
+                else:
+                    if _add_m0_ambiguity_comment(repo_slug, d.number, d.reason, dry_run=False):
+                        applied_comments += 1
+
+            remaining_open = _list_open_issues_for_milestone(repo_slug, m0_number)
+            print(f"remaining_open_m0_issues: {len(remaining_open)}")
+            print(f"new_ambiguity_comments: {applied_comments}")
+            print("M0_DRAIN_APPLY_OK")
+            return 0
 
         if args.rehome_issues:
             entity = "issues"

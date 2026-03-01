@@ -12,6 +12,7 @@ from pathlib import Path
 DEFAULT_ROADMAP_PATH = Path("docs/ROADMAP.md")
 TRIAGE_MILESTONE_TITLE = "M0 - Triage"
 ROADMAP_HEADING_RE = re.compile(r"^\s*#{2,6}\s+Milestone\s+(\d+)([A-Za-z]?)\b")
+TOP_HEADING_RE = re.compile(r"^\s*#\s+(.+?)\s*$")
 
 
 class MilestoneCleanupError(RuntimeError):
@@ -89,20 +90,35 @@ def _list_paginated(path: str) -> list[dict[str, object]]:
         page += 1
 
 
-def _parse_roadmap_milestones(path: Path) -> tuple[set[str], set[str]]:
+def _parse_roadmap_milestones(path: Path) -> tuple[set[str], set[str], set[str]]:
     if not path.exists():
         raise MilestoneCleanupError(f"roadmap not found: {path}")
     roadmap_titles: set[str] = set()
     completed_titles: set[str] = set()
+    active_empty_titles: set[str] = set()
     current_title: str | None = None
+    section = ""
     for line in path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
+        top_match = TOP_HEADING_RE.match(stripped)
+        if top_match:
+            heading = top_match.group(1).lower()
+            if "active roadmap" in heading:
+                section = "active"
+            elif "parked" in heading:
+                section = "parked"
+            elif "archive" in heading:
+                section = "archive"
+            else:
+                section = ""
         match = ROADMAP_HEADING_RE.match(stripped)
         if match:
             number = int(match.group(1))
             title = f"M{number}"
             roadmap_titles.add(title)
             current_title = title
+            if section in {"active", "parked"}:
+                active_empty_titles.add(title)
             if "✅" in stripped:
                 completed_titles.add(title)
             continue
@@ -110,7 +126,7 @@ def _parse_roadmap_milestones(path: Path) -> tuple[set[str], set[str]]:
             completed_titles.add(current_title)
     if not roadmap_titles:
         raise MilestoneCleanupError("no roadmap milestone headings found")
-    return roadmap_titles, completed_titles
+    return roadmap_titles, completed_titles, active_empty_titles
 
 
 def _list_repo_milestones(repo_slug: str) -> list[dict[str, object]]:
@@ -153,10 +169,6 @@ def _patch_milestone(repo_slug: str, number: int, *, title: str | None = None, s
     _gh_api_json(f"repos/{repo_slug}/milestones/{number}", method="PATCH", payload=payload)
 
 
-def _delete_milestone(repo_slug: str, number: int) -> None:
-    _gh_api_json(f"repos/{repo_slug}/milestones/{number}", method="DELETE")
-
-
 def _write_report(path: Path, *, repo_slug: str, mode: str, decisions: list[MilestoneDecision]) -> None:
     lines: list[str] = []
     lines.append("# Milestone Cleanup Report")
@@ -194,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
     report_path = Path(args.report) if args.report else None
     try:
         repo_slug = _resolve_repo_slug(args.repo)
-        roadmap_titles, completed_titles = _parse_roadmap_milestones(Path(args.roadmap))
+        roadmap_titles, completed_titles, active_empty_titles = _parse_roadmap_milestones(Path(args.roadmap))
         rows = _list_repo_milestones(repo_slug)
 
         decisions: list[MilestoneDecision] = []
@@ -210,32 +222,56 @@ def main(argv: list[str] | None = None) -> int:
             is_roadmap = clean_title in roadmap_titles or clean_title == TRIAGE_MILESTONE_TITLE
 
             action = "keep"
-            reason = "roadmap-active"
+            reason = "keep-default"
             if not is_roadmap:
-                if counts.total_items == 0:
-                    action = "delete"
-                    reason = "non-roadmap-empty"
-                    if args.apply:
-                        _delete_milestone(repo_slug, number)
+                if (counts.open_issues + counts.open_prs) > 0:
+                    action = "open"
+                    reason = "non-roadmap-open-items"
+                    if args.apply and clean_state == "closed":
+                        _patch_milestone(repo_slug, number, state="open")
                 else:
-                    archived_title = (
-                        clean_title if clean_title.startswith("ARCHIVED - ") else f"ARCHIVED - {clean_title}"
-                    )
-                    action = "archive-close"
-                    reason = "non-roadmap-has-history"
-                    if args.apply:
-                        _patch_milestone(repo_slug, number, title=archived_title, state="closed")
-            else:
-                if clean_title in completed_titles and (counts.open_issues + counts.open_prs == 0):
                     action = "close"
-                    reason = "roadmap-complete-no-open-items"
+                    reason = "non-roadmap-no-open-items"
+                    if args.apply and clean_state != "closed":
+                        _patch_milestone(repo_slug, number, state="closed")
+            else:
+                if clean_title == TRIAGE_MILESTONE_TITLE:
+                    action = "open"
+                    reason = "triage-bucket"
+                    if args.apply and clean_state == "closed":
+                        _patch_milestone(repo_slug, number, state="open")
+                    decisions.append(
+                        MilestoneDecision(
+                            title=clean_title,
+                            number=number,
+                            action=action,
+                            reason=reason,
+                            counts=counts,
+                        )
+                    )
+                    continue
+                open_count = counts.open_issues + counts.open_prs
+                closed_count = counts.closed_issues + counts.closed_prs
+                if open_count > 0:
+                    action = "open"
+                    reason = "roadmap-open-items"
+                    if args.apply and clean_state == "closed":
+                        _patch_milestone(repo_slug, number, state="open")
+                elif clean_title in active_empty_titles and closed_count == 0:
+                    action = "open"
+                    reason = "roadmap-empty-active-section"
+                    if args.apply and clean_state == "closed":
+                        _patch_milestone(repo_slug, number, state="open")
+                elif clean_title in completed_titles or closed_count > 0:
+                    action = "close"
+                    reason = "roadmap-complete-or-historical-no-open-items"
                     if args.apply and clean_state != "closed":
                         _patch_milestone(repo_slug, number, state="closed")
                 else:
-                    action = "open"
-                    reason = "roadmap-active-or-open-items"
-                    if args.apply and clean_state == "closed":
-                        _patch_milestone(repo_slug, number, state="open")
+                    action = "close"
+                    reason = "roadmap-empty-placeholder"
+                    if args.apply and clean_state != "closed":
+                        _patch_milestone(repo_slug, number, state="closed")
 
             decisions.append(
                 MilestoneDecision(
@@ -251,8 +287,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"mode: {mode}")
         print(f"repo: {repo_slug}")
         print(f"evaluated: {len(decisions)}")
-        print(f"delete_count: {sum(1 for d in decisions if d.action == 'delete')}")
-        print(f"archive_count: {sum(1 for d in decisions if d.action == 'archive-close')}")
         print(f"close_count: {sum(1 for d in decisions if d.action == 'close')}")
         print(f"open_count: {sum(1 for d in decisions if d.action == 'open')}")
         for d in sorted(decisions, key=lambda item: item.number):
