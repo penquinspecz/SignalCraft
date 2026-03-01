@@ -169,6 +169,11 @@ def test_bootstrap_creates_template_and_next_steps(tmp_path: Path, monkeypatch, 
     profile = _read(config.candidate_profile_path("alice"))
     assert profile["target_roles"] == ["replace_with_target_role"]
     assert profile["preferred_locations"] == ["replace_with_location"]
+    assert profile["profile_fields"]["schema_version"] == 1
+    assert profile["profile_fields"]["seniority"] == "replace_with_seniority"
+    assert profile["profile_fields"]["role_archetype"] == "replace_with_role_archetype"
+    assert profile["profile_fields"]["location"] == "replace_with_location"
+    assert profile["profile_fields"]["skills"] == ["replace_with_skill"]
     assert (config.candidate_state_dir("alice") / "system_state").exists()
     assert (config.candidate_state_dir("alice") / "inputs").exists()
 
@@ -206,3 +211,69 @@ def test_doctor_fails_when_pointer_missing(tmp_path: Path, monkeypatch, capsys) 
     out = json.loads(capsys.readouterr().out)
     assert out["ok"] is False
     assert any("missing file" in err for err in out["errors"])
+
+
+def test_candidate_create_switch_update_and_hash_stability(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    _config, candidate_registry, candidates_cli = _reload_modules()
+
+    assert candidates_cli.main(["create", "alice", "--display-name", "Alice Example"]) == 0
+    capsys.readouterr()
+    assert candidates_cli.main(["switch", "alice", "--json"]) == 0
+    switched = json.loads(capsys.readouterr().out)
+    assert switched["candidate_id"] == "alice"
+    assert "active_candidate.json" in switched["active_candidate_path"]
+
+    assert (
+        candidates_cli.main(
+            [
+                "update",
+                "alice",
+                "--seniority",
+                "Senior",
+                "--role-archetype",
+                "Staff IC",
+                "--location",
+                "Remote",
+                "--skills",
+                "Python,Leadership",
+                "--skill",
+                "Distributed Systems",
+                "--json",
+            ]
+        )
+        == 0
+    )
+    updated = json.loads(capsys.readouterr().out)
+    assert updated["candidate_id"] == "alice"
+    assert updated["profile_fields"]["schema_version"] == 1
+    assert updated["profile_fields"]["seniority"] == "Senior"
+    assert updated["profile_fields"]["role_archetype"] == "Staff IC"
+    assert updated["profile_fields"]["location"] == "Remote"
+    assert updated["profile_fields"]["skills"] == ["distributed systems", "leadership", "python"]
+
+    first_hash = candidate_registry.profile_hash("alice")
+    assert candidates_cli.main(["update", "alice", "--skills", "python,leadership,distributed systems"]) == 0
+    capsys.readouterr()
+    second_hash = candidate_registry.profile_hash("alice")
+    assert first_hash == second_hash
+
+
+def test_candidate_profile_hash_isolation_per_candidate(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    config, candidate_registry, candidates_cli = _reload_modules()
+
+    assert candidates_cli.main(["create", "alice", "--json"]) == 0
+    capsys.readouterr()
+    assert candidates_cli.main(["create", "bob", "--json"]) == 0
+    capsys.readouterr()
+
+    assert candidates_cli.main(["update", "alice", "--location", "Remote", "--skills", "python", "--json"]) == 0
+    capsys.readouterr()
+    assert candidates_cli.main(["update", "bob", "--location", "NYC", "--skills", "python", "--json"]) == 0
+    capsys.readouterr()
+
+    alice_hash = candidate_registry.profile_hash("alice")
+    bob_hash = candidate_registry.profile_hash("bob")
+    assert alice_hash != bob_hash
+    assert config.candidate_profile_path("alice") != config.candidate_profile_path("bob")

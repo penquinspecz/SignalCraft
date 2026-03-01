@@ -55,6 +55,9 @@
         }
       }
     },
+    "profile_fields": {
+      "$ref": "#/$defs/profile_fields"
+    },
     "text_inputs": {
       "type": "object",
       "additionalProperties": false,
@@ -87,6 +90,12 @@
           "$ref": "#/$defs/text_input_artifact_pointer"
         }
       }
+    },
+    "resume_structured": {
+      "$ref": "#/$defs/resume_structured"
+    },
+    "resume_structured_artifact": {
+      "$ref": "#/$defs/resume_structured_artifact_pointer"
     }
   },
   "$defs": {
@@ -127,6 +136,173 @@
         "artifact_path": {
           "type": "string",
           "minLength": 1
+        }
+      }
+    },
+    "profile_fields": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "seniority",
+        "role_archetype",
+        "location",
+        "skills"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "seniority": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "role_archetype": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "location": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 80
+          }
+        }
+      }
+    },
+    "resume_structured": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "resume_schema_version",
+        "candidate_id",
+        "source_format",
+        "hash_version",
+        "parser_version",
+        "resume_hash",
+        "skills",
+        "role_signals",
+        "experience_summary",
+        "education_signals",
+        "certification_signals"
+      ],
+      "properties": {
+        "resume_schema_version": {
+          "const": 1
+        },
+        "candidate_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]{1,64}$"
+        },
+        "source_format": {
+          "enum": [
+            "pdf",
+            "text"
+          ]
+        },
+        "hash_version": {
+          "const": "resume_hash.v1"
+        },
+        "parser_version": {
+          "const": "resume_parser.v1"
+        },
+        "resume_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "role_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "experience_summary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "years_experience_estimate",
+            "seniority_signal"
+          ],
+          "properties": {
+            "years_experience_estimate": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 80
+            },
+            "seniority_signal": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "education_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "certification_signals": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "resume_structured_artifact_pointer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "resume_hash",
+        "source_format",
+        "artifact_path",
+        "sha256",
+        "size_bytes"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "resume_hash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "source_format": {
+          "enum": [
+            "pdf",
+            "text"
+          ]
+        },
+        "artifact_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "minimum": 1
         }
       }
     }

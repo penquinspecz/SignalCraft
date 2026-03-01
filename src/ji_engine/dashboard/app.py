@@ -33,6 +33,7 @@ from ji_engine.artifacts.catalog import (
     redact_forbidden_fields,
     validate_artifact_payload,
 )
+from ji_engine.candidates import registry as candidate_registry
 from ji_engine.config import (
     DEFAULT_CANDIDATE_ID,
     RUN_METADATA_DIR,
@@ -74,6 +75,22 @@ class _AiInsightsSchema(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class _ProfileFieldsPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    seniority: Optional[str] = None
+    role_archetype: Optional[str] = None
+    location: Optional[str] = None
+    skills: Optional[List[str]] = None
+
+
+class _ProfileUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    display_name: Optional[str] = None
+    profile_fields: _ProfileFieldsPayload = Field(default_factory=_ProfileFieldsPayload)
 
 
 class _DashboardJsonError(RuntimeError):
@@ -158,6 +175,15 @@ def _sanitize_candidate_id(candidate_id: str) -> str:
         return sanitize_candidate_id(candidate_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid candidate_id") from exc
+
+
+def _resolve_candidate_or_active(candidate_id: Optional[str]) -> str:
+    if candidate_id is None or not candidate_id.strip():
+        try:
+            return _sanitize_candidate_id(candidate_registry.get_active_candidate_id())
+        except candidate_registry.CandidateValidationError as exc:
+            raise HTTPException(status_code=500, detail="Active candidate pointer is invalid") from exc
+    return _sanitize_candidate_id(candidate_id)
 
 
 def _sanitize_run_id(run_id: str) -> str:
@@ -731,6 +757,44 @@ def ui_latest(candidate_id: str = DEFAULT_CANDIDATE_ID, top_n: int = 10) -> Dict
     return response
 
 
+@app.get("/v1/profile")
+def profile_read(candidate_id: Optional[str] = None) -> Dict[str, Any]:
+    safe_candidate = _resolve_candidate_or_active(candidate_id)
+    try:
+        payload = candidate_registry.profile_contract(safe_candidate)
+    except candidate_registry.CandidateValidationError as exc:
+        message = str(exc)
+        if "missing" in message:
+            raise HTTPException(status_code=404, detail="Candidate profile not found") from exc
+        raise HTTPException(status_code=500, detail="Candidate profile is invalid") from exc
+    _ensure_ui_safe(payload, context="profile_read")
+    return payload
+
+
+@app.put("/v1/profile")
+def profile_write(update: _ProfileUpdateRequest, candidate_id: Optional[str] = None) -> Dict[str, Any]:
+    safe_candidate = _resolve_candidate_or_active(candidate_id)
+    try:
+        candidate_registry.update_candidate_profile(
+            safe_candidate,
+            display_name=update.display_name,
+            seniority=update.profile_fields.seniority,
+            role_archetype=update.profile_fields.role_archetype,
+            location=update.profile_fields.location,
+            skills=update.profile_fields.skills,
+        )
+        payload = candidate_registry.profile_contract(safe_candidate)
+    except candidate_registry.CandidateValidationError as exc:
+        message = str(exc)
+        if "at least one profile field is required" in message:
+            raise HTTPException(status_code=400, detail=message) from exc
+        if "missing" in message:
+            raise HTTPException(status_code=404, detail="Candidate profile not found") from exc
+        raise HTTPException(status_code=500, detail="Candidate profile update failed") from exc
+    _ensure_ui_safe(payload, context="profile_write")
+    return payload
+
+
 @app.get("/v1/latest")
 def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
     safe_candidate = _sanitize_candidate_id(candidate_id)
@@ -741,11 +805,18 @@ def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
         if status != "ok" or not payload:
             raise HTTPException(status_code=404, detail=f"s3 last_success not found ({status})")
         _ensure_ui_safe(payload, context="latest")
-        return {"source": "s3", "bucket": bucket, "prefix": prefix, "key": key, "payload": payload}
+        return {
+            "source": "s3",
+            "candidate_id": safe_candidate,
+            "bucket": bucket,
+            "prefix": prefix,
+            "key": key,
+            "payload": payload,
+        }
     pointer_path = _state_last_success_path(safe_candidate)
     payload = _read_local_json(pointer_path)
     _ensure_ui_safe(payload, context="latest")
-    return {"source": "local", "path": str(pointer_path), "payload": payload}
+    return {"source": "local", "candidate_id": safe_candidate, "path": str(pointer_path), "payload": payload}
 
 
 @app.get("/v1/runs/{run_id}")

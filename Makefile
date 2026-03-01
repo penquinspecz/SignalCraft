@@ -1,4 +1,5 @@
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks pr-governance-apply provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks merge-train provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks merge-train milestones-sync pr-governance-apply provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
 
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
@@ -93,6 +94,13 @@ m21-stability-harness:
 gh-checks:
 	@if [ -z "$(PR)" ]; then echo "Usage: make gh-checks PR=<pr-number>"; exit 2; fi
 	./scripts/gh_retry.sh pr checks $(PR) --watch
+
+merge-train:
+	@if [ -z "$(PRS)" ]; then echo "Usage: make merge-train PRS=\"<pr numbers in order>\""; exit 2; fi
+	$(PY) scripts/dev/merge_prs.py --prs $(PRS)
+
+milestones-sync:
+	$(PY) scripts/dev/sync_github_milestones.py
 
 pr-governance-apply:
 	$(PY) scripts/dev/apply_pr_governance.py $(ARGS)

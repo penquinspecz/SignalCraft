@@ -5,536 +5,620 @@ import argparse
 import json
 import re
 import subprocess
-import sys
-from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Optional
+from dataclasses import dataclass
+from typing import Iterable, Sequence
 
 PROVENANCE_LABELS = ("from-composer", "from-codex", "from-human")
 TYPE_LABELS = ("type:feat", "type:fix", "type:chore", "type:docs", "type:refactor", "type:test")
-AREA_LABELS = ("area:engine", "area:providers", "area:dr", "area:release", "area:infra", "area:docs", "area:unknown")
-DOCS_OR_UNKNOWN_AREAS = {"area:docs", "area:unknown"}
-TITLE_PROVENANCE_RE = re.compile(r"\[from-(composer|codex|human)\]", re.IGNORECASE)
+AREA_LABEL_ORDER = (
+    "area:engine",
+    "area:providers",
+    "area:dr",
+    "area:release",
+    "area:infra",
+    "area:docs",
+    "area:unknown",
+)
 
-REQUIRED_LABELS: dict[str, tuple[str, str]] = {
-    "from-composer": ("5319E7", "PRs authored/executed via Composer flows"),
-    "from-codex": ("1D76DB", "PRs authored/executed directly by Codex"),
-    "from-human": ("0E8A16", "PRs authored directly by a human"),
-    "type:feat": ("0E8A16", "Feature change"),
-    "type:fix": ("D73A4A", "Bug fix"),
-    "type:chore": ("6F42C1", "Maintenance or process change"),
-    "type:docs": ("0075CA", "Documentation-only or docs-primary change"),
-    "type:refactor": ("FBCA04", "Code structure change without behavior intent"),
-    "type:test": ("C2E0C6", "Test-only change"),
-    "area:engine": ("0052CC", "Engine/runtime/pipeline area"),
-    "area:providers": ("5319E7", "Provider ingestion/policy area"),
-    "area:dr": ("B60205", "Disaster recovery area"),
-    "area:release": ("1D76DB", "Release and distribution area"),
-    "area:infra": ("0366D6", "Infrastructure/tooling area"),
-    "area:docs": ("0E8A16", "Docs-only area label"),
-    "area:unknown": ("6A737D", "Fallback area when no specific domain applies"),
+REQUIRED_LABEL_SPECS = {
+    "from-composer": {"color": "5319E7", "description": "PRs authored/executed via Composer flows"},
+    "from-codex": {"color": "1D76DB", "description": "PRs authored/executed directly by Codex"},
+    "from-human": {"color": "0E8A16", "description": "PRs authored directly by a human"},
+    "type:feat": {"color": "0E8A16", "description": "Feature change"},
+    "type:fix": {"color": "D73A4A", "description": "Bug fix"},
+    "type:chore": {"color": "BFD4F2", "description": "Maintenance or tooling change"},
+    "type:docs": {"color": "0075CA", "description": "Documentation-only or docs-primary change"},
+    "type:refactor": {"color": "FBCA04", "description": "Internal refactor with no intended behavior change"},
+    "type:test": {"color": "C2E0C6", "description": "Test-only change"},
+    "area:engine": {"color": "0E8A16", "description": "Engine/runtime pipeline logic"},
+    "area:providers": {"color": "0052CC", "description": "Provider integrations and registry"},
+    "area:dr": {"color": "B60205", "description": "Disaster recovery and restore tooling"},
+    "area:release": {"color": "5319E7", "description": "Release process and release tooling"},
+    "area:infra": {"color": "1D76DB", "description": "Infrastructure and deployment surface"},
+    "area:docs": {"color": "0075CA", "description": "Docs-only scope"},
+    "area:unknown": {"color": "D4C5F9", "description": "Fallback area when no specific area is inferred"},
 }
 
-GOVERNANCE_LABELS = set(PROVENANCE_LABELS) | set(TYPE_LABELS) | set(AREA_LABELS)
+DOCS_BUCKET = "Docs & Governance"
+INFRA_BUCKET = "Infra & Tooling"
+BACKLOG_BUCKET = "Backlog Cleanup"
+
+
+class CliError(RuntimeError):
+    """Raised for recoverable CLI/API failures with stable messages."""
 
 
 @dataclass(frozen=True)
-class PrTarget:
-    pr_number: int
-    milestone_title: Optional[str] = None
-    provenance: Optional[str] = None
-    type_label: Optional[str] = None
-    areas: tuple[str, ...] = field(default_factory=tuple)
-
-
-@dataclass(frozen=True)
-class PrSummary:
-    pr_number: int
+class MilestoneDecision:
     title: str
-    milestone: Optional[str]
-    labels: tuple[str, ...]
-    errors: tuple[str, ...]
-
-    @property
-    def ok(self) -> bool:
-        return not self.errors
+    reason: str
+    explicit_rule: bool
 
 
-class GovernanceError(RuntimeError):
-    """Raised when desired PR governance metadata is invalid or cannot be applied."""
+@dataclass(frozen=True)
+class PrResult:
+    number: int
+    title: str
+    labels: list[str]
+    milestone: str | None
+    ok: bool
 
 
-def _run_cmd(cmd: list[str], *, stdin_text: Optional[str] = None) -> str:
-    proc = subprocess.run(cmd, check=False, text=True, capture_output=True, input=stdin_text)
+def _run(cmd: Sequence[str], *, input_text: str | None = None) -> str:
+    proc = subprocess.run(cmd, check=False, capture_output=True, text=True, input=input_text)
     if proc.returncode != 0:
-        detail = proc.stderr.strip() or proc.stdout.strip() or "command failed"
-        raise GovernanceError(f"{' '.join(cmd)}: {detail}")
+        stderr = proc.stderr.strip() or proc.stdout.strip() or "(no stderr)"
+        raise CliError(f"command failed ({proc.returncode}): {' '.join(cmd)}\n{stderr}")
     return proc.stdout
 
 
-def _gh_api(endpoint: str, *, method: str = "GET", payload: Optional[dict[str, Any]] = None) -> Any:
-    cmd = ["gh", "api", "--method", method, endpoint]
-    stdin_text: Optional[str] = None
+def _resolve_repo_slug(explicit_repo: str | None) -> str:
+    if explicit_repo:
+        return explicit_repo.strip()
+
+    remote_url = _run(["git", "config", "--get", "remote.origin.url"]).strip()
+    if not remote_url:
+        raise CliError("could not resolve repository from git remote.origin.url")
+
+    https_match = re.match(r"^https://github\.com/(?P<owner>[^/]+)/(?P<repo>[^/.]+?)(?:\.git)?$", remote_url)
+    ssh_match = re.match(r"^git@github\.com:(?P<owner>[^/]+)/(?P<repo>[^/.]+?)(?:\.git)?$", remote_url)
+    match = https_match or ssh_match
+    if not match:
+        raise CliError(f"unsupported GitHub remote URL format: {remote_url}")
+    return f"{match.group('owner')}/{match.group('repo')}"
+
+
+def _gh_api_json(repo_slug: str, path: str, *, method: str = "GET", payload: object | None = None) -> object:
+    cmd = ["gh", "api", f"repos/{repo_slug}/{path}"]
+    if method != "GET":
+        cmd.extend(["--method", method])
+    input_text = None
     if payload is not None:
         cmd.extend(["--input", "-"])
-        stdin_text = json.dumps(payload, sort_keys=True)
-    out = _run_cmd(cmd, stdin_text=stdin_text).strip()
-    if not out:
+        input_text = json.dumps(payload, separators=(",", ":"))
+    raw = _run(cmd, input_text=input_text).strip()
+    if not raw:
         return {}
-    try:
-        return json.loads(out)
-    except json.JSONDecodeError as exc:  # pragma: no cover - defensive branch
-        raise GovernanceError(f"non-json response for endpoint {endpoint}") from exc
+    return json.loads(raw)
 
 
-def _detect_repo() -> str:
-    out = _run_cmd(["gh", "repo", "view", "--json", "nameWithOwner", "--jq", ".nameWithOwner"]).strip()
-    if not out or "/" not in out:
-        raise GovernanceError("unable to determine repository (expected owner/repo from gh repo view)")
+def _gh_pr_list(repo_slug: str) -> list[dict[str, object]]:
+    raw = _run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            repo_slug,
+            "--state",
+            "open",
+            "--limit",
+            "200",
+            "--json",
+            "number,title,headRefName,labels,milestone,body",
+        ]
+    )
+    payload = json.loads(raw)
+    if not isinstance(payload, list):
+        raise CliError("unexpected gh pr list response shape")
+    out: list[dict[str, object]] = []
+    for item in payload:
+        if isinstance(item, dict):
+            out.append(item)
     return out
 
 
-def _fetch_repo_labels(repo: str) -> dict[str, dict[str, Any]]:
-    payload = _gh_api(f"/repos/{repo}/labels?per_page=100")
-    if not isinstance(payload, list):
-        raise GovernanceError("failed to load repository labels")
-    labels: dict[str, dict[str, Any]] = {}
-    for item in payload:
-        if isinstance(item, dict):
-            name = item.get("name")
-            if isinstance(name, str) and name:
-                labels[name] = item
-    return labels
+def _list_paginated(repo_slug: str, path: str) -> list[dict[str, object]]:
+    page = 1
+    out: list[dict[str, object]] = []
+    while True:
+        payload = _gh_api_json(repo_slug, f"{path}&page={page}" if "?" in path else f"{path}?page={page}")
+        if not isinstance(payload, list):
+            raise CliError(f"unexpected paginated response for path: {path}")
+        if not payload:
+            break
+        out.extend(item for item in payload if isinstance(item, dict))
+        page += 1
+    return out
 
 
-def _ensure_required_labels(repo: str, *, dry_run: bool) -> None:
-    existing = _fetch_repo_labels(repo)
-    missing = [name for name in REQUIRED_LABELS if name not in existing]
-    for name in missing:
-        color, description = REQUIRED_LABELS[name]
-        if dry_run:
-            print(f"DRY-RUN create label: {name} color=#{color}")
-            continue
-        _gh_api(
-            f"/repos/{repo}/labels",
-            method="POST",
-            payload={"name": name, "color": color, "description": description},
-        )
-        print(f"created label: {name}")
+def _list_repo_labels(repo_slug: str) -> set[str]:
+    labels = _list_paginated(repo_slug, "labels?per_page=100")
+    out: set[str] = set()
+    for label in labels:
+        name = label.get("name")
+        if isinstance(name, str) and name.strip():
+            out.add(name.strip())
+    return out
 
 
-def _fetch_milestones(repo: str) -> dict[str, int]:
-    payload = _gh_api(f"/repos/{repo}/milestones?state=all&per_page=100")
-    if not isinstance(payload, list):
-        raise GovernanceError("failed to load milestones")
-    milestones: dict[str, int] = {}
-    for item in payload:
-        if not isinstance(item, dict):
-            continue
+def _list_repo_milestones(repo_slug: str) -> dict[str, int]:
+    milestones = _list_paginated(repo_slug, "milestones?state=all&per_page=100")
+    out: dict[str, int] = {}
+    for item in milestones:
         title = item.get("title")
         number = item.get("number")
-        if isinstance(title, str) and title and isinstance(number, int):
-            milestones[title] = number
-    return milestones
+        if isinstance(title, str) and title.strip() and isinstance(number, int):
+            out[title.strip()] = number
+    return out
 
 
-def _fetch_pr(repo: str, pr_number: int) -> dict[str, Any]:
-    payload = _gh_api(f"/repos/{repo}/pulls/{pr_number}")
+def _list_pr_files(repo_slug: str, pr_number: int) -> list[str]:
+    files = _list_paginated(repo_slug, f"pulls/{pr_number}/files?per_page=100")
+    out: list[str] = []
+    for item in files:
+        filename = item.get("filename")
+        if isinstance(filename, str):
+            out.append(filename)
+    return out
+
+
+def _fetch_pr_issue(repo_slug: str, pr_number: int) -> dict[str, object]:
+    payload = _gh_api_json(repo_slug, f"issues/{pr_number}")
     if not isinstance(payload, dict):
-        raise GovernanceError(f"failed to load PR #{pr_number}")
+        raise CliError(f"unexpected issue response for PR #{pr_number}")
     return payload
 
 
-def _labels_from_pr(pr_payload: dict[str, Any]) -> list[str]:
-    labels: list[str] = []
-    for item in pr_payload.get("labels") or []:
+def _create_label(repo_slug: str, name: str, color: str, description: str, *, dry_run: bool) -> None:
+    if dry_run:
+        print(f"DRY-RUN create-label: {name}")
+        return
+    try:
+        _gh_api_json(
+            repo_slug,
+            "labels",
+            method="POST",
+            payload={"name": name, "color": color, "description": description},
+        )
+        print(f"created-label: {name}")
+    except CliError as exc:
+        text = str(exc)
+        if "HTTP 422" in text:
+            print(f"label-exists-race: {name}")
+            return
+        raise
+
+
+def _ensure_required_labels(repo_slug: str, *, dry_run: bool) -> None:
+    existing = _list_repo_labels(repo_slug)
+    for name, spec in REQUIRED_LABEL_SPECS.items():
+        if name in existing:
+            continue
+        _create_label(repo_slug, name, spec["color"], spec["description"], dry_run=dry_run)
+
+
+def _is_readme_path(path: str) -> bool:
+    return bool(re.search(r"(^|/)README[^/]*$", path, flags=re.IGNORECASE))
+
+
+def _is_docs_path(path: str) -> bool:
+    return path.startswith("docs/") or _is_readme_path(path)
+
+
+def _is_engine_path(path: str) -> bool:
+    return path.startswith("src/ji_engine/") or path.startswith("src/jobintel/")
+
+
+def _is_provider_path(path: str) -> bool:
+    return path.startswith("src/ji_engine/providers/")
+
+
+def _is_dr_path(path: str) -> bool:
+    return path.startswith("scripts/ops/") or path.startswith("ops/")
+
+
+def _is_infra_path(path: str) -> bool:
+    return path.startswith("ops/aws/") or path.startswith("ops/k8s/")
+
+
+def _docs_only(paths: Sequence[str]) -> bool:
+    return len(paths) > 0 and all(_is_docs_path(path) for path in paths)
+
+
+def _choose_provenance(head_ref: str) -> str:
+    if head_ref.startswith("codex/"):
+        return "from-codex"
+    if head_ref.startswith("composer/"):
+        return "from-composer"
+    return "from-human"
+
+
+def _choose_type(title: str, changed_paths: Sequence[str]) -> str:
+    trimmed = title.strip()
+    if _docs_only(changed_paths) or re.match(r"^docs(?:\(|:)", trimmed, flags=re.IGNORECASE):
+        return "type:docs"
+    if re.match(r"^fix(?:\(|:)", trimmed, flags=re.IGNORECASE):
+        return "type:fix"
+    if re.match(r"^feat(?:\(|:)", trimmed, flags=re.IGNORECASE):
+        return "type:feat"
+    return "type:chore"
+
+
+def _normalize_area_labels(labels: Iterable[str]) -> set[str]:
+    out = {label for label in labels if label.startswith("area:")}
+    non_docs_specific = {label for label in out if label not in {"area:docs", "area:unknown"}}
+    if non_docs_specific:
+        out.discard("area:docs")
+    if "area:unknown" in out and len(out) > 1:
+        out.discard("area:unknown")
+    if not out:
+        out = {"area:unknown"}
+    return out
+
+
+def _infer_areas(changed_paths: Sequence[str]) -> set[str]:
+    inferred: set[str] = set()
+    if any(_is_docs_path(path) for path in changed_paths):
+        inferred.add("area:docs")
+    if any(_is_engine_path(path) for path in changed_paths):
+        inferred.add("area:engine")
+    if any(_is_provider_path(path) for path in changed_paths):
+        inferred.add("area:providers")
+    if any(_is_dr_path(path) for path in changed_paths):
+        inferred.add("area:dr")
+    if any(_is_infra_path(path) for path in changed_paths):
+        inferred.add("area:infra")
+    if not inferred:
+        inferred.add("area:unknown")
+    return _normalize_area_labels(inferred)
+
+
+def _ordered_areas(area_labels: Iterable[str]) -> list[str]:
+    order = {label: idx for idx, label in enumerate(AREA_LABEL_ORDER)}
+    return sorted(area_labels, key=lambda label: (order.get(label, 999), label))
+
+
+def _dedupe_preserve_order(labels: Iterable[str]) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for label in labels:
+        if label in seen:
+            continue
+        seen.add(label)
+        out.append(label)
+    return out
+
+
+def _mentions_milestone_25(text: str) -> bool:
+    return bool(re.search(r"\bMilestone\s*25\b|\bM25\b", text, flags=re.IGNORECASE))
+
+
+def _extract_milestone_refs(text: str) -> list[int]:
+    refs: list[int] = []
+    for match in re.finditer(r"\bMilestone\s*(\d+)\b", text, flags=re.IGNORECASE):
+        refs.append(int(match.group(1)))
+    for match in re.finditer(r"\bM(\d+)\b", text, flags=re.IGNORECASE):
+        refs.append(int(match.group(1)))
+    # Stable de-duplication while preserving first-seen order.
+    out: list[int] = []
+    seen: set[int] = set()
+    for ref in refs:
+        if ref in seen:
+            continue
+        seen.add(ref)
+        out.append(ref)
+    return out
+
+
+def _nearest_milestone_title(
+    text: str,
+    milestones_by_title: dict[str, int],
+    *,
+    fallback_title: str,
+) -> str:
+    for ref in _extract_milestone_refs(text):
+        candidate = f"M{ref}"
+        if candidate in milestones_by_title:
+            return candidate
+    if fallback_title in milestones_by_title:
+        return fallback_title
+
+    numeric_titles = sorted(
+        (title for title in milestones_by_title if re.fullmatch(r"M\d+", title)),
+        key=lambda title: int(title[1:]),
+    )
+    if numeric_titles:
+        return numeric_titles[0]
+    raise CliError("no numeric roadmap milestone exists for fallback")
+
+
+def _choose_milestone(
+    *,
+    title: str,
+    body: str,
+    docs_only: bool,
+    existing_title: str | None,
+    milestones_by_title: dict[str, int],
+    current_hardening: str,
+) -> MilestoneDecision:
+    text = f"{title}\n{body}"
+    if _mentions_milestone_25(text):
+        return MilestoneDecision("M25", "explicit Milestone 25 marker", True)
+
+    if docs_only:
+        if DOCS_BUCKET in milestones_by_title:
+            return MilestoneDecision(DOCS_BUCKET, "docs-only bucket", True)
+        nearest = _nearest_milestone_title(text, milestones_by_title, fallback_title=current_hardening)
+        return MilestoneDecision(nearest, "docs-only fallback to nearest roadmap milestone", True)
+
+    if "(governance)" in title.lower():
+        if INFRA_BUCKET in milestones_by_title:
+            return MilestoneDecision(INFRA_BUCKET, "governance title bucket", True)
+        fallback = _nearest_milestone_title(text, milestones_by_title, fallback_title=current_hardening)
+        return MilestoneDecision(fallback, "governance title fallback to hardening milestone", True)
+
+    if existing_title:
+        return MilestoneDecision(existing_title, "preserve existing milestone", False)
+
+    if BACKLOG_BUCKET in milestones_by_title:
+        return MilestoneDecision(BACKLOG_BUCKET, "missing milestone default", True)
+
+    fallback = _nearest_milestone_title(text, milestones_by_title, fallback_title=current_hardening)
+    return MilestoneDecision(fallback, "missing bucket fallback to roadmap milestone", True)
+
+
+def _extract_label_names(label_objects: object) -> list[str]:
+    out: list[str] = []
+    if not isinstance(label_objects, list):
+        return out
+    for item in label_objects:
         if isinstance(item, dict):
             name = item.get("name")
-            if isinstance(name, str) and name:
-                labels.append(name)
-    return labels
+            if isinstance(name, str) and name.strip():
+                out.append(name.strip())
+    return out
 
 
-def _normalize_target(raw: PrTarget, *, verify_only: bool) -> PrTarget:
-    if raw.pr_number <= 0:
-        raise GovernanceError(f"invalid pr number: {raw.pr_number}")
+def _compute_final_labels(
+    *,
+    current_labels: Sequence[str],
+    chosen_provenance: str,
+    chosen_type: str,
+    inferred_areas: set[str],
+) -> list[str]:
+    current_area = {label for label in current_labels if label.startswith("area:")}
+    merged_area = _normalize_area_labels(current_area | inferred_areas)
 
-    areas = tuple(dict.fromkeys(raw.areas))
-    for area in areas:
-        if area not in AREA_LABELS:
-            raise GovernanceError(f"invalid area label for PR #{raw.pr_number}: {area}")
-    if "area:docs" in areas and len(areas) > 1:
-        raise GovernanceError(f"PR #{raw.pr_number}: area:docs is docs-only and cannot be mixed with other areas")
-    if "area:unknown" in areas and len(areas) > 1:
-        raise GovernanceError(
-            f"PR #{raw.pr_number}: area:unknown is fallback-only and cannot be mixed with other areas"
-        )
-
-    provenance = raw.provenance
-    if provenance is not None and provenance not in PROVENANCE_LABELS:
-        raise GovernanceError(f"invalid provenance label for PR #{raw.pr_number}: {provenance}")
-
-    type_label = raw.type_label
-    if type_label is not None and type_label not in TYPE_LABELS:
-        raise GovernanceError(f"invalid type label for PR #{raw.pr_number}: {type_label}")
-
-    if not verify_only:
-        if not raw.milestone_title:
-            raise GovernanceError(f"PR #{raw.pr_number}: milestone is required")
-        if provenance is None:
-            raise GovernanceError(f"PR #{raw.pr_number}: provenance label is required")
-        if type_label is None:
-            raise GovernanceError(f"PR #{raw.pr_number}: type label is required")
-        if not areas:
-            raise GovernanceError(f"PR #{raw.pr_number}: at least one area label is required")
-
-    return PrTarget(
-        pr_number=raw.pr_number,
-        milestone_title=raw.milestone_title,
-        provenance=provenance,
-        type_label=type_label,
-        areas=areas,
-    )
-
-
-def _parse_cli_groups(tokens: list[str]) -> list[PrTarget]:
-    specs: list[PrTarget] = []
-    current: Optional[dict[str, Any]] = None
-    idx = 0
-    while idx < len(tokens):
-        token = tokens[idx]
-        if token not in {"--pr", "--milestone", "--provenance", "--type", "--area"}:
-            raise GovernanceError(f"unknown argument: {token}")
-        if idx + 1 >= len(tokens):
-            raise GovernanceError(f"missing value for {token}")
-        value = tokens[idx + 1]
-        idx += 2
-
-        if token == "--pr":
-            if current is not None:
-                specs.append(
-                    PrTarget(
-                        pr_number=current["pr_number"],
-                        milestone_title=current["milestone_title"],
-                        provenance=current["provenance"],
-                        type_label=current["type_label"],
-                        areas=tuple(current["areas"]),
-                    )
-                )
-            try:
-                pr_number = int(value)
-            except ValueError as exc:
-                raise GovernanceError(f"invalid --pr value: {value}") from exc
-            current = {
-                "pr_number": pr_number,
-                "milestone_title": None,
-                "provenance": None,
-                "type_label": None,
-                "areas": [],
-            }
-            continue
-
-        if current is None:
-            raise GovernanceError(f"{token} must appear after --pr")
-        if token == "--milestone":
-            if current["milestone_title"] is not None:
-                raise GovernanceError(f"duplicate --milestone for PR #{current['pr_number']}")
-            current["milestone_title"] = value
-        elif token == "--provenance":
-            if current["provenance"] is not None:
-                raise GovernanceError(f"duplicate --provenance for PR #{current['pr_number']}")
-            current["provenance"] = value
-        elif token == "--type":
-            if current["type_label"] is not None:
-                raise GovernanceError(f"duplicate --type for PR #{current['pr_number']}")
-            current["type_label"] = value
-        elif token == "--area":
-            current["areas"].append(value)
-
-    if current is not None:
-        specs.append(
-            PrTarget(
-                pr_number=current["pr_number"],
-                milestone_title=current["milestone_title"],
-                provenance=current["provenance"],
-                type_label=current["type_label"],
-                areas=tuple(current["areas"]),
-            )
-        )
-    return specs
-
-
-def _load_config(path: Path) -> list[PrTarget]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise GovernanceError(f"failed to read config json at {path}") from exc
-
-    items: list[Any]
-    if isinstance(payload, list):
-        items = payload
-    elif isinstance(payload, dict) and isinstance(payload.get("prs"), list):
-        items = payload["prs"]
-    else:
-        raise GovernanceError("config json must be either a list or an object with key 'prs'")
-
-    specs: list[PrTarget] = []
-    for item in items:
-        if isinstance(item, int):
-            specs.append(PrTarget(pr_number=item))
-            continue
-        if not isinstance(item, dict):
-            raise GovernanceError("each config entry must be an object or integer PR number")
-        pr_raw = item.get("pr", item.get("number"))
-        if not isinstance(pr_raw, int):
-            raise GovernanceError("each config entry requires integer field 'pr'")
-        areas_raw = item.get("areas", item.get("area", []))
-        if isinstance(areas_raw, str):
-            areas = (areas_raw,)
-        elif isinstance(areas_raw, list):
-            areas = tuple(str(x) for x in areas_raw)
-        else:
-            raise GovernanceError(f"PR #{pr_raw}: area/areas must be string or list")
-        specs.append(
-            PrTarget(
-                pr_number=pr_raw,
-                milestone_title=item.get("milestone"),
-                provenance=item.get("provenance"),
-                type_label=item.get("type"),
-                areas=areas,
-            )
-        )
-    return specs
-
-
-def _defaults_for_hardening_epoch(milestones: dict[str, int]) -> list[PrTarget]:
-    docs_title = "Docs & Governance"
-    if docs_title in milestones:
-        docs_milestone = docs_title
-    else:
-        docs_milestone = "M22"
-        print("warning: milestone 'Docs & Governance' not found; using fallback 'M22' for PR #255")
-    return [
-        PrTarget(252, "M22", "from-codex", "type:fix", ("area:engine",)),
-        PrTarget(253, "M22", "from-codex", "type:fix", ("area:dr",)),
-        PrTarget(254, "M22", "from-codex", "type:fix", ("area:engine",)),
-        PrTarget(255, docs_milestone, "from-codex", "type:docs", ("area:docs",)),
+    preserved = [
+        label
+        for label in current_labels
+        if label not in PROVENANCE_LABELS and not label.startswith("type:") and not label.startswith("area:")
     ]
 
-
-def _governance_errors(*, title: str, labels: list[str], milestone: Optional[str]) -> list[str]:
-    errors: list[str] = []
-    provenance = [label for label in labels if label in PROVENANCE_LABELS]
-    type_labels = [label for label in labels if label.startswith("type:")]
-    area_labels = [label for label in labels if label.startswith("area:")]
-
-    if TITLE_PROVENANCE_RE.search(title or ""):
-        errors.append("title contains forbidden provenance marker ([from-*])")
-    if len(provenance) != 1:
-        errors.append(f"provenance label count must be 1 (found {len(provenance)})")
-    if len(type_labels) != 1:
-        errors.append(f"type label count must be 1 (found {len(type_labels)})")
-    if len(area_labels) < 1:
-        errors.append("at least one area:* label is required")
-    non_docs_areas = [label for label in area_labels if label not in DOCS_OR_UNKNOWN_AREAS]
-    if "area:docs" in area_labels and non_docs_areas:
-        errors.append("area:docs must not be combined with another specific area:* label")
-    if "area:unknown" in area_labels and len(area_labels) > 1:
-        errors.append("area:unknown is fallback-only and must not be combined with other area labels")
-    if not milestone:
-        errors.append("milestone is required")
-    return errors
-
-
-def _put_labels(repo: str, pr_number: int, labels: list[str], *, dry_run: bool) -> None:
-    if dry_run:
-        print(f"DRY-RUN set labels on PR #{pr_number}: {labels}")
-        return
-    _gh_api(f"/repos/{repo}/issues/{pr_number}/labels", method="PUT", payload={"labels": labels})
-    print(f"updated labels on PR #{pr_number}")
-
-
-def _set_milestone(repo: str, pr_number: int, milestone_number: int, milestone_title: str, *, dry_run: bool) -> None:
-    if dry_run:
-        print(f"DRY-RUN set milestone on PR #{pr_number}: {milestone_title}")
-        return
-    _gh_api(
-        f"/repos/{repo}/issues/{pr_number}",
-        method="PATCH",
-        payload={"milestone": milestone_number},
+    final_labels = _dedupe_preserve_order(
+        [
+            *sorted(preserved),
+            chosen_provenance,
+            chosen_type,
+            *_ordered_areas(merged_area),
+        ]
     )
-    print(f"updated milestone on PR #{pr_number}: {milestone_title}")
+    return final_labels
 
 
-def _apply_target(repo: str, target: PrTarget, milestones: dict[str, int], *, dry_run: bool) -> None:
-    if not target.milestone_title:
-        raise GovernanceError(f"PR #{target.pr_number}: milestone is required")
-    milestone_number = milestones.get(target.milestone_title)
-    if milestone_number is None:
-        raise GovernanceError(
-            f"PR #{target.pr_number}: milestone '{target.milestone_title}' not found in repository milestones"
-        )
-
-    pr_payload = _fetch_pr(repo, target.pr_number)
-    current_labels = _labels_from_pr(pr_payload)
-    current_milestone = pr_payload.get("milestone")
-    current_milestone_num = current_milestone.get("number") if isinstance(current_milestone, dict) else None
-
-    desired_governance = {target.provenance or "", target.type_label or "", *target.areas}
-    desired_governance.discard("")
-    current_other = [label for label in current_labels if label not in GOVERNANCE_LABELS]
-    final_labels = sorted(set(current_other) | desired_governance)
-
-    if set(current_labels) != set(final_labels):
-        _put_labels(repo, target.pr_number, final_labels, dry_run=dry_run)
-    else:
-        print(f"labels already compliant on PR #{target.pr_number}")
-
-    if current_milestone_num != milestone_number:
-        _set_milestone(repo, target.pr_number, milestone_number, target.milestone_title, dry_run=dry_run)
-    else:
-        print(f"milestone already set on PR #{target.pr_number}: {target.milestone_title}")
+def _apply_labels(repo_slug: str, pr_number: int, labels: Sequence[str], *, dry_run: bool) -> None:
+    if dry_run:
+        print(f"DRY-RUN set-labels pr=#{pr_number} labels={','.join(labels)}")
+        return
+    _gh_api_json(repo_slug, f"issues/{pr_number}/labels", method="PUT", payload={"labels": list(labels)})
 
 
-def _planned_state(repo: str, target: PrTarget, milestones: dict[str, int]) -> tuple[tuple[str, ...], str]:
-    if not target.milestone_title:
-        raise GovernanceError(f"PR #{target.pr_number}: milestone is required")
-    if target.milestone_title not in milestones:
-        raise GovernanceError(
-            f"PR #{target.pr_number}: milestone '{target.milestone_title}' not found in repository milestones"
-        )
-    pr_payload = _fetch_pr(repo, target.pr_number)
-    current_labels = _labels_from_pr(pr_payload)
-    desired_governance = {target.provenance or "", target.type_label or "", *target.areas}
-    desired_governance.discard("")
-    current_other = [label for label in current_labels if label not in GOVERNANCE_LABELS]
-    final_labels = tuple(sorted(set(current_other) | desired_governance))
-    return final_labels, target.milestone_title
-
-
-def _summarize_pr(repo: str, pr_number: int) -> PrSummary:
-    pr_payload = _fetch_pr(repo, pr_number)
-    title = str(pr_payload.get("title") or "")
-    labels = sorted(_labels_from_pr(pr_payload))
-    milestone = None
-    milestone_payload = pr_payload.get("milestone")
-    if isinstance(milestone_payload, dict):
-        raw_title = milestone_payload.get("title")
-        if isinstance(raw_title, str) and raw_title.strip():
-            milestone = raw_title
-    errors = _governance_errors(title=title, labels=labels, milestone=milestone)
-    return PrSummary(pr_number=pr_number, title=title, milestone=milestone, labels=tuple(labels), errors=tuple(errors))
-
-
-def _summarize_projected_pr(
-    repo: str,
+def _apply_milestone(
+    repo_slug: str,
     pr_number: int,
+    milestone_title: str,
+    milestones_by_title: dict[str, int],
     *,
-    labels: tuple[str, ...],
-    milestone: str,
-) -> PrSummary:
-    pr_payload = _fetch_pr(repo, pr_number)
-    title = str(pr_payload.get("title") or "")
-    sorted_labels = tuple(sorted(labels))
-    errors = _governance_errors(title=title, labels=list(sorted_labels), milestone=milestone)
-    return PrSummary(
-        pr_number=pr_number,
-        title=title,
-        milestone=milestone,
-        labels=sorted_labels,
-        errors=tuple(errors),
+    dry_run: bool,
+) -> None:
+    if milestone_title not in milestones_by_title:
+        raise CliError(f"missing milestone title required for apply: {milestone_title}")
+    milestone_number = milestones_by_title[milestone_title]
+    if dry_run:
+        print(f"DRY-RUN set-milestone pr=#{pr_number} milestone={milestone_title}")
+        return
+    _gh_api_json(repo_slug, f"issues/{pr_number}", method="PATCH", payload={"milestone": milestone_number})
+
+
+def _summarize_pr(pr: PrResult) -> str:
+    milestone = pr.milestone if pr.milestone else "(none)"
+    labels = ",".join(pr.labels)
+    return f"PR #{pr.number} ok={str(pr.ok).lower()} milestone={milestone} labels=[{labels}] title={pr.title}"
+
+
+def _verify_governance(labels: Sequence[str], milestone: str | None) -> bool:
+    provenance_count = sum(1 for label in labels if label in PROVENANCE_LABELS)
+    type_count = sum(1 for label in labels if label.startswith("type:"))
+    area_count = sum(1 for label in labels if label.startswith("area:"))
+    return provenance_count == 1 and type_count == 1 and area_count >= 1 and milestone is not None
+
+
+def _process_open_prs(
+    *,
+    repo_slug: str,
+    pr_numbers_filter: set[int],
+    verify_only: bool,
+    dry_run: bool,
+    current_hardening: str,
+) -> int:
+    milestones_by_title = _list_repo_milestones(repo_slug)
+    if not verify_only:
+        _ensure_required_labels(repo_slug, dry_run=dry_run)
+
+    open_prs = sorted(_gh_pr_list(repo_slug), key=lambda item: int(item.get("number", 0)))
+    if pr_numbers_filter:
+        open_prs = [item for item in open_prs if int(item.get("number", 0)) in pr_numbers_filter]
+
+    print(
+        f"repo={repo_slug} open_prs={len(open_prs)} verify_only={str(verify_only).lower()} dry_run={str(dry_run).lower()}"
     )
 
+    results: list[PrResult] = []
+    for pr in open_prs:
+        number = int(pr.get("number", 0))
+        title = str(pr.get("title") or "")
+        body = str(pr.get("body") or "")
+        head_ref = str(pr.get("headRefName") or "")
 
-def _print_summary(summary: PrSummary) -> None:
-    status = "PASS" if summary.ok else "FAIL"
-    milestone = summary.milestone or "(none)"
-    labels = ", ".join(summary.labels) if summary.labels else "(none)"
-    print(f"PR #{summary.pr_number}: {status}")
-    print(f"  milestone: {milestone}")
-    print(f"  labels: {labels}")
-    if summary.errors:
-        for err in summary.errors:
-            print(f"  error: {err}")
+        changed_paths = _list_pr_files(repo_slug, number)
+        docs_only = _docs_only(changed_paths)
 
+        chosen_provenance = _choose_provenance(head_ref)
+        chosen_type = _choose_type(title, changed_paths)
+        inferred_areas = _infer_areas(changed_paths)
 
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Apply and verify SignalCraft PR governance metadata via GitHub API (through gh CLI)."
-    )
-    parser.add_argument("--repo", help="owner/repo override (default: current gh repo)")
-    parser.add_argument("--config-json", type=Path, help="JSON file describing PR governance targets")
-    parser.add_argument(
-        "--apply-defaults-for-hardening-epoch",
-        action="store_true",
-        help="Apply defaults for PRs 252-255 with deterministic milestone fallback behavior",
-    )
-    parser.add_argument("--verify-only", action="store_true", help="Only verify governance on selected PRs")
-    parser.add_argument("--dry-run", action="store_true", help="Print intended writes without mutating GitHub state")
-    return parser
+        issue = _fetch_pr_issue(repo_slug, number)
+        current_labels = _extract_label_names(issue.get("labels"))
 
+        milestone_obj = issue.get("milestone")
+        existing_milestone = None
+        if isinstance(milestone_obj, dict):
+            milestone_title = milestone_obj.get("title")
+            if isinstance(milestone_title, str) and milestone_title.strip():
+                existing_milestone = milestone_title.strip()
 
-def main(argv: Optional[list[str]] = None) -> int:
-    parser = _build_parser()
-    args, extra = parser.parse_known_args(argv)
-
-    has_cli_groups = "--pr" in extra
-    if args.apply_defaults_for_hardening_epoch and (args.config_json or has_cli_groups):
-        raise GovernanceError("--apply-defaults-for-hardening-epoch cannot be combined with --config-json or --pr")
-    if args.config_json and has_cli_groups:
-        raise GovernanceError("--config-json cannot be combined with --pr group arguments")
-
-    repo = args.repo or _detect_repo()
-    milestones = _fetch_milestones(repo)
-
-    if args.apply_defaults_for_hardening_epoch:
-        targets = _defaults_for_hardening_epoch(milestones)
-    elif args.config_json:
-        targets = _load_config(args.config_json)
-    else:
-        targets = _parse_cli_groups(extra)
-
-    if not targets:
-        raise GovernanceError(
-            "no PR targets provided (use --config-json, --pr groups, or --apply-defaults-for-hardening-epoch)"
+        final_labels = _compute_final_labels(
+            current_labels=current_labels,
+            chosen_provenance=chosen_provenance,
+            chosen_type=chosen_type,
+            inferred_areas=inferred_areas,
+        )
+        milestone_decision = _choose_milestone(
+            title=title,
+            body=body,
+            docs_only=docs_only,
+            existing_title=existing_milestone,
+            milestones_by_title=milestones_by_title,
+            current_hardening=current_hardening,
         )
 
-    normalized: list[PrTarget] = []
-    seen_prs: set[int] = set()
-    for target in targets:
-        clean = _normalize_target(target, verify_only=args.verify_only)
-        if clean.pr_number in seen_prs:
-            raise GovernanceError(f"duplicate PR target provided: #{clean.pr_number}")
-        seen_prs.add(clean.pr_number)
-        normalized.append(clean)
+        labels_changed = set(final_labels) != set(current_labels)
+        milestone_changed = milestone_decision.title != existing_milestone
 
-    projected: dict[int, tuple[tuple[str, ...], str]] = {}
-    if not args.verify_only:
-        _ensure_required_labels(repo, dry_run=args.dry_run)
-        for target in normalized:
-            projected[target.pr_number] = _planned_state(repo, target, milestones)
-            _apply_target(repo, target, milestones, dry_run=args.dry_run)
+        should_apply_milestone = False
+        if milestone_decision.explicit_rule and milestone_changed:
+            should_apply_milestone = True
+        elif existing_milestone is None:
+            should_apply_milestone = True
 
-    print("verification summary")
-    failed = False
-    for target in normalized:
-        if args.dry_run and not args.verify_only:
-            labels, milestone = projected[target.pr_number]
-            summary = _summarize_projected_pr(repo, target.pr_number, labels=labels, milestone=milestone)
+        if verify_only:
+            print(
+                f"VERIFY pr=#{number} provenance={chosen_provenance} type={chosen_type} "
+                f"inferred_areas={','.join(_ordered_areas(inferred_areas))} milestone={existing_milestone or '(none)'}"
+            )
         else:
-            summary = _summarize_pr(repo, target.pr_number)
-        _print_summary(summary)
-        if not summary.ok:
-            failed = True
+            if labels_changed:
+                _apply_labels(repo_slug, number, final_labels, dry_run=dry_run)
+            if should_apply_milestone:
+                _apply_milestone(
+                    repo_slug,
+                    number,
+                    milestone_decision.title,
+                    milestones_by_title,
+                    dry_run=dry_run,
+                )
 
+            action = "noop"
+            if labels_changed or milestone_changed:
+                action = "updated"
+            print(
+                f"APPLY pr=#{number} action={action} provenance={chosen_provenance} type={chosen_type} "
+                f"areas={','.join(_ordered_areas(inferred_areas))} milestone={milestone_decision.title} "
+                f"reason={milestone_decision.reason}"
+            )
+
+        if dry_run and not verify_only:
+            verified_labels = final_labels if labels_changed else current_labels
+            verified_milestone = milestone_decision.title if should_apply_milestone else existing_milestone
+        else:
+            verified_issue = _fetch_pr_issue(repo_slug, number)
+            verified_labels = _extract_label_names(verified_issue.get("labels"))
+            verified_milestone_obj = verified_issue.get("milestone")
+            verified_milestone = None
+            if isinstance(verified_milestone_obj, dict):
+                maybe_title = verified_milestone_obj.get("title")
+                if isinstance(maybe_title, str) and maybe_title.strip():
+                    verified_milestone = maybe_title.strip()
+
+        ok = _verify_governance(verified_labels, verified_milestone)
+        result = PrResult(
+            number=number,
+            title=title,
+            labels=sorted(verified_labels),
+            milestone=verified_milestone,
+            ok=ok,
+        )
+        print(_summarize_pr(result))
+        results.append(result)
+
+    failed = [item for item in results if not item.ok]
+    print("summary:")
+    print(f"  total={len(results)}")
+    print(f"  passing={len(results) - len(failed)}")
+    print(f"  failing={len(failed)}")
     if failed:
+        print("failing_prs:")
+        for item in failed:
+            print(f"  - #{item.number}")
         return 1
     return 0
 
 
-if __name__ == "__main__":
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Apply deterministic PR governance labels and milestones.")
+    parser.add_argument("--repo", help="GitHub repo slug owner/name. Defaults to origin remote.")
+    parser.add_argument("--apply-open-prs", action="store_true", help="Apply governance to currently open PRs.")
+    parser.add_argument("--verify-only", action="store_true", help="Verify only, do not apply changes.")
+    parser.add_argument("--dry-run", action="store_true", help="Print what would change without mutating PR metadata.")
+    parser.add_argument("--pr", action="append", type=int, default=[], help="Optional PR number filter (repeatable).")
+    parser.add_argument(
+        "--current-hardening",
+        default="M22",
+        help="Fallback hardening milestone title for governance/docs fallback paths (default: M22).",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
+    if not args.apply_open_prs:
+        print("ERROR: this script currently requires --apply-open-prs")
+        return 2
+
     try:
-        raise SystemExit(main())
-    except GovernanceError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        raise SystemExit(2)
+        repo_slug = _resolve_repo_slug(args.repo)
+        return _process_open_prs(
+            repo_slug=repo_slug,
+            pr_numbers_filter=set(args.pr),
+            verify_only=args.verify_only,
+            dry_run=args.dry_run,
+            current_hardening=args.current_hardening,
+        )
+    except CliError as exc:
+        print(f"ERROR: {exc}")
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
