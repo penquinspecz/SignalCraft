@@ -73,19 +73,50 @@ Evidence expectations:
 
 # Product Thesis (2026)
 
-SignalCraft primary product value is temporal intelligence:
+SignalCraft's defensible edge is **temporal intelligence over the job market** —
+not job matching.
 
-- **Temporal Intelligence > Matching**
-- Matching remains useful, but longitudinal change detection is the product
-  anchor (role evolution, skills drift, and stable diffs over time).
-- Deterministic provenance and replayable artifact diffs are required for every
-  longitudinal claim.
-- Provider expansion remains first-class via the onboarding factory model in
-  Milestone 26 (policy/robots evaluation + scaffolding + receipts).
-- **Analytics as artifacts:** temporal intelligence (score trajectories, provider
-  coverage trends, role family drift, market signals) should become first-class
-  ui_safe artifacts computed during the pipeline, not ad-hoc queries over flat files.
+## Product Value Hierarchy
+
+1. **Temporal Intelligence (primary value):** Longitudinal change detection across
+   employer career pages — role evolution, skills drift, team expansion/contraction,
+   emerging role families, provider coverage trends. This is what nobody else has.
+   Evidence infrastructure: `job_identity.py` (stable identity normalization),
+   `safety/diff.py` (deterministic fingerprint-based diffs), `history_retention.py`
+   (identity maps + provenance per run), `run_repository.py` (SQLite-indexed run
+   history).
+
+2. **Personalized Matching (supporting layer):** Heuristic + AI-blended scoring
+   personalizes temporal intelligence to the candidate's profile. "Here's what's
+   changing *that matters to you*." Matching is useful but not the moat — it makes
+   intelligence actionable.
+
+3. **Application Intelligence (future layer):** When live AI is enabled, per-job
+   coaching, application kits, and fit narratives become the action layer. Blocked
+   until AI readiness contract is defined. `OpenAIProvider` remains a stub until then.
+
+## Strategic Principles
+
+- **Temporal Intelligence > Matching:** Matching remains useful, but longitudinal
+  change detection is the product anchor. Deterministic provenance and replayable
+  artifact diffs are required for every longitudinal claim.
+- **Analytics as Artifacts:** Temporal intelligence (score trajectories, provider
+  coverage trends, role family drift, market signals) must become first-class ui_safe
+  artifacts computed during the pipeline — not ad-hoc queries over flat files.
   Prerequisite: correction epoch Tier 0-1 items complete.
+- **Role Taxonomy as Product:** Cross-company role consolidation — mapping equivalent
+  roles across different employer naming conventions — is a unique capability built on
+  existing `_classify_role_band()` and `build_families()` infrastructure. This should
+  become a versioned, queryable artifact.
+- **Provider Expansion as Growth Engine:** Provider expansion remains first-class via
+  the onboarding factory model in Milestone 26 (policy/robots evaluation + scaffolding
+  + receipts). New providers should prefer structured sources (API > ATS API > JSON-LD
+  > RSS) over HTML scraping.
+- **Scraping Modernization:** Extraction should prefer structured data negotiation
+  (public APIs, ATS platform APIs like Ashby/Greenhouse/Lever, JSON-LD, RSS feeds)
+  before falling back to HTML scraping. LLM-assisted extraction is a future bounded
+  fallback, not a primary path. Current HTML scraping is deterministic and
+  snapshot-safe by design.
 
 This thesis is additive and does not reorder milestone blocks below.
 
@@ -522,10 +553,14 @@ This is sequencing guidance only and does not reorder milestone blocks.
 2. Milestone 28 — Alerts & Digests v1
 3. Milestone 29 — Candidate Profile UX v1
 4. Milestone 34 — UI v0 (read-only surface)
+5. Milestone 35 — Analytics Artifact Lane v1 (temporal intelligence)
+6. Milestone 36 — Role Taxonomy Artifact v1 (cross-company consolidation)
 
 Interpretation: complete correction-track risk reduction in parallel with early
 M25 closeout, then bias execution toward the product feedback loop (`M28` ->
-`M29` -> `M34`) rather than new infrastructure plumbing.
+`M29` -> `M34` -> `M35` -> `M36`). The analytics and taxonomy milestones are
+sequenced after UI v0 because the dashboard must exist to surface them, but their
+schemas and computation can be designed in parallel with M34.
 
 ## What to Stop or Pause During Correction Epoch
 
@@ -804,6 +839,77 @@ Receipts Required
 - Screenshot proof
 - API contract validation proof
 - No raw JD leakage proof
+
+---
+
+## Milestone 35 — Analytics Artifact Lane v1 (Temporal Intelligence as Product) ◐
+
+Goal: Temporal intelligence becomes a first-class artifact type, making SignalCraft's
+defensible edge queryable and surfaceable.
+Status: ◐ New
+Prerequisite: Phase2-C7 (egress shield) and Phase2-C12 (real replay gate) complete.
+
+Rationale
+The foundation already exists: `job_identity.py` provides stable identity across URL
+and title changes, `safety/diff.py` computes deterministic per-run deltas,
+`history_retention.py` stores identity maps and provenance, and
+`ai/insights_input.py` already computes window trends (7/14/30-day) and score
+distributions. This milestone surfaces that infrastructure as first-class product
+output rather than internal-only computation.
+
+Definition of Done
+- [ ] `analytics.schema.v1.json` defined with sections:
+  - Provider coverage trends (jobs per provider over time windows)
+  - Role family emergence/disappearance signals
+  - Score distribution trajectories per profile
+  - New/churned job counts per provider per window
+- [ ] Analytics artifact computed during pipeline post-scoring phase from
+  run history + current run data
+- [ ] Cataloged as `ui_safe` in `artifacts/catalog.py`
+- [ ] Deterministic given the same run history inputs (replay-verifiable)
+- [ ] Dashboard endpoint `/v1/analytics/latest` serves the artifact
+- [ ] Two-run determinism proof captured
+- [ ] No raw JD fields in analytics artifact (enforced by catalog)
+
+Receipts Required
+- Schema in `schemas/`
+- Analytics artifact example from fixture run
+- Replay verification proof
+- Dashboard endpoint smoke test
+- Proof doc in `docs/proof/`
+
+---
+
+## Milestone 36 — Role Taxonomy Artifact v1 (Cross-Company Consolidation) ◐
+
+Goal: Cross-company role consolidation becomes a versioned, queryable artifact — mapping
+equivalent roles across different employer naming conventions.
+Status: ◐ New
+Prerequisite: Milestone 35 (analytics lane established).
+
+Rationale
+Role titles are chaos across companies. "Customer Success Manager" at one company is
+"Technical Account Manager" at another is "Solutions Consultant" at a third. The existing
+`_classify_role_band()` taxonomy and `build_families()` title-family clustering provide
+the foundation. This milestone makes role equivalence explicit, versioned, and queryable.
+
+Definition of Done
+- [ ] `role_taxonomy.schema.v1.json` defined with:
+  - Role archetypes (canonical names for equivalent roles)
+  - Per-archetype member list (company + title + job_id mappings)
+  - Confidence/evidence for each mapping
+  - Temporal emergence data (when did this archetype first appear, growth trend)
+- [ ] Role taxonomy computed deterministically from scored + classified job data
+- [ ] Cataloged as `ui_safe` in `artifacts/catalog.py`
+- [ ] Dashboard endpoint `/v1/taxonomy/latest` serves the artifact
+- [ ] Cross-run archetype tracking (new archetypes flagged in diff artifacts)
+
+Receipts Required
+- Schema in `schemas/`
+- Taxonomy artifact example
+- Determinism proof
+- Dashboard endpoint smoke test
+- Proof doc in `docs/proof/`
 
 ---
 
