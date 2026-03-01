@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="SignalCraft UI v0 screenshot proof">
+  <rect width="1280" height="720" fill="#f3f4f6" />
+  <rect x="24" y="20" width="1232" height="680" rx="10" fill="#ffffff" stroke="#d1d5db" />
+  <text x="44" y="52" font-family="Menlo, Monaco, Consolas, monospace" font-size="22" fill="#111827">SignalCraft UI v0 (Read-Only)</text>
+  <rect x="44" y="72" width="240" height="32" rx="4" fill="#ffffff" stroke="#d1d5db" />
+  <text x="54" y="93" font-family="Menlo, Monaco, Consolas, monospace" font-size="13" fill="#111827">candidate_id: local</text>
+  <rect x="296" y="72" width="92" height="32" rx="4" fill="#ffffff" stroke="#d1d5db" />
+  <text x="319" y="93" font-family="Menlo, Monaco, Consolas, monospace" font-size="13" fill="#111827">Refresh</text>
+
+  <rect x="44" y="126" width="380" height="170" rx="8" fill="#ffffff" stroke="#d1d5db" />
+  <text x="58" y="150" font-family="Menlo, Monaco, Consolas, monospace" font-size="14" fill="#111827">Latest Run</text>
+  <text x="58" y="174" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">run_id</text>
+  <text x="150" y="174" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">2026-01-22T00:00:00Z</text>
+  <text x="58" y="194" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">status</text>
+  <text x="150" y="194" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#0f766e">success</text>
+  <text x="58" y="214" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">semantic_mode</text>
+  <text x="150" y="214" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">boost</text>
+
+  <rect x="438" y="126" width="380" height="170" rx="8" fill="#ffffff" stroke="#d1d5db" />
+  <text x="452" y="150" font-family="Menlo, Monaco, Consolas, monospace" font-size="14" fill="#111827">Provider Availability</text>
+  <text x="452" y="174" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">openai  snapshot  available  SNAPSHOT_OK</text>
+
+  <rect x="832" y="126" width="380" height="170" rx="8" fill="#ffffff" stroke="#d1d5db" />
+  <text x="846" y="150" font-family="Menlo, Monaco, Consolas, monospace" font-size="14" fill="#111827">Run Health</text>
+  <text x="846" y="174" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">status</text>
+  <text x="920" y="174" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#0f766e">success</text>
+  <text x="846" y="194" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">failure_codes</text>
+  <text x="952" y="194" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">[]</text>
+
+  <rect x="44" y="312" width="1168" height="156" rx="8" fill="#ffffff" stroke="#d1d5db" />
+  <text x="58" y="336" font-family="Menlo, Monaco, Consolas, monospace" font-size="14" fill="#111827">Top Jobs</text>
+  <text x="58" y="360" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#4b5563">rank  title                 company  score</text>
+  <text x="58" y="382" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">1     Backend Engineer      Acme     99.1</text>
+  <text x="58" y="404" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">2     Platform Engineer     Beta     97.8</text>
+
+  <rect x="44" y="484" width="1168" height="196" rx="8" fill="#ffffff" stroke="#d1d5db" />
+  <text x="58" y="508" font-family="Menlo, Monaco, Consolas, monospace" font-size="14" fill="#111827">Explanation View</text>
+  <text x="58" y="532" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">{</text>
+  <text x="74" y="552" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">&quot;selected_top_job&quot;: { &quot;job_hash&quot;: &quot;aaaaaaaa...&quot;, &quot;score_total&quot;: 99.1 },</text>
+  <text x="74" y="572" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">&quot;aggregation&quot;: { &quot;most_common_penalties&quot;: [], &quot;strongest_positive_signals&quot;: [] }</text>
+  <text x="58" y="592" font-family="Menlo, Monaco, Consolas, monospace" font-size="12" fill="#111827">}</text>
+</svg>

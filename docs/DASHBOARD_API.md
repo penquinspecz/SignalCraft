@@ -35,6 +35,14 @@ Liveness probe.
 
 ---
 
+### GET /ui
+
+Static UI v0 page (read-only). Uses only documented API endpoints.
+
+**Response** (200): HTML page
+
+---
+
 ### GET /v1/latest?candidate_id=...
 
 Returns last successful run state for the candidate.
@@ -217,10 +225,50 @@ Artifact index for latest run by provider/profile.
 
 ---
 
+### GET /v1/ui/latest?candidate_id=...&top_n=...
+
+UI v0 aggregate payload for read-only rendering. Composes latest run summary, top jobs, explanation, provider availability, and run health in one bounded response.
+
+**Query params**:
+- `candidate_id` (optional): default `local`
+- `top_n` (optional): default `10`, min `1`, max `50`
+
+**Response** (200):
+```json
+{
+  "candidate_id": "local",
+  "run_id": "2026-01-22T00:00:00Z",
+  "latest_source": "local",
+  "run": {
+    "run_id": "2026-01-22T00:00:00Z",
+    "timestamp": "2026-01-22T00:00:00Z",
+    "status": "success",
+    "semantic_enabled": true,
+    "semantic_mode": "boost",
+    "ai_prompt_version": "weekly_insights_v3",
+    "cost_summary": {"total_estimated_tokens": 288}
+  },
+  "top_jobs": [],
+  "top_jobs_artifact": "openai_ranked_jobs.cs.json",
+  "explanation": {},
+  "provider_availability": {},
+  "run_health": {}
+}
+```
+
+**Failure modes**:
+- 400: Invalid `candidate_id` or `top_n`
+- 404: latest run pointer missing `run_id`
+- 413: referenced UI artifact payload too large
+- 500: invalid JSON/shape or fail-closed UI-safe violation
+
+---
+
 ## Fail-Closed & Bounded Reads
 
 - **Read-time validation**: Artifacts are validated against schema/shape on read. Invalid payloads are rejected (500).
 - **Bounded JSON**: `JOBINTEL_DASHBOARD_MAX_JSON_BYTES` (default 2MB) caps payload size. Oversized returns 413.
+- **UI aggregate bounds**: `/v1/ui/latest` applies the same bounded-read limit per referenced artifact and returns 413 when exceeded.
 - **Path traversal**: Artifact names are validated; `..` and absolute paths are rejected (500).
 - **Candidate ID**: Strict sanitization via `[a-z0-9_]{1,64}`. Invalid values return 400.
 - **UI-safe profile contract**: `/v1/profile` returns only contracted fields and hash, never raw resume/LinkedIn text.

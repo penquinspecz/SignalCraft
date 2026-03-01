@@ -1054,6 +1054,227 @@ def test_dashboard_v1_artifact_index_bounded_no_huge_reads(tmp_path: Path, monke
     assert large_content[:100] not in str(payload)
 
 
+def test_dashboard_ui_v0_static_page_served(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.dashboard.app as dashboard
+
+    dashboard = importlib.reload(dashboard)
+    client = TestClient(dashboard.app)
+    resp = client.get("/ui")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/html")
+    assert "SignalCraft UI v0" in resp.text
+
+
+def test_dashboard_v1_ui_latest_aggregate_payload_and_redaction(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    (run_dir / "run_health.v1.json").write_text(
+        json.dumps(
+            {
+                "run_health_schema_version": 1,
+                "run_id": run_id,
+                "candidate_id": "local",
+                "status": "success",
+                "timestamps": {"started_at": run_id, "ended_at": run_id},
+                "durations": {"total_sec": 1.0},
+                "failed_stage": None,
+                "failure_codes": [],
+                "phases": {},
+                "logs": {},
+                "proof_bundle_path": "",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "provider_availability_v1.json").write_text(
+        json.dumps(
+            {
+                "provider_availability_schema_version": 1,
+                "run_id": run_id,
+                "candidate_id": "local",
+                "generated_at_utc": run_id,
+                "provider_registry_sha256": None,
+                "providers": [
+                    {
+                        "provider_id": "openai",
+                        "mode": "snapshot",
+                        "enabled": True,
+                        "snapshot_enabled": True,
+                        "live_enabled": False,
+                        "availability": "available",
+                        "reason_code": "SNAPSHOT_OK",
+                        "unavailable_reason": None,
+                        "attempts_made": 1,
+                        "policy": {
+                            "robots": {
+                                "url": None,
+                                "fetched": None,
+                                "status_code": None,
+                                "allowed": None,
+                                "reason": None,
+                                "user_agent": None,
+                            },
+                            "network_shield": {
+                                "allowlist_allowed": None,
+                                "robots_final_allowed": None,
+                                "live_error_reason": None,
+                                "live_error_type": None,
+                            },
+                            "canonical_url_policy": {
+                                "policy_snapshot": {},
+                                "live_http_status": None,
+                                "live_status_code": None,
+                            },
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "explanation_v1.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "explanation.v1",
+                "run_id": run_id,
+                "candidate_id": "local",
+                "generated_at": run_id,
+                "scoring_config_sha256": "x" * 64,
+                "top_jobs": [
+                    {
+                        "job_hash": "a" * 64,
+                        "rank": 1,
+                        "score_total": 99.1,
+                        "top_positive_signals": [],
+                        "top_negative_signals": [],
+                        "penalties": [],
+                        "notes": ["stable"],
+                    }
+                ],
+                "aggregation": {
+                    "most_common_penalties": [],
+                    "strongest_positive_signals": [],
+                    "strongest_negative_signals": [],
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "openai_ranked_jobs.cs.json").write_text(
+        json.dumps(
+            [
+                {
+                    "job_id": "j1",
+                    "job_hash": "a" * 64,
+                    "title": "Backend Engineer",
+                    "company": "Acme",
+                    "score": 99.1,
+                    "apply_url": "https://example.com/jobs/j1",
+                    "jd_text": "forbidden must not leak",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "status": "success",
+                "artifacts": {
+                    "run_health.v1.json": "run_health.v1.json",
+                    "provider_availability_v1.json": "artifacts/provider_availability_v1.json",
+                    "explanation_v1.json": "artifacts/explanation_v1.json",
+                    "openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "run_report.json").write_text(
+        json.dumps({"semantic_enabled": True, "semantic_mode": "boost"}),
+        encoding="utf-8",
+    )
+    (run_dir / "costs.json").write_text(json.dumps({"total_estimated_tokens": 123}), encoding="utf-8")
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/v1/ui/latest?candidate_id=local&top_n=5")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["run_id"] == run_id
+    assert payload["candidate_id"] == "local"
+    assert payload["top_jobs_artifact"] == "openai_ranked_jobs.cs.json"
+    assert payload["top_jobs"][0]["title"] == "Backend Engineer"
+    assert payload["run"]["semantic_enabled"] is True
+    assert payload["provider_availability"]["providers"][0]["provider_id"] == "openai"
+    forbidden = _find_forbidden_keys(payload)
+    assert forbidden == []
+
+
+def test_dashboard_v1_ui_latest_bounded_reads_return_413(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "openai_ranked_jobs.cs.json").write_text(
+        json.dumps([{"job_id": "j1", "title": "x" * 256}]), encoding="utf-8"
+    )
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {"openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get("/v1/ui/latest?candidate_id=local&top_n=5")
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "openai_ranked_jobs.cs.json payload too large"
+
+
 _FORBIDDEN_JD_KEYS = frozenset({"jd_text", "description", "description_text", "descriptionHtml", "job_description"})
 
 
@@ -1083,6 +1304,7 @@ def _find_forbidden_keys(obj: object, path: str = "") -> list[str]:
         ("/runs/20260122T000000Z/semantic_summary/cs", "GET"),
         ("/v1/profile", "GET"),
         ("/v1/latest", "GET"),
+        ("/v1/ui/latest", "GET"),
         ("/v1/runs/20260122T000000Z/artifacts", "GET"),
     ],
 )
