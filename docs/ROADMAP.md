@@ -82,6 +82,10 @@ SignalCraft primary product value is temporal intelligence:
   longitudinal claim.
 - Provider expansion remains first-class via the onboarding factory model in
   Milestone 26 (policy/robots evaluation + scaffolding + receipts).
+- **Analytics as artifacts:** temporal intelligence (score trajectories, provider
+  coverage trends, role family drift, market signals) should become first-class
+  ui_safe artifacts computed during the pipeline, not ad-hoc queries over flat files.
+  Prerequisite: correction epoch Tier 0-1 items complete.
 
 This thesis is additive and does not reorder milestone blocks below.
 
@@ -147,6 +151,46 @@ Foundation exists:
 - M19 DR proof discipline: cost guardrails (validate-only default), branch auto-delete, cleanup rollup receipts.
   Verified by `docs/proof/20260222T211723Z-cleanup-rollup.md`, `scripts/ops/dr_drill.sh`, `scripts/ops/dr_validate.sh`.
 
+**Phase 3 Audit Findings (2026-03-01):**
+
+A three-phase architecture audit reconciled independent reviews from Claude
+(Phase 2 anchors), Gemini, and ChatGPT against the codebase. Key verified findings:
+
+- **Network shield gap (CRITICAL):** `network_shield.py` has comprehensive
+  SSRF/DNS-rebinding protection but is NOT wired into `retry.py:fetch_text_with_retry()`.
+  All live HTTP calls bypass the shield. Allowlist defaults to allow-all when env is unset.
+  Evidence: `src/ji_engine/providers/retry.py:527`, `src/ji_engine/utils/network_shield.py`.
+- **Synthetic CI replay gate (CRITICAL):** `replay_smoke_fixture.py` writes synthetic data
+  and checks its own hashes. It does NOT run the real pipeline. The daily drift canary
+  (`replay_drift_canary.py`) runs real pipeline but is not a required PR check.
+  Evidence: `scripts/replay_smoke_fixture.py`, `.github/workflows/replay-drift-canary.yml`.
+- **LIVE mode silent fallback (HIGH):** `base.py:38-45` bare `except Exception` swallows
+  all errors including security policy violations. No structured error in run_health.
+  Evidence: `src/ji_engine/providers/base.py:38-45`.
+- **Path traversal via run_id (HIGH):** `run_pathing.py:6-8` strips only `:-.`; does not
+  block `/`, `\`, `..`. Five independent `_sanitize_run_id()` implementations exist.
+  Evidence: `src/ji_engine/pipeline/run_pathing.py:6-8`, `scripts/publish_s3.py:61`,
+  `scripts/replay_run.py:20`, `src/ji_engine/run_repository.py:162`,
+  `src/ji_engine/dashboard/app.py:189`.
+- **Competing K8s manifests (HIGH):** `ops/k8s/cronjob.yaml` (SNAPSHOT, offline) vs
+  `ops/k8s/jobintel/cronjob.yaml` (AUTO, S3). No canonical source of truth.
+- **VOLATILE_VALUE_KEYS coverage gap (MEDIUM):** `generated_at` field is not in the
+  volatile set; only `generated_at_utc` is covered. No automated coverage test.
+  Evidence: `scripts/compare_run_artifacts.py:19`.
+- **Dashboard has no authentication (MEDIUM):** Zero auth middleware on all endpoints
+  including `PUT /v1/profile`. Acceptable for localhost; unacceptable if exposed.
+  Evidence: `src/ji_engine/dashboard/app.py`.
+
+Claims verified as incorrect or overstated:
+- Gemini "LLM prompt injection risk" — incorrect: `OpenAIProvider` is an explicit stub;
+  no LLM API call exists anywhere in the codebase.
+- Gemini "O(N^2) array diffing" — incorrect: diff uses dict-keyed O(N) grouping.
+- Gemini "ThreadPoolExecutor breaks determinism" — incorrect: output is re-sorted by
+  original index after parallel execution.
+- ChatGPT "terraform state committed" — incorrect: zero `.tfstate` files in repo.
+- Gemini "global circuit breaker weaponized via dashboard" — overstated: dashboard does
+  not import or call `fetch_text_with_retry()`.
+
 ---
 
 # Roadmap Truth Sync
@@ -180,28 +224,64 @@ renumber, reorder, or replace existing milestone blocks in this document.
 - **DR scope freeze during correction epoch:** no new DR feature work; only
   security/correctness fixes are in-scope.
 
-## Gemini Review Concerns -> Roadmap Mapping
+## Multi-Review Reconciliation -> Roadmap Mapping
 
-- DNS rebinding SSRF TOCTOU in network egress flow -> `Phase2-C1`
-- Tar path traversal / tar slip in restore paths -> `Phase2-C2`
-- Symlink/path traversal in run artifact resolution -> `Phase2-C3`
-- PR governance automation gaps (label/milestone drift) -> `Phase2-C4`
-- Warn-only or incomplete redaction enforcement posture -> `Phase2-C5`
-- Snapshot/fixture growth and repository bloat risk -> `Phase2-C6`
-- DR overinvestment / maintainability risk -> correction-epoch DR freeze +
-  decomposition notes in `Phase2-C6`
-- Filesystem-as-DB limits + multi-tenant concurrency pressure -> **Future
-  Platform Phase (explicitly out of scope for correction epoch)**
+Three independent reviews were reconciled against the codebase (2026-03-01):
+- **Claude Phase 2 anchors** (codebase-grounded gap analysis)
+- **Gemini architecture review** (external review #1)
+- **ChatGPT architecture review** (external review #2)
 
-## Recommended Sequence Lens (Additive Overlay)
+### Security Claims (Reconciled)
+
+| # | Sources | Finding | Verdict | Roadmap Item |
+|---|---------|---------|---------|-------------|
+| S1 | All three | Network shield not wired into retry.py fetch path | **Correct — CRITICAL** | `Phase2-C1` (expanded) |
+| S2 | Gemini, ChatGPT | Allowlist defaults to allow-all when env not set | **Correct — HIGH** | `Phase2-C7` |
+| S3 | ChatGPT | Provider `allowed_domains` not used as runtime egress policy | **Correct — HIGH** | `Phase2-C7` |
+| S4 | ChatGPT | Path traversal via run_id (5 independent implementations) | **Correct — HIGH** | `Phase2-C3` (expanded) |
+| S5 | ChatGPT | `publish_s3.py` trusts absolute paths from run_report | **Correct — MEDIUM** | `Phase2-C8` |
+| S6 | ChatGPT | Terraform state committed to repo | **Incorrect** | N/A |
+| S7 | Gemini | LLM prompt injection from unsanitized JD text | **Incorrect** (no LLM calls exist) | N/A (future AI readiness) |
+| S8 | Gemini | Global circuit breaker weaponized in long-lived processes | **Overstated** (batch CronJob = fresh process) | `Phase2-C9` (low priority) |
+| S9 | ChatGPT | Dashboard has no authentication | **Correct — MEDIUM** | `Phase2-C10` |
+| S10 | ChatGPT | Security dependency check soft-passes on transient failures | **Correct — LOW-MEDIUM** | `Phase2-C11` |
+
+### Determinism Claims (Reconciled)
+
+| # | Sources | Finding | Verdict | Roadmap Item |
+|---|---------|---------|---------|-------------|
+| D1 | All three | CI determinism gate is synthetic, not real pipeline replay | **Correct — CRITICAL** | `Phase2-C12` |
+| D2 | All three | Clock strategy relies on VOLATILE_VALUE_KEYS stripping | **Correct — MEDIUM** | `Phase2-C12` |
+| D3 | Claude P2 | `generated_at` not in VOLATILE_VALUE_KEYS | **Correct — LOW** | `Phase2-C12` |
+| D4 | Gemini | "Determinism is redaction, not true determinism" | **Overstated** (timestamps are metadata, not scoring inputs) | No action |
+| D5 | Gemini | ThreadPoolExecutor in enrich breaks determinism | **Incorrect** (output re-sorted by index) | N/A |
+| D6 | Claude P2 | Silent LIVE→SNAPSHOT fallback pollutes determinism | **Correct — HIGH** | `Phase2-C7` |
+
+### Architecture Claims (Reconciled)
+
+| # | Sources | Finding | Verdict | Roadmap Item |
+|---|---------|---------|---------|-------------|
+| A1 | All three | Competing K8s CronJob manifests | **Correct — HIGH** | `Phase2-C9` |
+| A2 | All three | `runner.py` is a 7,258-line monolith | **Correct — MEDIUM** (maintenance, not correctness) | Deferred |
+| A3 | Claude P2 | `score_jobs.py` monolith (1,892 lines) | **Correct but not a bottleneck** | Deferred |
+| A4 | Gemini | O(N^2) array diffing will OOM at 50+ providers | **Incorrect** (uses O(N) dict-keyed grouping) | N/A |
+| A5 | Gemini | File-system-as-database throttles multi-user | **Overstated** (SQLite WAL exists; appropriate for current scale) | Deferred |
+| A6 | ChatGPT | 5 independent `_sanitize_run_id()` implementations | **Correct — MEDIUM** | `Phase2-C3` (expanded) |
+| A7 | ChatGPT | Duplicate `CSV_FIELDNAMES` in score_jobs.py | **Correct — LOW** | `Phase2-C9` |
+
+## Recommended Sequence Lens (Post-Reconciliation)
 
 Sequencing guidance only. This does not reorder milestone blocks.
 
-- Tier 0: `Phase2-C1`, `Phase2-C2`, `Phase2-C3`
-- Tier 1: `Phase2-C4`, `Phase2-C5`
-- Tier 2: `Phase2-C6`
-- Tier 3: Active product loop milestones (`M25`, `M28`, `M29`, `M34`)
-- Tier 4: Future Platform Phase (state backend migration, queue orchestration,
+- **Tier 0 (CRITICAL — must fix before any live provider expansion):**
+  `Phase2-C1` (expanded), `Phase2-C7`, `Phase2-C12`
+- **Tier 1 (HIGH — must fix before production deployment):**
+  `Phase2-C2`, `Phase2-C3` (expanded), `Phase2-C8`
+- **Tier 2 (MEDIUM — fix during correction epoch):**
+  `Phase2-C4`, `Phase2-C5`, `Phase2-C9`, `Phase2-C10`, `Phase2-C11`
+- **Tier 3 (LOW — cleanup):** `Phase2-C6`
+- **Tier 4:** Active product loop milestones (`M25`, `M28`, `M29`, `M34`)
+- **Tier 5:** Future Platform Phase (state backend migration, queue orchestration,
   full multi-tenant auth/RBAC)
 
 ## Correction Track Items (Non-Colliding IDs)
@@ -209,9 +289,10 @@ Sequencing guidance only. This does not reorder milestone blocks.
 ### Phase2-C1 — Network Shield DNS Pinning + Redirect TOCTOU Closure
 
 Goal: Ensure each request hop validates and connects to a pinned destination
-without DNS rebinding bypass.
-Status: Planned / in-flight correction.
-PR mapping: `#252` (security: SSRF hardening).
+without DNS rebinding bypass. Expanded scope: wire shield into `retry.py` fetch path
+(verified gap from Phase 3 audit — shield exists but is not called by `retry.py`).
+Status: Planned / in-flight correction. Scope expanded by Phase 3 reconciliation.
+PR mapping: `#252` (security: SSRF hardening). Expanded by `Phase2-C7`.
 
 Definition of Done
 - [ ] Resolve and validate destination exactly once per hop.
@@ -241,9 +322,12 @@ Receipts Required
 
 ### Phase2-C3 — Run Artifact Path Hardening (Traversal + Symlink Safety)
 
-Goal: Artifact resolution is provably bounded to run/candidate roots.
-Status: Planned / in-flight correction.
-PR mapping: `#254` (security: artifact path hardening).
+Goal: Artifact resolution is provably bounded to run/candidate roots. Expanded scope:
+centralize 5 independent `_sanitize_run_id()` implementations into single module with
+strict regex (`^[a-zA-Z0-9T_Z]+$`); add resolved-path boundary check.
+Status: Planned / in-flight correction. Scope expanded by Phase 3 reconciliation.
+PR mapping: `#254` (security: artifact path hardening). Expanded sanitization scope
+from Phase 3 audit finding A6.
 
 Definition of Done
 - [ ] Relative path normalization rejects absolute and traversal inputs.
@@ -309,6 +393,127 @@ Receipts Required
 - Fixture policy contract in docs
 - CI/policy receipt and DR freeze/decomposition note
 
+### Phase2-C7 — Egress Shield Enforcement + Allowlist Fail-Closed
+
+Goal: Wire `network_shield.py` into all live fetch paths; make allowlist fail-closed
+in LIVE mode; compile provider `allowed_domains` into runtime egress policy.
+Status: Planned.
+Audit source: S1 (all three reviews), S2, S3 (ChatGPT), D6 (Claude P2).
+
+Definition of Done
+- [ ] All `requests.get/post()` in `retry.py` routed through
+  `network_shield.validate_url_destination()` before connection.
+- [ ] Empty allowlist rejects in LIVE mode (fail-closed).
+- [ ] Provider `allowed_domains` from `config/providers.json` compiled into runtime
+  egress policy (not just env-var override).
+- [ ] LIVE mode exception handling: replace bare `except Exception` in `base.py:38-45`
+  with specific exception types. `SecurityPolicyViolation` is never caught by fallback.
+- [ ] `run_health.v1.json` records `fallback_triggered: true` with exception class
+  when LIVE→SNAPSHOT degradation occurs.
+- [ ] Integration tests that attempt fetch to `127.0.0.1`, `169.254.169.254`, and
+  a DNS-rebinding hostname → all rejected.
+
+Receipts Required
+- Network shield integration test results
+- LIVE mode fallback behavior test results
+- run_health schema update proof
+- Proof note in `docs/proof/`
+
+### Phase2-C8 — Artifact Path Trust in publish_s3.py
+
+Goal: Validate all artifact paths from run_report against allowed directory roots
+before S3 upload.
+Status: Planned.
+Audit source: S5 (ChatGPT).
+
+Definition of Done
+- [ ] All artifact paths from `verifiable_artifacts` resolved and checked against
+  `DATA_DIR` / `STATE_DIR` roots before upload.
+- [ ] Absolute paths that resolve outside allowed roots are rejected with error.
+- [ ] Snapshot paths validated as relative and within `data/`.
+- [ ] Tests with malicious artifact paths in run_report verify rejection.
+
+Receipts Required
+- Path boundary validation tests
+- Proof note describing the enforcement boundary
+
+### Phase2-C9 — Operational Cleanup (Manifests + Constants + Dead Code)
+
+Goal: Reduce operational ambiguity and code duplication.
+Status: Planned.
+Audit source: A1 (all three reviews), A7 (ChatGPT), S8 (Gemini).
+
+Definition of Done
+- [ ] Single canonical K8s CronJob manifest. ConfigMap is sole source of env vars.
+  Duplicate manifests removed or explicitly marked as dev-only.
+- [ ] Duplicate `CSV_FIELDNAMES` in `score_jobs.py` deduplicated.
+- [ ] Dead scripts (`run_full_pipeline.py`, `run_openai_pipeline.py`) deleted.
+- [ ] `reset_politeness_state()` called at pipeline start in `runner.py`.
+- [ ] Docs updated to point to single canonical manifest.
+
+Receipts Required
+- `make gate` passing
+- Proof note documenting manifest consolidation decision
+
+### Phase2-C10 — Dashboard Authentication Scaffold
+
+Goal: Add basic auth or network-level isolation to dashboard before any non-local
+deployment.
+Status: Planned.
+Audit source: S9 (ChatGPT).
+
+Definition of Done
+- [ ] Dashboard binds to `127.0.0.1` by default (localhost-only).
+- [ ] Auth middleware seam exists (can be enabled via config/env).
+- [ ] `PUT /v1/profile` and other write endpoints require auth when enabled.
+- [ ] Tests verify localhost-only binding default.
+
+Receipts Required
+- Binding configuration tests
+- Auth middleware smoke tests
+- Proof note documenting auth contract
+
+### Phase2-C11 — Security Dependency Check Exit Code Separation
+
+Goal: Separate "clean scan" from "infra unavailable" in dependency check exit codes.
+Status: Planned.
+Audit source: S10 (ChatGPT).
+
+Definition of Done
+- [ ] Exit code 0 = clean scan (no vulnerabilities found).
+- [ ] Exit code 1 = vulnerabilities found.
+- [ ] Exit code 2 = infrastructure unavailable (transient failure after retries).
+- [ ] CI treats exit code 2 as warning, not pass.
+- [ ] Tests verify all three exit paths.
+
+Receipts Required
+- Exit code behavior tests
+- CI workflow update proof
+
+### Phase2-C12 — Real Pipeline Replay CI Gate + VOLATILE_VALUE_KEYS Coverage
+
+Goal: Replace synthetic CI replay with real end-to-end pipeline replay; ensure
+timestamp field coverage is tested against artifact schemas.
+Status: Planned.
+Audit source: D1 (all three reviews), D2, D3 (Claude P2).
+
+Definition of Done
+- [ ] Required PR check runs pipeline twice in SNAPSHOT mode, compares via
+  `compare_run_artifacts.py --strict`, fails on mismatch.
+- [ ] Golden-master hashes committed to test fixtures.
+- [ ] Intentional determinism break (e.g., `random.random()` in scoring path)
+  is proven to be caught by the new CI gate.
+- [ ] `generated_at` added to `VOLATILE_VALUE_KEYS` set.
+- [ ] Automated test that extracts all timestamp/duration fields from artifact
+  schemas and asserts they are present in `VOLATILE_VALUE_KEYS`.
+- [ ] Dead-code `datetime.now()` fallback in `insights_input.py:399` removed.
+
+Receipts Required
+- CI workflow update showing real pipeline replay check
+- Golden-master fixture manifest
+- VOLATILE_VALUE_KEYS coverage test
+- Proof note documenting the determinism gate upgrade
+
 ## Product Loop v0 (Near-Term Focus)
 
 This is sequencing guidance only and does not reorder milestone blocks.
@@ -321,6 +526,38 @@ This is sequencing guidance only and does not reorder milestone blocks.
 Interpretation: complete correction-track risk reduction in parallel with early
 M25 closeout, then bias execution toward the product feedback loop (`M28` ->
 `M29` -> `M34`) rather than new infrastructure plumbing.
+
+## What to Stop or Pause During Correction Epoch
+
+These items are explicitly deprioritized until Tier 0-1 correction items are closed:
+
+1. **Stop adding new live providers.** Each new provider is a new SSRF surface
+   without the egress shield in the fetch path (`Phase2-C7`).
+2. **Stop writing new proof/receipt automation.** The compliance infrastructure is
+   sufficient. Redirect effort to live-path enforcement.
+3. **Stop treating the synthetic CI replay as a real determinism gate.** Acknowledge
+   this in docs until `Phase2-C12` is complete.
+4. **Pause `runner.py` decomposition.** Maintenance improvement, not correctness.
+   Defer until after Tier 0-1 are done.
+5. **Pause live OpenAI integration.** `OpenAIProvider` must remain a stub until AI
+   readiness contract is defined (mock provider, contribution cap test,
+   cache-hit monitoring).
+6. **Pause multi-candidate SaaS work.** Candidate isolation exists in code. SaaS
+   delivery should follow hardening, not precede it.
+7. **Pause DR automation expansion.** Current rehearsal machinery is adequate. Fix
+   state hygiene and canonical manifests first.
+
+## What to Accelerate
+
+These items have the highest leverage and should be prioritized:
+
+1. **Egress shield enforcement (`Phase2-C7`).** Shield code already exists — this is
+   wiring, not building. Unblocks safe provider growth.
+2. **Real pipeline replay CI gate (`Phase2-C12`).** Drift canary logic already exists
+   — this is promotion, not building. Unblocks confident code changes.
+3. **Analytics artifact lane (future milestone).** Product thesis depends on temporal
+   intelligence being first-class. Foundation (history, diffs, identity maps) already
+   exists — this is surfacing, not building.
 
 ---
 
