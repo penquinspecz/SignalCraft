@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 def _sanitize(run_id: str) -> str:
     return run_id.replace(":", "").replace("-", "").replace(".", "")
@@ -298,3 +300,124 @@ def test_list_runs_for_profile_pages_until_exhausted(tmp_path: Path, monkeypatch
 
     rows = repo.list_runs_for_profile(candidate_id="local", profile="cs", limit=50)
     assert [row["run_id"] for row in rows] == sorted(cs_ids, reverse=True)
+
+
+def test_resolve_run_artifact_path_rejects_relative_escape(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_id = "2026-01-02T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    _write_index(run_dir, run_id, run_id)
+
+    repo = run_repository.FileSystemRunRepository()
+
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        repo.resolve_run_artifact_path(run_id, "../outside.json")
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        repo.resolve_run_artifact_path(run_id, "/etc/passwd")
+
+
+def test_resolve_run_artifact_path_rejects_symlink_escape(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_id = "2026-01-02T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    _write_index(run_dir, run_id, run_id)
+    (run_dir / "artifacts").mkdir(parents=True, exist_ok=True)
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"outside":true}', encoding="utf-8")
+    (run_dir / "artifacts" / "index-link.json").symlink_to(outside)
+
+    repo = run_repository.FileSystemRunRepository()
+
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        repo.resolve_run_artifact_path(run_id, "artifacts/index-link.json")
+
+
+def test_resolve_run_artifact_path_allows_safe_artifact(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_id = "2026-01-02T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    _write_index(run_dir, run_id, run_id)
+    safe_rel = "artifacts/run_summary.v1.json"
+    safe_file = run_dir / safe_rel
+    safe_file.parent.mkdir(parents=True, exist_ok=True)
+    safe_file.write_text("{}", encoding="utf-8")
+
+    repo = run_repository.FileSystemRunRepository()
+    resolved = repo.resolve_run_artifact_path(run_id, safe_rel)
+
+    assert resolved == safe_file.resolve()
+
+
+def test_resolve_run_artifact_path_rejects_symlinked_run_root(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_id = "2026-01-02T00:00:00Z"
+    symlink_run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    outside_root = tmp_path / "outside-run-root"
+    _write_index(outside_root, run_id, run_id)
+    symlink_run_dir.parent.mkdir(parents=True, exist_ok=True)
+    symlink_run_dir.symlink_to(outside_root, target_is_directory=True)
+
+    repo = run_repository.FileSystemRunRepository()
+    with pytest.raises(ValueError, match="Invalid artifact path"):
+        repo.resolve_run_artifact_path(run_id, "index.json")
+
+
+def test_scan_runs_ignores_symlinked_index_json(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.run_repository as run_repository
+
+    importlib.reload(config)
+    run_repository = importlib.reload(run_repository)
+
+    run_id = "2026-01-02T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    outside_index = tmp_path / "outside-index.json"
+    outside_index.write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id, "artifacts": {}}),
+        encoding="utf-8",
+    )
+    (run_dir / "index.json").symlink_to(outside_index)
+
+    repo = run_repository.FileSystemRunRepository()
+    assert repo.list_runs("local") == []

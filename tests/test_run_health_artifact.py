@@ -461,6 +461,257 @@ def test_provider_availability_written_when_no_enabled_providers(tmp_path: Path,
     assert providers["openai"]["reason_code"] == "not_enabled"
 
 
+def test_provider_availability_written_on_scrape_only_early_exit(tmp_path: Path, monkeypatch: Any) -> None:
+    """Scrape-only early-exit path still emits provider_availability."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    def fake_run(cmd: list[str], *, stage: str) -> None:
+        if stage == "scrape":
+            (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
+
+    monkeypatch.setattr(run_daily, "_run", fake_run)
+    monkeypatch.setattr(
+        run_daily,
+        "_load_scrape_provenance",
+        lambda providers: {
+            "openai": {
+                "availability": "available",
+                "attempts_made": 1,
+                "scrape_mode": "snapshot",
+                "parsed_job_count": 1,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--providers",
+            "openai",
+            "--scrape_only",
+            "--no_post",
+        ],
+    )
+
+    rc = run_daily.main()
+    assert rc == 0
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["status"] == "success"
+
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert "openai" in providers
+    assert providers["openai"]["availability"] == "available"
+    assert providers["openai"]["reason_code"] == "ok"
+
+
+def test_provider_availability_written_when_providers_all_filters_to_zero(tmp_path: Path, monkeypatch: Any) -> None:
+    """`--providers all` with only disabled providers still emits availability artifact."""
+    _setup_env(monkeypatch, tmp_path)
+    providers_path = tmp_path / "providers-all-disabled.json"
+    providers_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "providers": [
+                    {
+                        "provider_id": "anthropic",
+                        "display_name": "Anthropic",
+                        "enabled": False,
+                        "careers_urls": ["https://jobs.ashbyhq.com/anthropic"],
+                        "extraction_mode": "ashby",
+                        "snapshot_path": "data/anthropic_snapshots/index.html",
+                    },
+                    {
+                        "provider_id": "openai",
+                        "display_name": "OpenAI",
+                        "enabled": False,
+                        "careers_urls": ["https://jobs.ashbyhq.com/openai"],
+                        "extraction_mode": "ashby",
+                        "snapshot_path": "data/openai_snapshots/index.html",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--providers",
+            "all",
+            "--profiles",
+            "cs",
+            "--providers-config",
+            str(providers_path),
+            "--no_post",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        run_daily.main()
+    assert exc.value.code == 2
+
+    payload = _latest_run_health(run_daily)
+    _validate_run_health_schema(payload)
+    assert payload["status"] == "failed"
+    assert payload["failed_stage"] == "startup"
+
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
+    provider_ids = [entry["provider_id"] for entry in availability["providers"]]
+    assert provider_ids == sorted(provider_ids)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert providers["openai"]["availability"] == "unavailable"
+    assert providers["openai"]["reason_code"] == "not_enabled"
+    assert providers["anthropic"]["availability"] == "unavailable"
+    assert providers["anthropic"]["reason_code"] == "not_enabled"
+
+
+def test_provider_availability_records_partial_provider_failures(tmp_path: Path, monkeypatch: Any) -> None:
+    """Successful runs with mixed provider outcomes emit deterministic partial availability truth."""
+    paths = _setup_env(monkeypatch, tmp_path)
+    output_dir = paths["output_dir"]
+    providers_path = tmp_path / "providers-mixed.json"
+    providers_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "providers": [
+                    {
+                        "provider_id": "anthropic",
+                        "display_name": "Anthropic",
+                        "enabled": True,
+                        "careers_urls": ["https://jobs.ashbyhq.com/anthropic"],
+                        "extraction_mode": "ashby",
+                        "snapshot_path": "data/anthropic_snapshots/index.html",
+                    },
+                    {
+                        "provider_id": "openai",
+                        "display_name": "OpenAI",
+                        "enabled": True,
+                        "careers_urls": ["https://jobs.ashbyhq.com/openai"],
+                        "extraction_mode": "ashby",
+                        "snapshot_path": "data/openai_snapshots/index.html",
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    import ji_engine.config as config
+    import scripts.run_daily as run_daily
+
+    config = importlib.reload(config)
+    run_daily = importlib.reload(run_daily)
+    run_daily.USE_SUBPROCESS = False
+
+    def fake_run(cmd: list[str], *, stage: str) -> None:
+        if stage == "scrape":
+            (output_dir / "openai_raw_jobs.json").write_text("[]", encoding="utf-8")
+            (output_dir / "anthropic_raw_jobs.json").write_text("[]", encoding="utf-8")
+            return
+        if stage.startswith("classify:"):
+            provider = stage.split(":", 1)[1]
+            run_daily._provider_labeled_jobs_json(provider).write_text("[]", encoding="utf-8")
+            return
+        if stage.startswith("enrich:"):
+            provider = stage.split(":", 1)[1]
+            run_daily._provider_enriched_jobs_json(provider).write_text("[]", encoding="utf-8")
+            return
+        if stage.startswith("score:"):
+            _, provider, profile = stage.split(":", 2)
+            for path in (
+                run_daily._provider_ranked_jobs_json(provider, profile),
+                run_daily._provider_ranked_jobs_csv(provider, profile),
+                run_daily._provider_ranked_families_json(provider, profile),
+                run_daily._provider_shortlist_md(provider, profile),
+                run_daily._provider_top_md(provider, profile),
+            ):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if path.suffix == ".json":
+                    path.write_text("[]", encoding="utf-8")
+                else:
+                    path.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(run_daily, "_run", fake_run)
+    monkeypatch.setattr(
+        run_daily,
+        "_load_scrape_provenance",
+        lambda providers: {
+            "openai": {
+                "availability": "available",
+                "attempts_made": 1,
+                "scrape_mode": "snapshot",
+                "parsed_job_count": 2,
+            },
+            "anthropic": {
+                "availability": "unavailable",
+                "unavailable_reason": "missing_fixtures",
+                "attempts_made": 1,
+                "scrape_mode": "snapshot",
+                "parsed_job_count": 0,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_daily.py",
+            "--no_subprocess",
+            "--providers",
+            "openai,anthropic",
+            "--profiles",
+            "cs",
+            "--providers-config",
+            str(providers_path),
+            "--no_post",
+        ],
+    )
+
+    rc = run_daily.main()
+    assert rc == 0
+
+    availability_path = _latest_provider_availability_path(run_daily)
+    availability = _validate_provider_availability_schema(availability_path)
+    _assert_provider_availability_ui_safe(availability)
+    provider_ids = [entry["provider_id"] for entry in availability["providers"]]
+    assert provider_ids == sorted(provider_ids)
+    providers = {entry["provider_id"]: entry for entry in availability["providers"]}
+    assert providers["openai"]["availability"] == "available"
+    assert providers["openai"]["reason_code"] == "ok"
+    assert providers["anthropic"]["availability"] == "unavailable"
+    assert providers["anthropic"]["reason_code"] == "missing_fixtures"
+
+
 def test_provider_availability_written_when_primary_and_retry_writers_fail(tmp_path: Path, monkeypatch: Any) -> None:
     """If the primary+retry availability writers raise, deterministic minimal fallback is still emitted."""
     paths = _setup_env(monkeypatch, tmp_path)

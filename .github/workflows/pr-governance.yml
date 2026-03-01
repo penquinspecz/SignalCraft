@@ -5,7 +5,7 @@ name: pr-governance
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, labeled, unlabeled, milestoned, demilestoned, edited]
 
 jobs:
   pr-governance:
@@ -57,7 +57,7 @@ jobs:
               errors.push('AREA: area:unknown is fallback-only; remove it when a specific area:* label is present.');
             }
             if (!milestone) {
-              errors.push('MILESTONE: PR must have a milestone set (roadmap or bucket: Infra & Tooling, Docs & Governance, Backlog Cleanup).');
+              errors.push('MILESTONE: PR must have a GitHub milestone set (roadmap or bucket).');
             }
 
             if (errors.length > 0) {
