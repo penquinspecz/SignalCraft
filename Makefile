@@ -141,10 +141,10 @@ milestones-cleanup-apply:
 	$(PY) scripts/dev/cleanup_milestones.py --apply $(ARGS)
 
 branches-cleanup-dry:
-	$(PY) scripts/dev/cleanup_branches.py $(ARGS)
+	$(PY) scripts/dev/cleanup_stale_branches.py $(ARGS)
 
 branches-cleanup-apply:
-	$(PY) scripts/dev/cleanup_branches.py --apply $(ARGS)
+	$(PY) scripts/dev/cleanup_stale_branches.py --apply $(ARGS)
 
 pr-governance-apply:
 	$(PY) scripts/dev/apply_pr_governance.py $(ARGS)
