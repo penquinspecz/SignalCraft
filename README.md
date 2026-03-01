@@ -16,11 +16,27 @@ See [LICENSE](LICENSE) for permitted use.
 
 [![ci](https://github.com/penquinspecz/SignalCraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/penquinspecz/SignalCraft/actions/workflows/ci.yml) [![Docker Smoke](https://github.com/penquinspecz/SignalCraft/actions/workflows/docker-smoke.yml/badge.svg)](https://github.com/penquinspecz/SignalCraft/actions/workflows/docker-smoke.yml) [![Lint](https://github.com/penquinspecz/SignalCraft/actions/workflows/ruff.yml/badge.svg)](https://github.com/penquinspecz/SignalCraft/actions/workflows/ruff.yml)
 
-**Deterministic Career Intelligence for Top Technology Companies**
+**Deterministic Career Intelligence for Market Change**
 
-SignalCraft is a career intelligence engine for job discovery, deterministic matching/ranking, and longitudinal analytics. It aggregates and normalizes postings from leading technology company career pages, scores and explains fit, and tracks role changes over time with reproducible outputs and guardrailed AI augmentation.
+SignalCraft is a deterministic career intelligence platform that tracks how the job
+market changes over time. It monitors employer career pages, computes stable diffs
+across runs, and surfaces temporal signals — which roles are emerging, which are
+disappearing, how teams are shifting — with full provenance and replay verification.
 
-It is built as infrastructure, not a script.
+**What makes it different:**
+- **Temporal intelligence, not just matching.** Every run produces deterministic diffs
+  against previous runs. Role evolution, team expansion, and market signals are
+  tracked longitudinally.
+- **Deterministic and replayable.** Same inputs produce byte-identical outputs.
+  Every artifact is SHA256-verified. Replay verification runs offline.
+- **Structured source preference.** Provider extraction prefers APIs and structured
+  data (Ashby, JSON-LD) over HTML scraping. New providers are onboarded through a
+  policy-aware factory with legal evaluation and receipts.
+- **Contract-driven artifacts.** 21 versioned JSON schemas. UI-safe artifacts never
+  contain raw job descriptions. Artifact categories (`ui_safe` vs `replay_safe`) are
+  enforced at write boundaries.
+- **Infrastructure portable.** Runs locally, in Docker, on AWS EKS, or on a k3s
+  Pi cluster. CronJob-shaped batch execution with ephemeral state per run.
 
 ---
 
@@ -113,43 +129,33 @@ See [`docs/LEGAL_POSITIONING.md`](docs/LEGAL_POSITIONING.md) for the explicit de
 
 ---
 
-## High-Level Architecture
+## Architecture
 
-SignalCraft is built as a layered system:
+SignalCraft has two layers:
 
-1. **Ingestion Layer**  
-   Config-driven provider definitions  
-   Snapshot-first collection  
-   Policy-aware scraping controls  
+- **JIE (Job Intelligence Engine):** The deterministic core. Ingestion, scoring,
+  diff computation, artifact emission, replay verification. Lives in `src/ji_engine/`.
+- **SignalCraft:** The product surface. Dashboard API, alerts, digests, analytics
+  artifacts. Lives in `src/jobintel/` and `src/ji_engine/dashboard/`.
 
-2. **Normalization + Identity Engine**  
-   Stable job identity  
-   URL normalization  
-   Deduplication across runs  
+### Data Flow
 
-3. **Deterministic Scoring Engine**  
-   Explainable heuristics  
-   Stable tie-breakers  
-   Score clamping + diagnostics  
+```text
+Employer Career Pages -> Provider Ingestion (snapshot-first)
+  -> Enrichment -> Classification -> Scoring (deterministic, versioned)
+    -> Diff Engine (identity-normalized, vs previous run)
+      -> Artifacts (schema-validated, categorized)
+        -> Dashboard API / Notifications / Analytics
+```
 
-4. **History + Diff Engine**  
-   Identity-based change detection  
-   Run archival + replay  
+### Key Contracts
 
-5. **AI Intelligence Layer (Optional)**  
-   Weekly insights  
-   Structured trend analysis  
-   Deterministic semantic similarity safety net  
-   Cached + schema-validated outputs  
-
-6. **Delivery Layer**  
-   Dashboard API  
-   Discord notifications  
-   Object-store publishing  
-   Kubernetes CronJobs  
-
-Detailed architecture:
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- **Determinism:** `PYTHONHASHSEED=0`, `TZ=UTC`. Scoring has zero time/random
+  dependencies. Replay verification compares SHA256 hashes offline.
+- **Artifact Safety:** UI-safe artifacts cannot contain raw JD text (enforced by
+  `artifacts/catalog.py`). Secrets are scanned and redacted at write boundaries.
+- **Provider Policy:** Each provider has a structured policy record (robots, TOS,
+  rate limits, scrape mode). Live providers require onboarding receipts.
 
 ---
 
@@ -161,6 +167,23 @@ Detailed architecture:
 - Not a growth-hack scraping arms race
 
 SignalCraft is a discovery and intelligence layer — not a replacement for official employer systems.
+
+---
+
+## Current Status
+
+- **Phase:** Phase 2 Hardening (correction epoch)
+- **Active milestones:** M25-M36 (provider availability, alerts, analytics,
+  role taxonomy, UI v0)
+- **Correction track:** Phase2-C1 through Phase2-C12 (security hardening,
+  determinism gate upgrade, operational cleanup)
+- **On-prem:** Parked pending hardware (M40-M41)
+- **AI:** Stub provider only. Live AI blocked until readiness contract defined.
+- **Providers:** 8 configured (Anthropic, OpenAI, Scale AI, Replit, Cohere,
+  Hugging Face, Mistral, Perplexity). All snapshot-mode in default config.
+
+See `docs/ROADMAP.md` for the full roadmap and `docs/DETERMINISM_CONTRACT.md`
+for replay/determinism guarantees.
 
 ---
 
