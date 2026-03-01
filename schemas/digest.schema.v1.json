@@ -11,7 +11,8 @@
     "notify",
     "source_artifacts",
     "current_run",
-    "cadence"
+    "cadence",
+    "notable_changes"
   ],
   "properties": {
     "digest_schema_version": {
@@ -58,7 +59,8 @@
         "run_health",
         "provider_availability",
         "explanation",
-        "costs"
+        "costs",
+        "job_timeline"
       ],
       "properties": {
         "run_health": {
@@ -71,6 +73,9 @@
           "$ref": "#/$defs/file_pointer"
         },
         "costs": {
+          "$ref": "#/$defs/file_pointer"
+        },
+        "job_timeline": {
           "$ref": "#/$defs/file_pointer"
         }
       },
@@ -147,6 +152,9 @@
         }
       },
       "additionalProperties": false
+    },
+    "notable_changes": {
+      "$ref": "#/$defs/notable_changes"
     }
   },
   "$defs": {
@@ -369,6 +377,249 @@
         },
         "cost_totals": {
           "$ref": "#/$defs/cost_totals"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notable_change_event": {
+      "type": "object",
+      "required": [
+        "job_hash",
+        "change_hash",
+        "observed_at_utc",
+        "provider_id",
+        "company",
+        "title",
+        "canonical_url",
+        "changed_fields",
+        "skill_tokens_added",
+        "skill_tokens_removed",
+        "seniority_shift",
+        "location_shift",
+        "compensation_shift",
+        "candidate_skill_matches",
+        "candidate_relevant",
+        "significance_score"
+      ],
+      "properties": {
+        "job_hash": {
+          "type": "string"
+        },
+        "change_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observed_at_utc": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "company": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canonical_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "changed_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_tokens_added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skill_tokens_removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "seniority_shift": {
+          "type": "boolean"
+        },
+        "location_shift": {
+          "type": "boolean"
+        },
+        "compensation_shift": {
+          "type": "boolean"
+        },
+        "candidate_skill_matches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "candidate_relevant": {
+          "type": "boolean"
+        },
+        "significance_score": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "notable_aggregate_provider": {
+      "type": "object",
+      "required": [
+        "provider_id",
+        "change_event_count",
+        "job_count"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string"
+        },
+        "change_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "job_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "notable_aggregate_company": {
+      "type": "object",
+      "required": [
+        "company",
+        "change_event_count",
+        "job_count"
+      ],
+      "properties": {
+        "company": {
+          "type": "string"
+        },
+        "change_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "job_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "notable_window": {
+      "type": "object",
+      "required": [
+        "window_days",
+        "window_start_utc",
+        "window_end_utc",
+        "change_event_count",
+        "notable_changes",
+        "aggregates"
+      ],
+      "properties": {
+        "window_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "window_start_utc": {
+          "type": "string"
+        },
+        "window_end_utc": {
+          "type": "string"
+        },
+        "change_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "notable_changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/notable_change_event"
+          }
+        },
+        "aggregates": {
+          "type": "object",
+          "required": [
+            "providers",
+            "companies"
+          ],
+          "properties": {
+            "providers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/notable_aggregate_provider"
+              }
+            },
+            "companies": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/notable_aggregate_company"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "notable_changes": {
+      "type": "object",
+      "required": [
+        "thresholds",
+        "windows"
+      ],
+      "properties": {
+        "thresholds": {
+          "type": "object",
+          "required": [
+            "min_skill_token_delta"
+          ],
+          "properties": {
+            "min_skill_token_delta": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "windows": {
+          "type": "object",
+          "required": [
+            "last_7_days",
+            "last_14_days",
+            "last_30_days"
+          ],
+          "properties": {
+            "last_7_days": {
+              "$ref": "#/$defs/notable_window"
+            },
+            "last_14_days": {
+              "$ref": "#/$defs/notable_window"
+            },
+            "last_30_days": {
+              "$ref": "#/$defs/notable_window"
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

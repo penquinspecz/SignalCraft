@@ -157,6 +157,11 @@ def test_digest_artifact_deterministic_and_no_jd_leak(tmp_path: Path, monkeypatc
     assert payload["current_run"]["top_jobs"][0]["title"] == "Staff Engineer"
     assert payload["cadence"]["daily"]["window_days"] == 1
     assert payload["cadence"]["weekly"]["window_days"] == 7
+    assert payload["notable_changes"]["thresholds"]["min_skill_token_delta"] == 2
+    assert sorted(payload["notable_changes"]["windows"].keys()) == ["last_14_days", "last_30_days", "last_7_days"]
+    assert payload["notable_changes"]["windows"]["last_7_days"]["change_event_count"] == 0
+    assert payload["notable_changes"]["windows"]["last_7_days"]["notable_changes"] == []
+    assert payload["notable_changes"]["windows"]["last_7_days"]["aggregates"] == {"providers": [], "companies": []}
 
     forbidden = _find_forbidden_keys(payload)
     assert forbidden == []
@@ -211,3 +216,5 @@ def test_digest_candidate_isolation(tmp_path: Path, monkeypatch: Any) -> None:
     assert "/candidates/beta/runs/" in beta["path"].as_posix()
     assert alpha["payload"]["current_run"]["top_jobs"][0]["title"] == "Alpha Engineer"
     assert beta["payload"]["current_run"]["top_jobs"][0]["title"] == "Beta Engineer"
+    assert "notable_changes" in alpha["payload"]
+    assert "notable_changes" in beta["payload"]

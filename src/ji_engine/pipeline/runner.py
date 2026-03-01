@@ -1761,6 +1761,280 @@ def _build_digest_top_jobs(
     return normalized
 
 
+def _digest_list_tokens(raw: Any, *, max_items: int = 128, max_len: int = 64) -> List[str]:
+    if not isinstance(raw, list):
+        return []
+    out: List[str] = []
+    for value in raw:
+        token = _safe_digest_text(value, max_len=max_len)
+        if token:
+            out.append(token.lower())
+    return sorted(set(out))[:max_items]
+
+
+def _digest_candidate_skill_tokens(candidate_id: str) -> List[str]:
+    try:
+        from ji_engine.candidates import registry as candidate_registry
+
+        contract = candidate_registry.profile_contract(candidate_id)
+        fields = contract.get("profile_fields") if isinstance(contract, dict) else {}
+        if isinstance(fields, dict):
+            return _digest_list_tokens(fields.get("skills"), max_items=128, max_len=64)
+    except Exception:
+        pass
+
+    profile_path = candidate_profile_path(candidate_id)
+    payload = _load_json_object(profile_path)
+    if not payload and candidate_id == DEFAULT_CANDIDATE_ID:
+        payload = _load_json_object(_workspace().data_dir / "candidate_profile.json")
+    profile_fields = payload.get("profile_fields") if isinstance(payload.get("profile_fields"), dict) else {}
+    skills = profile_fields.get("skills")
+    if skills is None:
+        skills = payload.get("skills")
+    return _digest_list_tokens(skills, max_items=128, max_len=64)
+
+
+def _digest_notable_window_key(days: int) -> str:
+    return f"last_{days}_days"
+
+
+def _empty_digest_notable_changes_payload(reference_dt: datetime) -> Dict[str, Any]:
+    windows: Dict[str, Any] = {}
+    for days in (7, 14, 30):
+        window_start = reference_dt - timedelta(days=days)
+        windows[_digest_notable_window_key(days)] = {
+            "window_days": days,
+            "window_start_utc": _utc_iso(window_start),
+            "window_end_utc": _utc_iso(reference_dt),
+            "change_event_count": 0,
+            "notable_changes": [],
+            "aggregates": {"providers": [], "companies": []},
+        }
+    return {
+        "thresholds": {"min_skill_token_delta": 2},
+        "windows": windows,
+    }
+
+
+def _digest_observation_time_map(job_payload: Dict[str, Any]) -> Dict[str, datetime]:
+    observations = job_payload.get("observations")
+    if not isinstance(observations, list):
+        return {}
+    out: Dict[str, datetime] = {}
+    for item in observations:
+        if not isinstance(item, dict):
+            continue
+        observation_id = item.get("observation_id")
+        observed_at = item.get("observed_at_utc")
+        if not isinstance(observation_id, str) or not isinstance(observed_at, str):
+            continue
+        parsed = _safe_parse_timestamp_utc(observed_at)
+        if parsed is None:
+            continue
+        out[observation_id] = parsed
+    return out
+
+
+def _digest_change_tokens(payload: Dict[str, Any], *, key: str) -> List[str]:
+    return _digest_list_tokens(payload.get(key), max_items=64, max_len=64)
+
+
+def _build_digest_notable_changes_payload(
+    *,
+    reference_dt: datetime,
+    timeline_payload: Dict[str, Any],
+    ranked_lookup: Dict[str, Dict[str, Any]],
+    candidate_skill_tokens: List[str],
+    top_n: int,
+) -> Dict[str, Any]:
+    out = _empty_digest_notable_changes_payload(reference_dt)
+    jobs = timeline_payload.get("jobs")
+    if not isinstance(jobs, list):
+        return out
+
+    min_skill_token_delta = 2
+    candidate_skill_set = set(candidate_skill_tokens)
+    events: List[Dict[str, Any]] = []
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        job_hash = _safe_digest_text(job.get("job_hash"), max_len=128)
+        if not job_hash:
+            continue
+        observation_times = _digest_observation_time_map(job)
+        changes = job.get("changes")
+        if not isinstance(changes, list):
+            continue
+        ranked = ranked_lookup.get(job_hash) or {}
+        for change in changes:
+            if not isinstance(change, dict):
+                continue
+            to_observation_id = change.get("to_observation_id")
+            if not isinstance(to_observation_id, str):
+                continue
+            observed_dt = observation_times.get(to_observation_id)
+            if observed_dt is None:
+                continue
+            changed_fields_raw = change.get("changed_fields")
+            changed_fields = (
+                sorted(str(item) for item in changed_fields_raw if isinstance(item, str))
+                if isinstance(changed_fields_raw, list)
+                else []
+            )
+            field_diffs = change.get("field_diffs")
+            field_diffs = field_diffs if isinstance(field_diffs, dict) else {}
+            set_fields = field_diffs.get("set_fields")
+            set_fields = set_fields if isinstance(set_fields, dict) else {}
+            skills_diff = set_fields.get("skills")
+            if not isinstance(skills_diff, dict):
+                skills_diff = set_fields.get("skills_tokens")
+            skills_diff = skills_diff if isinstance(skills_diff, dict) else {}
+            skill_tokens_added = _digest_change_tokens(skills_diff, key="added")
+            skill_tokens_removed = _digest_change_tokens(skills_diff, key="removed")
+            skill_delta = len(skill_tokens_added) + len(skill_tokens_removed)
+            numeric_fields = field_diffs.get("numeric_range_fields")
+            numeric_fields = numeric_fields if isinstance(numeric_fields, dict) else {}
+            seniority_shift = "seniority" in changed_fields or "seniority_tokens" in changed_fields
+            location_shift = "location" in changed_fields
+            compensation_shift = "compensation" in changed_fields or "compensation" in numeric_fields
+            is_notable = skill_delta >= min_skill_token_delta or seniority_shift or location_shift or compensation_shift
+            if not is_notable:
+                continue
+            matched_skills = sorted(
+                (set(skill_tokens_added) | set(skill_tokens_removed)).intersection(candidate_skill_set)
+            )
+            provider_id = _safe_digest_text(
+                job.get("provider_id") or ranked.get("provider"),
+                max_len=64,
+            )
+            company = _safe_digest_text(ranked.get("company"), max_len=120)
+            title = _safe_digest_text(ranked.get("title"), max_len=180)
+            significance_score = (
+                skill_delta
+                + (3 if seniority_shift else 0)
+                + (2 if location_shift else 0)
+                + (2 if compensation_shift else 0)
+            )
+            events.append(
+                {
+                    "job_hash": job_hash,
+                    "change_hash": _safe_digest_text(change.get("change_hash"), max_len=128),
+                    "observed_at_utc": _utc_iso(observed_dt),
+                    "provider_id": provider_id,
+                    "company": company,
+                    "title": title,
+                    "canonical_url": _safe_digest_url(job.get("canonical_url") or ranked.get("apply_url")),
+                    "changed_fields": changed_fields,
+                    "skill_tokens_added": skill_tokens_added,
+                    "skill_tokens_removed": skill_tokens_removed,
+                    "seniority_shift": seniority_shift,
+                    "location_shift": location_shift,
+                    "compensation_shift": compensation_shift,
+                    "candidate_skill_matches": matched_skills,
+                    "candidate_relevant": bool(matched_skills),
+                    "significance_score": significance_score,
+                    "_observed_dt": observed_dt,
+                }
+            )
+
+    events.sort(
+        key=lambda item: (
+            -_coerce_int(item.get("significance_score"), 0),
+            -int(item["_observed_dt"].timestamp()) if isinstance(item.get("_observed_dt"), datetime) else 0,
+            str(item.get("job_hash") or ""),
+            str(item.get("change_hash") or ""),
+        )
+    )
+    for days in (7, 14, 30):
+        window_start = reference_dt - timedelta(days=days)
+        window_events = [
+            item
+            for item in events
+            if isinstance(item.get("_observed_dt"), datetime) and window_start < item["_observed_dt"] <= reference_dt
+        ]
+        provider_counts: Dict[str, Dict[str, Any]] = {}
+        company_counts: Dict[str, Dict[str, Any]] = {}
+        for event in window_events:
+            provider_key = str(event.get("provider_id") or "unknown")
+            provider_bucket = provider_counts.setdefault(provider_key, {"change_event_count": 0, "jobs": set()})
+            provider_bucket["change_event_count"] += 1
+            provider_bucket["jobs"].add(str(event.get("job_hash") or ""))
+
+            company_key = str(event.get("company") or "unknown")
+            company_bucket = company_counts.setdefault(company_key, {"change_event_count": 0, "jobs": set()})
+            company_bucket["change_event_count"] += 1
+            company_bucket["jobs"].add(str(event.get("job_hash") or ""))
+
+        provider_rows = [
+            {
+                "provider_id": provider_id,
+                "change_event_count": bucket["change_event_count"],
+                "job_count": len(bucket["jobs"]),
+            }
+            for provider_id, bucket in provider_counts.items()
+        ]
+        provider_rows.sort(
+            key=lambda row: (
+                -_coerce_int(row.get("change_event_count"), 0),
+                -_coerce_int(row.get("job_count"), 0),
+                str(row.get("provider_id") or ""),
+            )
+        )
+        company_rows = [
+            {
+                "company": company,
+                "change_event_count": bucket["change_event_count"],
+                "job_count": len(bucket["jobs"]),
+            }
+            for company, bucket in company_counts.items()
+        ]
+        company_rows.sort(
+            key=lambda row: (
+                -_coerce_int(row.get("change_event_count"), 0),
+                -_coerce_int(row.get("job_count"), 0),
+                str(row.get("company") or ""),
+            )
+        )
+
+        normalized_events: List[Dict[str, Any]] = []
+        for event in window_events[: max(1, top_n)]:
+            normalized_events.append(
+                {
+                    key: event[key]
+                    for key in (
+                        "job_hash",
+                        "change_hash",
+                        "observed_at_utc",
+                        "provider_id",
+                        "company",
+                        "title",
+                        "canonical_url",
+                        "changed_fields",
+                        "skill_tokens_added",
+                        "skill_tokens_removed",
+                        "seniority_shift",
+                        "location_shift",
+                        "compensation_shift",
+                        "candidate_skill_matches",
+                        "candidate_relevant",
+                        "significance_score",
+                    )
+                }
+            )
+        out["windows"][_digest_notable_window_key(days)] = {
+            "window_days": days,
+            "window_start_utc": _utc_iso(window_start),
+            "window_end_utc": _utc_iso(reference_dt),
+            "change_event_count": len(window_events),
+            "notable_changes": normalized_events,
+            "aggregates": {
+                "providers": provider_rows,
+                "companies": company_rows,
+            },
+        }
+    return out
+
+
 def _load_json_object(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {}
@@ -1869,6 +2143,8 @@ def _build_digest_payload(
     notify_requested = _digest_notify_requested()
     quiet_mode = not notify_requested
     notify_status = "disabled_quiet_mode" if quiet_mode else "external_opt_in_stubbed"
+    timeline_path = _run_registry_dir(run_id) / "artifacts" / "job_timeline_v1.json"
+    timeline_payload = _load_json_object(timeline_path)
     provider_rows: List[Dict[str, Any]] = []
     providers = provider_availability_payload.get("providers")
     if isinstance(providers, list):
@@ -1887,6 +2163,14 @@ def _build_digest_payload(
 
     ranked_lookup = _digest_ranked_jobs_lookup(provider_outputs)
     top_jobs = _build_digest_top_jobs(explanation_payload, ranked_lookup, top_n=_digest_top_n())
+    candidate_skill_tokens = _digest_candidate_skill_tokens(candidate_id)
+    notable_changes = _build_digest_notable_changes_payload(
+        reference_dt=reference_dt,
+        timeline_payload=timeline_payload,
+        ranked_lookup=ranked_lookup,
+        candidate_skill_tokens=candidate_skill_tokens,
+        top_n=_digest_top_n(),
+    )
 
     rows = _run_repository().list_runs(candidate_id=candidate_id, limit=500)
     entries: List[Dict[str, Any]] = []
@@ -1947,6 +2231,7 @@ def _build_digest_payload(
             "provider_availability": _artifact_reference_pointer(_provider_availability_path(run_id)),
             "explanation": _artifact_reference_pointer(_explanation_path(run_id)),
             "costs": _artifact_reference_pointer(_run_registry_dir(run_id) / "costs.json"),
+            "job_timeline": _artifact_reference_pointer(timeline_path),
         },
         "current_run": {
             "run_health": {
@@ -1962,6 +2247,7 @@ def _build_digest_payload(
             "daily": _digest_window_payload(entries=entries, reference_dt=reference_dt, cadence="daily"),
             "weekly": _digest_window_payload(entries=entries, reference_dt=reference_dt, cadence="weekly"),
         },
+        "notable_changes": notable_changes,
     }
 
 
@@ -2049,6 +2335,9 @@ def _write_digest_fallback_artifacts(
             "provider_availability": _artifact_reference_pointer(_provider_availability_path(run_id)),
             "explanation": _artifact_reference_pointer(_explanation_path(run_id)),
             "costs": _artifact_reference_pointer(_run_registry_dir(run_id) / "costs.json"),
+            "job_timeline": _artifact_reference_pointer(
+                _run_registry_dir(run_id) / "artifacts" / "job_timeline_v1.json"
+            ),
         },
         "current_run": {
             "run_health": {
@@ -2080,6 +2369,7 @@ def _write_digest_fallback_artifacts(
                 "cost_totals": _digest_cost_totals(0, Decimal("0"), 0),
             },
         },
+        "notable_changes": _empty_digest_notable_changes_payload(reference_dt),
     }
     digest_path = _digest_path(run_id)
     _write_canonical_json(digest_path, payload)
