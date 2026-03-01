@@ -24,10 +24,28 @@ It is built as infrastructure, not a script.
 
 ---
 
+## What It Does
+
+SignalCraft is a temporal job intelligence system first.
+
+Primary value:
+- Tracks how roles change over time (not only whether they match right now)
+- Produces deterministic, provenance-backed diffs between observations
+- Surfaces company/role drift signals (skills rising/falling, seniority/location shifts)
+- Maintains replayable receipts so longitudinal conclusions are auditable
+- Scales provider coverage through a provider onboarding factory (robots/TOS evaluation, scaffolding, receipts)
+
+Capability narrative:
+- For a single role family at Company X, SignalCraft can show that required skills shifted over recent windows, when the shifts occurred, and which provider snapshots/provenance records support each change.
+- This is emitted as deterministic artifacts, so the same evidence can be replayed and reviewed without hidden model-state drift.
+
+---
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Roadmap](docs/ROADMAP.md)
+- [AI Workflow](docs/AI_WORKFLOW.md)
 - [Operations](docs/OPERATIONS.md)
 - [Candidates](docs/CANDIDATES.md)
 - [Legal Positioning](docs/LEGAL_POSITIONING.md)
@@ -43,8 +61,10 @@ SignalCraft:
 - Aggregates job postings directly from official company career pages
 - Normalizes and de-duplicates roles across providers
 - Applies deterministic scoring and ranking logic
-- Tracks historical changes across runs
+- Tracks historical changes across runs and produces temporal change artifacts
+- Computes company/role drift analytics from retained observations
 - Produces reproducible, artifact-backed outputs
+- Provides provider onboarding factory tooling with policy/scaffolding receipts
 - Optionally layers AI insights on top of stable, deterministic artifacts
 
 The system is snapshot-first, replayable, and explainable.
@@ -157,6 +177,7 @@ SignalCraft is a discovery and intelligence layer — not a replacement for offi
 
 SignalCraft is evolving toward:
 
+- Temporal intelligence artifacts and longitudinal analytics as the product anchor
 - Multi-user isolation
 - Resume/profile ingestion
 - Profile-aware scoring

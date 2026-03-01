@@ -71,9 +71,27 @@ Evidence expectations:
 
 ---
 
+# Product Thesis (2026)
+
+SignalCraft product direction is now explicit:
+
+- **Temporal Intelligence > Matching**
+- Matching remains useful, but the primary product truth is longitudinal change:
+  how postings evolve, what skills drift, and where role requirements shift over
+  time.
+- Deterministic provenance and artifact-backed diffs are required for every
+  longitudinal claim.
+- Provider expansion is treated as a first-class product capability through the
+  onboarding factory model (policy evaluation, scaffolding, receipts, and
+  auditable enablement), not ad hoc scraping.
+
+This thesis is additive and does not reorder milestone blocks below.
+
+---
+
 # Current State
 
-Last verified: 2026-02-28 on commit `18f297fda068a177231bae21b0b51987c5b6da50` (mainline verification checks + merge-train CI were confirmed green on this SHA.)
+Last verified: 2026-03-01 on commit `ea3a7a2c2519da010c643d191cca48aad736f07a` (mainline verification checks were confirmed green on this SHA.)
 Latest product release: v0.2.0
 Relevant milestone releases: m19-20260222T201429Z, m19-20260222T181245Z
 
@@ -108,12 +126,27 @@ Foundation exists:
   Verified by `docs/proof/m17-api-boring-pack-2026-02-15.md`, `docs/proof/m17-artifact-index-endpoint-2026-02-14.md`, `docs/proof/m17-api-boring-pack-smoke-negative-2026-02-15.md`, `docs/proof/p1-artifact-download-size-cap-2026-02-17.md`, `docs/DASHBOARD_API.md`.
 - PR governance enforcement: labels (provenance, type, area), milestone required, provenance label-only (no `[from-composer]` in titles).
   Verified by `docs/LABELS.md`, `docs/proof/provenance-always-enforced-20260222T211953Z.md`, `.github/workflows/pr-governance.yml`.
+- Provider onboarding factory baseline is in place via schema-backed provider registry, authoring/scaffold tooling, and policy-aware enablement checks.
+  Verified by `schemas/providers.schema.v1.json`, `scripts/provider_authoring.py`, `src/ji_engine/providers/selection.py`, `tests/test_provider_authoring.py`, `tests/test_provider_registry.py`.
 - Release governance now enforces canonical, self-contained release body structure with tier-aware product validation (major vs minor/patch) before publish.
   Verified by `scripts/release/render_release_notes.py`, `scripts/release/validate_release_body.py`, `.github/workflows/release-ecr.yml`,
   `docs/RELEASE_TEMPLATE_PRODUCT.md`, `docs/RELEASE_TEMPLATE_MILESTONE.md`,
   `docs/proof/release-body-policy-20260228T031653Z.md`, `docs/proof/release-workflow-tier-enforcement-20260228T032512Z.md`, `docs/proof/release-body-normalization-20260228T032035Z.md`.
 - M19 DR proof discipline: cost guardrails (validate-only default), branch auto-delete, cleanup rollup receipts.
   Verified by `docs/proof/20260222T211723Z-cleanup-rollup.md`, `scripts/ops/dr_drill.sh`, `scripts/ops/dr_validate.sh`.
+
+---
+
+# Roadmap Truth Sync
+
+- Milestone metadata governance is enforced programmatically (labels +
+  milestones), not by manual UI-only process.
+- Milestones have been retroactively aligned so historical PRs map to roadmap
+  `M##` milestones where deterministically inferable.
+- Catch-all milestones (`Infra & Tooling`, `Docs & Governance`,
+  `Backlog Cleanup`) were removed after rehoming and verification.
+- Ambiguous historical items are explicitly parked in deterministic triage
+  milestone buckets rather than hidden in catch-all milestones.
 
 ---
 
