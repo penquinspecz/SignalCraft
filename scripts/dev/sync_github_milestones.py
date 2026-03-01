@@ -12,6 +12,7 @@ from pathlib import Path
 DEFAULT_ROADMAP_PATH = Path("docs/ROADMAP.md")
 BUCKET_MILESTONES = ("Infra & Tooling", "Docs & Governance", "Backlog Cleanup")
 MILESTONE_TITLE_RE = re.compile(r"^M\d+$")
+MILESTONE_TITLED_RE = re.compile(r"^(M\d+)\s+—\s+.+$")
 ROADMAP_MILESTONE_RE = re.compile(r"^##\s+Milestone\s+(\d+)([A-Z]?)\s+[—-]\s+")
 
 
@@ -43,7 +44,11 @@ def _list_milestones() -> set[str]:
                 continue
             title = item.get("title")
             if isinstance(title, str) and title.strip():
-                titles.add(title.strip())
+                clean_title = title.strip()
+                titles.add(clean_title)
+                alias_match = MILESTONE_TITLED_RE.fullmatch(clean_title)
+                if alias_match:
+                    titles.add(alias_match.group(1))
         page += 1
 
 

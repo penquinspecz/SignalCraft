@@ -42,6 +42,7 @@ REQUIRED_LABEL_SPECS = {
 DOCS_BUCKET = "Docs & Governance"
 INFRA_BUCKET = "Infra & Tooling"
 BACKLOG_BUCKET = "Backlog Cleanup"
+ROADMAP_TITLE_WITH_NAME_RE = re.compile(r"^(M\d+)\s+—\s+.+$")
 
 
 class CliError(RuntimeError):
@@ -159,7 +160,11 @@ def _list_repo_milestones(repo_slug: str) -> dict[str, int]:
         title = item.get("title")
         number = item.get("number")
         if isinstance(title, str) and title.strip() and isinstance(number, int):
-            out[title.strip()] = number
+            clean_title = title.strip()
+            out[clean_title] = number
+            alias_match = ROADMAP_TITLE_WITH_NAME_RE.fullmatch(clean_title)
+            if alias_match:
+                out.setdefault(alias_match.group(1), number)
     return out
 
 
