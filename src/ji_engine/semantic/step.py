@@ -28,8 +28,10 @@ from .core import (
 )
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
+def _normalize_run_id(run_id: str) -> str:
+    from ji_engine.pipeline.run_pathing import sanitize_run_id
+
+    return sanitize_run_id(run_id)
 
 
 def _sha256_text(text: str) -> str:
@@ -125,7 +127,7 @@ def run_semantic_sidecar(
     max_jobs: int,
     semantic_threshold: float = 0.72,
 ) -> Tuple[Dict[str, Any], Path]:
-    run_dir = run_metadata_dir / _sanitize_run_id(run_id)
+    run_dir = run_metadata_dir / _normalize_run_id(run_id)
     summary_path = run_dir / "semantic" / "semantic_summary.json"
     summary: Dict[str, Any] = {
         "enabled": bool(enabled),
@@ -267,7 +269,7 @@ def semantic_score_artifact_path(
     profile: str,
     run_metadata_dir: Path,
 ) -> Path:
-    run_dir = run_metadata_dir / _sanitize_run_id(run_id)
+    run_dir = run_metadata_dir / _normalize_run_id(run_id)
     return run_dir / "semantic" / f"scores_{provider}_{profile}.json"
 
 
@@ -280,7 +282,7 @@ def finalize_semantic_artifacts(
     policy: Dict[str, Any],
     provider_profile_pairs: Optional[List[tuple[str, str]]] = None,
 ) -> tuple[Dict[str, Any], Path, Path]:
-    run_dir = run_metadata_dir / _sanitize_run_id(run_id)
+    run_dir = run_metadata_dir / _normalize_run_id(run_id)
     semantic_dir = run_dir / "semantic"
     scores_path = semantic_dir / "semantic_scores.json"
     summary_path = semantic_dir / "semantic_summary.json"

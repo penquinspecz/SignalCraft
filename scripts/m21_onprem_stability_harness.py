@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
+from ji_engine.pipeline.run_pathing import sanitize_run_id
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = REPO_ROOT / "config" / "defaults.json"
 DEFAULT_K8S_NAMESPACE = "jobintel"
@@ -39,8 +41,7 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
+_sanitize_run_id = sanitize_run_id
 
 
 def _default_run_id() -> str:
@@ -293,7 +294,7 @@ def _execute_interval(
     pipeline_log = checkpoint_dir / "pipeline.log"
     _write_command_log(pipeline_log, pipeline_result)
 
-    expected = _candidate_runs_dir(state_dir, candidate_id) / _sanitize_run_id(interval_run_id)
+    expected = _candidate_runs_dir(state_dir, candidate_id) / sanitize_run_id(interval_run_id)
     run_dir = expected if expected.exists() else _discover_latest_run_dir(state_dir, candidate_id)
 
     k8s_snapshot = _capture_k8s_snapshot(namespace, kube_context, checkpoint_dir, skip_k8s)

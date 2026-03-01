@@ -12,6 +12,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from ji_engine.config import DATA_DIR, DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, sanitize_candidate_id
+from ji_engine.pipeline.run_pathing import sanitize_run_id
 from jobintel.aws_runs import build_state_payload, write_last_success_state, write_provider_last_success_state
 
 try:
@@ -58,8 +59,7 @@ def _fail_validation(message: str) -> None:
     raise SystemExit(2)
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
+_sanitize_run_id = sanitize_run_id
 
 
 def _candidate_runs_dir(candidate_id: str) -> Path:
@@ -77,7 +77,7 @@ def _s3_candidate_prefix(prefix: str, candidate_id: str) -> str:
 
 def _run_dir(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
     safe_candidate = sanitize_candidate_id(candidate_id)
-    safe_run_id = _sanitize_run_id(run_id)
+    safe_run_id = sanitize_run_id(run_id)
     namespaced = _candidate_runs_dir(safe_candidate) / safe_run_id
     if namespaced.exists():
         return namespaced

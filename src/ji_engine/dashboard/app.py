@@ -42,6 +42,7 @@ from ji_engine.config import (
     candidate_state_paths,
     sanitize_candidate_id,
 )
+from ji_engine.run_id import sanitize_run_id
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from jobintel import aws_runs
 
