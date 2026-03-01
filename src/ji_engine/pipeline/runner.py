@@ -1973,9 +1973,10 @@ def _write_digest_artifacts(
     explanation_payload = _load_json_object(_explanation_path(run_id))
     costs_payload = _load_json_object(costs_path)
 
-    reference_dt = _run_timestamp_from_report_row(run_report_payload)
+    # Prefer run_id-derived timestamp for deterministic digest output across reruns.
+    reference_dt = _safe_parse_timestamp_utc(run_id)
     if reference_dt is None:
-        reference_dt = _safe_parse_timestamp_utc(run_id)
+        reference_dt = _run_timestamp_from_report_row(run_report_payload)
     if reference_dt is None:
         reference_dt = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
