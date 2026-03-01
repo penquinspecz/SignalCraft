@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
@@ -28,11 +30,45 @@ CANDIDATE_ACTIVE_POINTER_SCHEMA_VERSION = 1
 CANDIDATE_PROFILE_FILENAME = "candidate_profile.json"
 CANDIDATE_REGISTRY_FILENAME = "registry.json"
 ACTIVE_CANDIDATE_FILENAME = "active_candidate.json"
+RESUME_SCHEMA_VERSION = 1
+RESUME_HASH_VERSION = "resume_hash.v1"
+RESUME_PARSER_VERSION = "resume_parser.v1"
 PROFILE_TEXT_MAX_BYTES = {
     "resume_text": 120_000,
     "linkedin_text": 120_000,
     "summary_text": 40_000,
 }
+RESUME_TEXT_MAX_BYTES = 500_000
+RESUME_SKILL_KEYWORDS = (
+    "python",
+    "java",
+    "go",
+    "sql",
+    "kubernetes",
+    "terraform",
+    "aws",
+    "gcp",
+    "azure",
+    "leadership",
+    "customer success",
+    "salesforce",
+    "machine learning",
+    "llm",
+    "data analysis",
+    "project management",
+)
+RESUME_ROLE_KEYWORDS = (
+    "software engineer",
+    "staff engineer",
+    "principal engineer",
+    "engineering manager",
+    "product manager",
+    "solutions architect",
+    "customer success manager",
+    "developer advocate",
+)
+RESUME_EDUCATION_KEYWORDS = ("bachelor", "master", "phd", "mba", "computer science")
+RESUME_CERTIFICATION_KEYWORDS = ("aws certified", "kubernetes", "pmp", "scrum", "cissp")
 
 
 class CandidateTextInputs(BaseModel):
@@ -79,6 +115,40 @@ class CandidateProfileFields(BaseModel):
     skills: List[str] = Field(default_factory=list)
 
 
+class CandidateResumeExperienceSummary(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    years_experience_estimate: Optional[int] = Field(default=None, ge=0, le=80)
+    seniority_signal: Optional[str] = None
+
+
+class CandidateResumeStructured(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resume_schema_version: Literal[1] = RESUME_SCHEMA_VERSION
+    candidate_id: str
+    source_format: Literal["pdf", "text"]
+    hash_version: Literal["resume_hash.v1"] = RESUME_HASH_VERSION
+    parser_version: Literal["resume_parser.v1"] = RESUME_PARSER_VERSION
+    resume_hash: str
+    skills: List[str] = Field(default_factory=list)
+    role_signals: List[str] = Field(default_factory=list)
+    experience_summary: CandidateResumeExperienceSummary = Field(default_factory=CandidateResumeExperienceSummary)
+    education_signals: List[str] = Field(default_factory=list)
+    certification_signals: List[str] = Field(default_factory=list)
+
+
+class CandidateResumePointer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = 1
+    resume_hash: str
+    source_format: Literal["pdf", "text"]
+    artifact_path: str
+    sha256: str
+    size_bytes: int = Field(ge=1)
+
+
 class ActiveCandidatePointer(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -98,6 +168,8 @@ class CandidateProfile(BaseModel):
     profile_fields: CandidateProfileFields = Field(default_factory=CandidateProfileFields)
     text_inputs: CandidateTextInputs = Field(default_factory=CandidateTextInputs)
     text_input_artifacts: CandidateTextInputArtifacts = Field(default_factory=CandidateTextInputArtifacts)
+    resume_structured: Optional[CandidateResumeStructured] = None
+    resume_structured_artifact: Optional[CandidateResumePointer] = None
 
 
 class CandidateRegistryEntry(BaseModel):
@@ -157,6 +229,10 @@ def _dump_json(payload: Dict[str, Any]) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
 
 
+def _canonical_json_bytes(payload: Dict[str, Any]) -> bytes:
+    return (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+
 def _normalize_text(value: Optional[str], *, max_len: int = 120) -> str:
     if value is None:
         return ""
@@ -213,6 +289,7 @@ def _canonical_profile_hash_payload(profile: CandidateProfile) -> Dict[str, Any]
         },
         "target_roles": _normalize_tokens(profile.target_roles, max_len=120),
         "preferred_locations": _normalize_tokens(profile.preferred_locations, max_len=120),
+        "resume_structured_hash": profile.resume_structured.resume_hash if profile.resume_structured else None,
         "text_input_sha256": {
             "resume_text": (
                 profile.text_input_artifacts.resume_text.sha256 if profile.text_input_artifacts.resume_text else None
@@ -312,6 +389,110 @@ def _validate_profile_text_inputs(text_inputs: CandidateTextInputs) -> None:
 
 def _text_sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _extract_text_from_pdf_bytes(raw_bytes: bytes) -> str:
+    # Prefer deterministic extraction via pypdf when available.
+    try:
+        from pypdf import PdfReader  # type: ignore
+
+        reader = PdfReader(io.BytesIO(raw_bytes))
+        pages: List[str] = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            if text:
+                pages.append(text)
+        joined = "\n".join(pages)
+        if joined.strip():
+            return joined
+    except Exception:
+        pass
+
+    # Fallback: extract simple Tj/TJ token text for deterministic offline behavior.
+    latin = raw_bytes.decode("latin-1", errors="ignore")
+    chunks = re.findall(r"\(([^()]*)\)\s*Tj", latin)
+    if not chunks:
+        chunks = re.findall(r"\[(.*?)\]\s*TJ", latin, flags=re.DOTALL)
+    flattened = " ".join(chunk.replace("\\(", "(").replace("\\)", ")") for chunk in chunks)
+    return flattened if flattened.strip() else latin
+
+
+def _extract_resume_text(path: Path) -> Tuple[str, Literal["pdf", "text"]]:
+    suffix = path.suffix.lower()
+    raw = path.read_bytes()
+    if len(raw) > RESUME_TEXT_MAX_BYTES:
+        raise CandidateValidationError(f"resume file exceeds max bytes ({len(raw)} > {RESUME_TEXT_MAX_BYTES})")
+
+    if suffix == ".pdf":
+        text = _extract_text_from_pdf_bytes(raw)
+        source_format: Literal["pdf", "text"] = "pdf"
+    else:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("latin-1", errors="ignore")
+        source_format = "text"
+    normalized = " ".join(text.replace("\x00", " ").split()).strip()
+    if not normalized:
+        raise CandidateValidationError("resume extraction produced empty text")
+    return normalized, source_format
+
+
+def _keyword_hits(text_lower: str, keywords: Tuple[str, ...], *, max_items: int = 50) -> List[str]:
+    return sorted({keyword for keyword in keywords if keyword in text_lower})[:max_items]
+
+
+def _extract_years_experience(text_lower: str) -> Optional[int]:
+    matches = re.findall(r"\b(\d{1,2})\+?\s+years?\b", text_lower)
+    if not matches:
+        return None
+    return max(int(item) for item in matches)
+
+
+def _extract_seniority_signal(text_lower: str) -> Optional[str]:
+    for label in ("principal", "staff", "senior", "lead", "manager", "mid", "junior"):
+        if label in text_lower:
+            return label
+    return None
+
+
+def _resume_hash(normalized_text: str) -> str:
+    canonical = {
+        "hash_version": RESUME_HASH_VERSION,
+        "parser_version": RESUME_PARSER_VERSION,
+        "normalized_text": normalized_text.lower(),
+    }
+    return hashlib.sha256(_canonical_json_bytes(canonical)).hexdigest()
+
+
+def _build_structured_resume(
+    *,
+    candidate_id: str,
+    normalized_text: str,
+    source_format: Literal["pdf", "text"],
+) -> CandidateResumeStructured:
+    text_lower = normalized_text.lower()
+    return CandidateResumeStructured(
+        resume_schema_version=RESUME_SCHEMA_VERSION,
+        candidate_id=candidate_id,
+        source_format=source_format,
+        hash_version=RESUME_HASH_VERSION,
+        parser_version=RESUME_PARSER_VERSION,
+        resume_hash=_resume_hash(normalized_text),
+        skills=_keyword_hits(text_lower, RESUME_SKILL_KEYWORDS),
+        role_signals=_keyword_hits(text_lower, RESUME_ROLE_KEYWORDS),
+        experience_summary=CandidateResumeExperienceSummary(
+            years_experience_estimate=_extract_years_experience(text_lower),
+            seniority_signal=_extract_seniority_signal(text_lower),
+        ),
+        education_signals=_keyword_hits(text_lower, RESUME_EDUCATION_KEYWORDS),
+        certification_signals=_keyword_hits(text_lower, RESUME_CERTIFICATION_KEYWORDS),
+    )
+
+
+def _resume_artifact_path(candidate_id: str, resume_hash: str) -> Path:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    return _profile_artifacts_dir(safe_candidate) / f"resume_structured_{resume_hash[:16]}.v1.json"
 
 
 def _ingest_one_text(candidate_id: str, kind: str, text: str) -> CandidateTextArtifactPointer:
@@ -534,6 +715,56 @@ def set_profile_text(
     }
 
 
+def ingest_resume_file(candidate_id: str, resume_file: str) -> Dict[str, Any]:
+    safe_id = sanitize_candidate_id(candidate_id)
+    source = Path(resume_file).expanduser()
+    if not source.exists() or not source.is_file():
+        raise CandidateValidationError(f"resume file not found: {source}")
+
+    normalized_text, source_format = _extract_resume_text(source)
+    structured = _build_structured_resume(
+        candidate_id=safe_id,
+        normalized_text=normalized_text,
+        source_format=source_format,
+    )
+    # Drop raw resume text immediately after deterministic structured extraction.
+    normalized_text = ""
+
+    artifact_path = _resume_artifact_path(safe_id, structured.resume_hash)
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    artifact_payload = structured.model_dump()
+    artifact_bytes = _canonical_json_bytes(artifact_payload)
+    if not artifact_path.exists():
+        atomic_write_text(artifact_path, artifact_bytes.decode("utf-8"))
+    size_bytes = artifact_path.stat().st_size
+    sha256 = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
+    pointer = CandidateResumePointer(
+        schema_version=1,
+        resume_hash=structured.resume_hash,
+        source_format=structured.source_format,
+        artifact_path=str(artifact_path.relative_to(STATE_DIR)),
+        sha256=sha256,
+        size_bytes=size_bytes,
+    )
+
+    profile = load_candidate_profile(safe_id)
+    updated = profile.model_copy(
+        update={
+            "resume_structured": structured,
+            "resume_structured_artifact": pointer,
+            "text_inputs": profile.text_inputs.model_copy(update={"resume_text": None}),
+        }
+    )
+    profile_path = write_candidate_profile(updated)
+    return {
+        "candidate_id": safe_id,
+        "profile_path": str(profile_path),
+        "resume_structured_artifact": pointer.model_dump(),
+        "resume_structured": structured.model_dump(),
+        "profile_hash": profile_hash_for_model(load_candidate_profile(safe_id)),
+    }
+
+
 def candidate_text_input_provenance(candidate_id: str) -> Dict[str, Any]:
     safe_id = sanitize_candidate_id(candidate_id)
     profile = load_candidate_profile(safe_id)
@@ -604,6 +835,26 @@ def doctor_candidate(candidate_id: str) -> Dict[str, Any]:
                 errors.append(f"artifact pointer escapes candidate root: {kind} -> {pointer.artifact_path}")
             if not exists:
                 errors.append(f"artifact pointer missing file: {kind} -> {pointer.artifact_path}")
+        resume_pointer = profile.resume_structured_artifact
+        if resume_pointer is not None:
+            artifact_rel = Path(resume_pointer.artifact_path)
+            artifact_abs = (STATE_DIR / artifact_rel).resolve()
+            in_candidate_root = str(artifact_abs).startswith(str(paths.root.resolve()))
+            exists = artifact_abs.exists()
+            pointer_checks["resume_structured"] = {
+                "artifact_path": resume_pointer.artifact_path,
+                "exists": exists,
+                "in_candidate_root": in_candidate_root,
+                "sha256": resume_pointer.sha256,
+                "size_bytes": resume_pointer.size_bytes,
+                "resume_hash": resume_pointer.resume_hash,
+            }
+            if not in_candidate_root:
+                errors.append(
+                    f"artifact pointer escapes candidate root: resume_structured -> {resume_pointer.artifact_path}"
+                )
+            if not exists:
+                errors.append(f"artifact pointer missing file: resume_structured -> {resume_pointer.artifact_path}")
 
     return {
         "candidate_id": safe_id,
@@ -614,6 +865,7 @@ def doctor_candidate(candidate_id: str) -> Dict[str, Any]:
             "exists": profile_exists,
             "schema_valid": profile_valid,
             "error": profile_error,
+            "profile_hash": profile_hash_for_model(profile) if profile_valid and profile is not None else None,
         },
         "text_input_artifacts": pointer_checks,
         "errors": sorted(errors),
