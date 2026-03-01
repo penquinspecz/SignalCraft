@@ -227,7 +227,7 @@ Artifact index for latest run by provider/profile.
 
 ### GET /v1/ui/latest?candidate_id=...&top_n=...
 
-UI v0 aggregate payload for read-only rendering. Composes latest run summary, top jobs, explanation, provider availability, and run health in one bounded response.
+UI v0 aggregate payload for read-only rendering. Composes latest run summary, top jobs, explanation, provider availability, run health, and recent job-change highlights in one bounded response.
 
 **Query params**:
 - `candidate_id` (optional): default `local`
@@ -252,14 +252,54 @@ UI v0 aggregate payload for read-only rendering. Composes latest run summary, to
   "top_jobs_artifact": "openai_ranked_jobs.cs.json",
   "explanation": {},
   "provider_availability": {},
-  "run_health": {}
+  "run_health": {},
+  "recent_changes": {
+    "window_days": 30,
+    "window_start_utc": "2026-01-23T00:00:00Z",
+    "window_end_utc": "2026-02-22T00:00:00Z",
+    "change_event_count": 0,
+    "notable_changes": []
+  }
 }
 ```
 
 **Failure modes**:
 - 400: Invalid `candidate_id` or `top_n`
-- 404: latest run pointer missing `run_id`
-- 413: referenced UI artifact payload too large
+- 413: Aggregated artifact payload too large
+
+---
+
+### GET /v1/jobs/{job_hash}/timeline?candidate_id=...
+
+Read-only timeline view for a single job hash from the candidate's latest run timeline artifact.
+
+**Query params**:
+- `candidate_id` (optional): default `local`
+
+**Path params**:
+- `job_hash`: stable job identity hash
+
+**Response** (200):
+```json
+{
+  "candidate_id": "local",
+  "latest_source": "local",
+  "run_id": "2026-01-22T00:00:00Z",
+  "job_hash": "<job_hash>",
+  "timeline": {
+    "job_hash": "<job_hash>",
+    "provider_id": "openai",
+    "canonical_url": "https://example.com/jobs/1",
+    "observations": [],
+    "changes": []
+  }
+}
+```
+
+**Failure modes**:
+- 400: Invalid `candidate_id` or `job_hash`
+- 404: Latest run / timeline artifact / job hash not found
+- 413: Timeline payload too large
 - 500: invalid JSON/shape or fail-closed UI-safe violation
 
 ---

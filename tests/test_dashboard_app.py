@@ -1067,6 +1067,8 @@ def test_dashboard_ui_v0_static_page_served(tmp_path: Path, monkeypatch) -> None
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/html")
     assert "SignalCraft UI v0" in resp.text
+    assert "Recent Changes" in resp.text
+    assert "View Timeline" in resp.text
 
 
 def test_dashboard_v1_ui_latest_aggregate_payload_and_redaction(tmp_path: Path, monkeypatch) -> None:
@@ -1194,6 +1196,40 @@ def test_dashboard_v1_ui_latest_aggregate_payload_and_redaction(tmp_path: Path, 
         ),
         encoding="utf-8",
     )
+    (artifacts_dir / "job_timeline_v1.json").write_text(
+        json.dumps(
+            {
+                "job_timeline_schema_version": 1,
+                "run_id": run_id,
+                "candidate_id": "local",
+                "generated_at_utc": run_id,
+                "jobs": [
+                    {
+                        "job_hash": "a" * 64,
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/jobs/j1",
+                        "observations": [
+                            {"observation_id": "obs-1", "observed_at_utc": "2026-01-20T00:00:00Z"},
+                            {"observation_id": "obs-2", "observed_at_utc": run_id},
+                        ],
+                        "changes": [
+                            {
+                                "from_observation_id": "obs-1",
+                                "to_observation_id": "obs-2",
+                                "change_hash": "b" * 64,
+                                "changed_fields": ["skills", "location"],
+                                "field_diffs": {
+                                    "set_fields": {"skills": {"added": ["kubernetes", "python"], "removed": []}},
+                                    "string_fields": {"location": {"old": "Remote", "new": "Hybrid"}},
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     (run_dir / "index.json").write_text(
         json.dumps(
             {
@@ -1204,6 +1240,7 @@ def test_dashboard_v1_ui_latest_aggregate_payload_and_redaction(tmp_path: Path, 
                     "run_health.v1.json": "run_health.v1.json",
                     "provider_availability_v1.json": "artifacts/provider_availability_v1.json",
                     "explanation_v1.json": "artifacts/explanation_v1.json",
+                    "job_timeline_v1.json": "artifacts/job_timeline_v1.json",
                     "openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json",
                 },
             }
@@ -1231,6 +1268,9 @@ def test_dashboard_v1_ui_latest_aggregate_payload_and_redaction(tmp_path: Path, 
     assert payload["top_jobs"][0]["title"] == "Backend Engineer"
     assert payload["run"]["semantic_enabled"] is True
     assert payload["provider_availability"]["providers"][0]["provider_id"] == "openai"
+    assert payload["recent_changes"]["window_days"] == 30
+    assert payload["recent_changes"]["change_event_count"] == 1
+    assert payload["recent_changes"]["notable_changes"][0]["job_hash"] == "a" * 64
     forbidden = _find_forbidden_keys(payload)
     assert forbidden == []
 
@@ -1275,6 +1315,159 @@ def test_dashboard_v1_ui_latest_bounded_reads_return_413(tmp_path: Path, monkeyp
     assert resp.json()["detail"] == "openai_ranked_jobs.cs.json payload too large"
 
 
+def test_dashboard_v1_job_timeline_endpoint_returns_projected_payload(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    job_hash = "a" * 64
+    (artifacts_dir / "job_timeline_v1.json").write_text(
+        json.dumps(
+            {
+                "job_timeline_schema_version": 1,
+                "run_id": run_id,
+                "candidate_id": "local",
+                "generated_at_utc": run_id,
+                "jobs": [
+                    {
+                        "job_hash": job_hash,
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/jobs/j1",
+                        "observations": [
+                            {
+                                "observation_id": "obs-1",
+                                "run_id": "2026-01-20T00:00:00Z",
+                                "observed_at_utc": "2026-01-20T00:00:00Z",
+                            },
+                            {"observation_id": "obs-2", "run_id": run_id, "observed_at_utc": run_id},
+                        ],
+                        "changes": [
+                            {
+                                "from_observation_id": "obs-1",
+                                "to_observation_id": "obs-2",
+                                "change_hash": "b" * 64,
+                                "changed_fields": ["skills", "seniority", "location", "compensation"],
+                                "field_diffs": {
+                                    "set_fields": {"skills": {"added": ["Python", "Kubernetes"], "removed": ["Flask"]}},
+                                    "string_fields": {
+                                        "seniority": {"old": "mid", "new": "senior"},
+                                        "location": {"old": "Remote", "new": "Hybrid"},
+                                        "description": {"old": "forbidden", "new": "must_not_leak"},
+                                    },
+                                    "numeric_range_fields": {
+                                        "compensation": {
+                                            "old_min": 100000,
+                                            "old_max": 130000,
+                                            "new_min": 120000,
+                                            "new_max": 150000,
+                                        }
+                                    },
+                                },
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {
+                    "job_timeline_v1.json": "artifacts/job_timeline_v1.json",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/v1/jobs/{job_hash}/timeline?candidate_id=local")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["run_id"] == run_id
+    assert payload["job_hash"] == job_hash
+    assert payload["timeline"]["provider_id"] == "openai"
+    assert payload["timeline"]["changes"][0]["seniority_shift"] is True
+    assert payload["timeline"]["changes"][0]["location_shift"] is True
+    assert payload["timeline"]["changes"][0]["compensation_shift"] is True
+    forbidden = _find_forbidden_keys(payload)
+    assert forbidden == []
+
+
+def test_dashboard_v1_job_timeline_bounded_reads_return_413(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+    monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-22T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "job_timeline_v1.json").write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "job_hash": "a" * 64,
+                        "observations": [{"observation_id": "o1", "observed_at_utc": run_id}],
+                        "changes": [{"to_observation_id": "o1", "changed_fields": ["skills"], "field_diffs": {}}],
+                        "padding": "x" * 256,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {"job_timeline_v1.json": "artifacts/job_timeline_v1.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/v1/jobs/{'a' * 64}/timeline?candidate_id=local")
+    assert resp.status_code == 413
+    assert resp.json()["detail"] == "job_timeline_v1.json payload too large"
+
+
 _FORBIDDEN_JD_KEYS = frozenset({"jd_text", "description", "description_text", "descriptionHtml", "job_description"})
 
 
@@ -1305,6 +1498,7 @@ def _find_forbidden_keys(obj: object, path: str = "") -> list[str]:
         ("/v1/profile", "GET"),
         ("/v1/latest", "GET"),
         ("/v1/ui/latest", "GET"),
+        ("/v1/jobs/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/timeline", "GET"),
         ("/v1/runs/20260122T000000Z/artifacts", "GET"),
     ],
 )
@@ -1330,6 +1524,42 @@ def test_dashboard_api_no_raw_jd_leakage(tmp_path: Path, monkeypatch: Any, endpo
         {"job_id": "j2", "description": "Another forbidden field", "apply_url": "https://example.com/j2"},
     ]
     (run_dir / "openai_ranked_jobs.cs.json").write_text(json.dumps(ranked_jobs), encoding="utf-8")
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "job_timeline_v1.json").write_text(
+        json.dumps(
+            {
+                "jobs": [
+                    {
+                        "job_hash": "a" * 64,
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/j1",
+                        "observations": [
+                            {"observation_id": "obs-1", "observed_at_utc": "2026-01-20T00:00:00Z"},
+                            {"observation_id": "obs-2", "observed_at_utc": run_id},
+                        ],
+                        "changes": [
+                            {
+                                "from_observation_id": "obs-1",
+                                "to_observation_id": "obs-2",
+                                "change_hash": "b" * 64,
+                                "changed_fields": ["skills"],
+                                "field_diffs": {
+                                    "set_fields": {
+                                        "skills": {
+                                            "added": ["python", "kubernetes"],
+                                            "removed": [],
+                                        }
+                                    }
+                                },
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
 
     index = {
         "run_id": run_id,
@@ -1338,6 +1568,7 @@ def test_dashboard_api_no_raw_jd_leakage(tmp_path: Path, monkeypatch: Any, endpo
         "artifacts": {
             "run_summary.v1.json": "run_summary.v1.json",
             "openai_ranked_jobs.cs.json": "openai_ranked_jobs.cs.json",
+            "job_timeline_v1.json": "artifacts/job_timeline_v1.json",
             "semantic/semantic_summary.json": "semantic/semantic_summary.json",
             "semantic/scores_openai_cs.json": "semantic/scores_openai_cs.json",
         },

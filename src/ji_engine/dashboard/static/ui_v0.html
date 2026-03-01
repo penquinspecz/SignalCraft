@@ -136,7 +136,13 @@
         </section>
 
         <section class="panel" style="grid-column: 1 / -1">
+          <h2>Recent Changes</h2>
+          <div id="recent-changes" class="muted">No data</div>
+        </section>
+
+        <section class="panel" style="grid-column: 1 / -1">
           <h2>Explanation View</h2>
+          <div id="timeline-link" class="muted" style="font-size: 12px; margin-bottom: 8px">No timeline selected.</div>
           <pre id="explanation" class="muted">No data</pre>
         </section>
       </div>
@@ -148,12 +154,21 @@
       const providersEl = document.getElementById("providers");
       const healthEl = document.getElementById("health");
       const jobsEl = document.getElementById("jobs");
+      const recentChangesEl = document.getElementById("recent-changes");
+      const timelineLinkEl = document.getElementById("timeline-link");
       const explanationEl = document.getElementById("explanation");
       const candidateEl = document.getElementById("candidate");
 
       function setStatus(text, cls) {
         statusEl.className = cls || "muted";
         statusEl.textContent = text;
+      }
+
+      function timelineUrlFor(jobHash, candidate) {
+        if (!jobHash) {
+          return null;
+        }
+        return `/v1/jobs/${encodeURIComponent(jobHash)}/timeline?candidate_id=${encodeURIComponent(candidate)}`;
       }
 
       function renderLatest(payload) {
@@ -208,7 +223,7 @@
           .join("")}</div>`;
       }
 
-      function renderJobs(payload) {
+      function renderJobs(payload, candidate) {
         const jobs = Array.isArray(payload.top_jobs) ? payload.top_jobs : [];
         if (!jobs.length) {
           jobsEl.textContent = "No ranked jobs artifact available.";
@@ -217,13 +232,38 @@
         const rows = jobs
           .map(
             (j, idx) =>
-              `<tr data-idx="${idx}"><td>${j.rank || idx + 1}</td><td>${j.title || j.job_hash || j.job_id || ""}</td><td>${j.company || ""}</td><td>${j.score || ""}</td></tr>`
+              `<tr data-idx="${idx}"><td>${j.rank || idx + 1}</td><td>${j.title || j.job_hash || j.job_id || ""}</td><td>${j.company || ""}</td><td>${j.score || ""}</td><td>${
+                timelineUrlFor(j.job_hash, candidate)
+                  ? `<a href="${timelineUrlFor(j.job_hash, candidate)}" target="_blank" rel="noopener noreferrer">View Timeline</a>`
+                  : "-"
+              }</td></tr>`
           )
           .join("");
-        jobsEl.innerHTML = `<table><thead><tr><th>rank</th><th>job</th><th>company</th><th>score</th></tr></thead><tbody>${rows}</tbody></table>`;
+        jobsEl.innerHTML = `<table><thead><tr><th>rank</th><th>job</th><th>company</th><th>score</th><th>timeline</th></tr></thead><tbody>${rows}</tbody></table>`;
       }
 
-      function renderExplanation(payload, selectedIndex) {
+      function renderRecentChanges(payload, candidate) {
+        const recent = payload.recent_changes || {};
+        const notable = Array.isArray(recent.notable_changes) ? recent.notable_changes : [];
+        if (!notable.length) {
+          recentChangesEl.textContent = "No notable change events in the last 30 days.";
+          return;
+        }
+        const rows = notable
+          .map((row) => {
+            const changed = Array.isArray(row.changed_fields) ? row.changed_fields.join(", ") : "";
+            const title = row.title || row.job_hash || "";
+            const timelineUrl = timelineUrlFor(row.job_hash, candidate);
+            const timelineCell = timelineUrl
+              ? `<a href="${timelineUrl}" target="_blank" rel="noopener noreferrer">View Timeline</a>`
+              : "-";
+            return `<tr><td>${row.observed_at_utc || ""}</td><td>${title}</td><td>${row.provider_id || ""}</td><td>${changed}</td><td>${row.significance_score || 0}</td><td>${timelineCell}</td></tr>`;
+          })
+          .join("");
+        recentChangesEl.innerHTML = `<table><thead><tr><th>observed</th><th>job</th><th>provider</th><th>changes</th><th>score</th><th>timeline</th></tr></thead><tbody>${rows}</tbody></table>`;
+      }
+
+      function renderExplanation(payload, selectedIndex, candidate) {
         const top = payload.explanation && Array.isArray(payload.explanation.top_jobs)
           ? payload.explanation.top_jobs
           : [];
@@ -231,6 +271,7 @@
           ? payload.explanation.aggregation
           : {};
         if (!top.length) {
+          timelineLinkEl.textContent = "Timeline unavailable for selected job.";
           explanationEl.textContent = "No explanation artifact for this run.";
           return;
         }
@@ -239,6 +280,13 @@
           selected_top_job: top[safeIndex],
           aggregation: aggregation,
         };
+        const selected = top[safeIndex] || {};
+        const timelineUrl = timelineUrlFor(selected.job_hash, candidate);
+        if (timelineUrl) {
+          timelineLinkEl.innerHTML = `<a href="${timelineUrl}" target="_blank" rel="noopener noreferrer">View Timeline</a>`;
+        } else {
+          timelineLinkEl.textContent = "Timeline unavailable for selected job.";
+        }
         explanationEl.textContent = JSON.stringify(view, null, 2);
       }
 
@@ -262,8 +310,9 @@
           renderLatest(latestPayload);
           renderProviders(latestPayload);
           renderHealth(latestPayload);
-          renderJobs(latestPayload);
-          renderExplanation(latestPayload, selectedExplanationIndex);
+          renderJobs(latestPayload, candidate);
+          renderRecentChanges(latestPayload, candidate);
+          renderExplanation(latestPayload, selectedExplanationIndex, candidate);
           setStatus("ok", "ok");
 
           const rows = jobsEl.querySelectorAll("tbody tr[data-idx]");
@@ -271,7 +320,7 @@
             row.addEventListener("click", () => {
               const idx = Number(row.getAttribute("data-idx") || "0");
               selectedExplanationIndex = Number.isFinite(idx) ? idx : 0;
-              renderExplanation(latestPayload, selectedExplanationIndex);
+              renderExplanation(latestPayload, selectedExplanationIndex, candidate);
             });
           });
         } catch (err) {
@@ -279,6 +328,8 @@
           providersEl.textContent = "No data";
           healthEl.textContent = "No data";
           jobsEl.textContent = "No data";
+          recentChangesEl.textContent = "No data";
+          timelineLinkEl.textContent = "No timeline selected.";
           explanationEl.textContent = "No data";
           setStatus(String(err), "err");
         }

@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -51,7 +52,13 @@ RUN_REPOSITORY: RunRepository = FileSystemRunRepository(RUN_METADATA_DIR)
 
 
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.:+-]{1,128}$")
+_JOB_HASH_RE = re.compile(r"^[A-Za-z0-9_-]{16,128}$")
 _DEFAULT_MAX_JSON_BYTES = 2 * 1024 * 1024
+_RECENT_CHANGES_WINDOW_DAYS = 30
+_MIN_SKILL_TOKEN_DELTA = 2
+_MAX_TIMELINE_OBSERVATIONS = 200
+_MAX_TIMELINE_CHANGES = 200
+_TIMELINE_TOKEN_MAX_ITEMS = 64
 _UI_V0_HTML = Path(__file__).with_name("static") / "ui_v0.html"
 
 
@@ -193,6 +200,15 @@ def _sanitize_run_id(run_id: str) -> str:
     if not _RUN_ID_RE.fullmatch(raw):
         raise HTTPException(status_code=400, detail="Invalid run_id")
     return raw.replace(":", "").replace("-", "").replace(".", "")
+
+
+def _sanitize_job_hash(job_hash: str) -> str:
+    if not isinstance(job_hash, str):
+        raise HTTPException(status_code=400, detail="Invalid job_hash")
+    raw = job_hash.strip()
+    if not _JOB_HASH_RE.fullmatch(raw):
+        raise HTTPException(status_code=400, detail="Invalid job_hash")
+    return raw
 
 
 def _ensure_ui_safe(obj: object, context: str = "") -> None:
@@ -414,6 +430,392 @@ def _project_top_jobs(ranked_payload: object, *, top_n: int) -> List[Dict[str, A
         if len(projected) >= top_n:
             break
     return projected
+
+
+def _safe_ui_text(value: Any, *, max_len: int) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split())
+    if not normalized:
+        return None
+    return normalized[:max_len]
+
+
+def _safe_ui_tokens(
+    raw: Any,
+    *,
+    max_items: int = _TIMELINE_TOKEN_MAX_ITEMS,
+    max_len: int = 64,
+    lowercase: bool = False,
+) -> List[str]:
+    if not isinstance(raw, list):
+        return []
+    out: List[str] = []
+    for item in raw:
+        token = _safe_ui_text(item, max_len=max_len)
+        if not token:
+            continue
+        out.append(token.lower() if lowercase else token)
+    return sorted(set(out))[:max_items]
+
+
+def _safe_parse_utc(value: Any) -> Optional[datetime]:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _utc_iso(ts: datetime) -> str:
+    return ts.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _extract_compensation_window(
+    numeric_fields: Dict[str, Any],
+) -> Tuple[Optional[Dict[str, Optional[float]]], Optional[Dict[str, Optional[float]]]]:
+    for key in sorted(numeric_fields):
+        if not isinstance(key, str):
+            continue
+        normalized = key.lower()
+        if normalized not in {"compensation", "compensation_range"}:
+            continue
+        payload = numeric_fields.get(key)
+        if not isinstance(payload, dict):
+            continue
+        before = {
+            "min": _coerce_float(payload.get("old_min")),
+            "max": _coerce_float(payload.get("old_max")),
+        }
+        after = {
+            "min": _coerce_float(payload.get("new_min")),
+            "max": _coerce_float(payload.get("new_max")),
+        }
+        has_before = before["min"] is not None or before["max"] is not None
+        has_after = after["min"] is not None or after["max"] is not None
+        return (before if has_before else None, after if has_after else None)
+    return None, None
+
+
+def _extract_string_transition(
+    string_fields: Dict[str, Any],
+    *,
+    field_names: Tuple[str, ...],
+) -> Tuple[Optional[str], Optional[str]]:
+    for key in field_names:
+        payload = string_fields.get(key)
+        if not isinstance(payload, dict):
+            continue
+        old_value = _safe_ui_text(payload.get("old"), max_len=120)
+        new_value = _safe_ui_text(payload.get("new"), max_len=120)
+        if old_value is not None or new_value is not None:
+            return old_value, new_value
+    return None, None
+
+
+def _timeline_observation_lookup(job: Dict[str, Any]) -> Dict[str, datetime]:
+    observations = job.get("observations")
+    if not isinstance(observations, list):
+        return {}
+    out: Dict[str, datetime] = {}
+    for item in observations:
+        if not isinstance(item, dict):
+            continue
+        observation_id = _safe_ui_text(item.get("observation_id"), max_len=128)
+        observed_at = _safe_parse_utc(item.get("observed_at_utc"))
+        if observation_id and observed_at is not None:
+            out[observation_id] = observed_at
+    return out
+
+
+def _project_timeline_observations(job: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw = job.get("observations")
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        observation_id = _safe_ui_text(item.get("observation_id"), max_len=128)
+        observed_at_dt = _safe_parse_utc(item.get("observed_at_utc"))
+        if not observation_id or observed_at_dt is None:
+            continue
+        out.append(
+            {
+                "observation_id": observation_id,
+                "run_id": _safe_ui_text(item.get("run_id"), max_len=128),
+                "observed_at_utc": _utc_iso(observed_at_dt),
+            }
+        )
+    out.sort(key=lambda row: (str(row.get("observed_at_utc") or ""), str(row.get("observation_id") or "")))
+    return out[:_MAX_TIMELINE_OBSERVATIONS]
+
+
+def _project_timeline_change(
+    job: Dict[str, Any],
+    change: Dict[str, Any],
+    *,
+    observation_lookup: Dict[str, datetime],
+) -> Optional[Dict[str, Any]]:
+    to_observation_id = _safe_ui_text(change.get("to_observation_id"), max_len=128)
+    if not to_observation_id:
+        return None
+    observed_dt = observation_lookup.get(to_observation_id)
+    if observed_dt is None:
+        return None
+
+    changed_fields = _safe_ui_tokens(change.get("changed_fields"), max_items=32, max_len=64, lowercase=True)
+    field_diffs = change.get("field_diffs")
+    field_diffs = field_diffs if isinstance(field_diffs, dict) else {}
+    set_fields = field_diffs.get("set_fields")
+    set_fields = set_fields if isinstance(set_fields, dict) else {}
+    string_fields = field_diffs.get("string_fields")
+    string_fields = string_fields if isinstance(string_fields, dict) else {}
+    numeric_fields = field_diffs.get("numeric_range_fields")
+    numeric_fields = numeric_fields if isinstance(numeric_fields, dict) else {}
+
+    skills_payload = set_fields.get("skills")
+    if not isinstance(skills_payload, dict):
+        skills_payload = set_fields.get("skills_tokens")
+    skills_payload = skills_payload if isinstance(skills_payload, dict) else {}
+    skill_tokens_added = _safe_ui_tokens(skills_payload.get("added"), lowercase=True)
+    skill_tokens_removed = _safe_ui_tokens(skills_payload.get("removed"), lowercase=True)
+
+    seniority_from, seniority_to = _extract_string_transition(
+        string_fields,
+        field_names=("seniority", "seniority_tokens"),
+    )
+    location_from, location_to = _extract_string_transition(string_fields, field_names=("location",))
+    compensation_before, compensation_after = _extract_compensation_window(numeric_fields)
+
+    seniority_shift = (
+        "seniority" in changed_fields or "seniority_tokens" in changed_fields or bool(seniority_from or seniority_to)
+    )
+    location_shift = "location" in changed_fields or bool(location_from or location_to)
+    compensation_shift = (
+        "compensation" in changed_fields or compensation_before is not None or compensation_after is not None
+    )
+    skill_token_delta = len(skill_tokens_added) + len(skill_tokens_removed)
+    significance_score = (
+        skill_token_delta
+        + (3 if seniority_shift else 0)
+        + (2 if location_shift else 0)
+        + (2 if compensation_shift else 0)
+    )
+    notable = skill_token_delta >= _MIN_SKILL_TOKEN_DELTA or seniority_shift or location_shift or compensation_shift
+
+    return {
+        "from_observation_id": _safe_ui_text(change.get("from_observation_id"), max_len=128),
+        "to_observation_id": to_observation_id,
+        "change_hash": _safe_ui_text(change.get("change_hash"), max_len=128),
+        "observed_at_utc": _utc_iso(observed_dt),
+        "changed_fields": changed_fields,
+        "skill_tokens_added": skill_tokens_added,
+        "skill_tokens_removed": skill_tokens_removed,
+        "seniority_from": seniority_from,
+        "seniority_to": seniority_to,
+        "location_from": location_from,
+        "location_to": location_to,
+        "compensation_before": compensation_before,
+        "compensation_after": compensation_after,
+        "seniority_shift": seniority_shift,
+        "location_shift": location_shift,
+        "compensation_shift": compensation_shift,
+        "significance_score": significance_score,
+        "notable": notable,
+        "_observed_dt": observed_dt,
+        "_job_hash": _safe_ui_text(job.get("job_hash"), max_len=128),
+        "_provider_id": _safe_ui_text(job.get("provider_id"), max_len=64),
+        "_canonical_url": _safe_ui_text(job.get("canonical_url"), max_len=512),
+    }
+
+
+def _project_timeline_changes(job: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw = job.get("changes")
+    if not isinstance(raw, list):
+        return []
+    lookup = _timeline_observation_lookup(job)
+    projected: List[Dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        row = _project_timeline_change(job, item, observation_lookup=lookup)
+        if row is None:
+            continue
+        projected.append(row)
+    projected.sort(
+        key=lambda row: (
+            str(row.get("observed_at_utc") or ""),
+            str(row.get("to_observation_id") or ""),
+            str(row.get("change_hash") or ""),
+        )
+    )
+    return projected[:_MAX_TIMELINE_CHANGES]
+
+
+def _project_job_timeline(job: Dict[str, Any]) -> Dict[str, Any]:
+    projected_changes = _project_timeline_changes(job)
+    changes = [
+        {
+            key: row[key]
+            for key in (
+                "from_observation_id",
+                "to_observation_id",
+                "change_hash",
+                "observed_at_utc",
+                "changed_fields",
+                "skill_tokens_added",
+                "skill_tokens_removed",
+                "seniority_from",
+                "seniority_to",
+                "location_from",
+                "location_to",
+                "compensation_before",
+                "compensation_after",
+                "seniority_shift",
+                "location_shift",
+                "compensation_shift",
+                "significance_score",
+                "notable",
+            )
+        }
+        for row in projected_changes
+    ]
+    return {
+        "job_hash": _safe_ui_text(job.get("job_hash"), max_len=128),
+        "provider_id": _safe_ui_text(job.get("provider_id"), max_len=64),
+        "canonical_url": _safe_ui_text(job.get("canonical_url"), max_len=512),
+        "observations": _project_timeline_observations(job),
+        "changes": changes,
+    }
+
+
+def _load_job_timeline_jobs(run_id: str, candidate_id: str, index: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    timeline_payload = _read_artifact_json_value(run_id, candidate_id, index, "job_timeline_v1.json", required=False)
+    if timeline_payload is None:
+        return None
+    if not isinstance(timeline_payload, dict):
+        raise HTTPException(status_code=500, detail="job_timeline_v1.json invalid shape")
+    jobs = timeline_payload.get("jobs")
+    if not isinstance(jobs, list):
+        raise HTTPException(status_code=500, detail="job_timeline_v1.json invalid shape")
+    return [job for job in jobs if isinstance(job, dict)]
+
+
+def _empty_recent_changes_payload(reference_dt: datetime) -> Dict[str, Any]:
+    window_start = reference_dt - timedelta(days=_RECENT_CHANGES_WINDOW_DAYS)
+    return {
+        "window_days": _RECENT_CHANGES_WINDOW_DAYS,
+        "window_start_utc": _utc_iso(window_start),
+        "window_end_utc": _utc_iso(reference_dt),
+        "change_event_count": 0,
+        "notable_changes": [],
+    }
+
+
+def _project_recent_changes(
+    timeline_jobs: List[Dict[str, Any]],
+    *,
+    top_jobs: List[Dict[str, Any]],
+    reference_dt: datetime,
+    top_n: int,
+) -> Dict[str, Any]:
+    out = _empty_recent_changes_payload(reference_dt)
+    window_start = reference_dt - timedelta(days=_RECENT_CHANGES_WINDOW_DAYS)
+    top_jobs_by_hash: Dict[str, Dict[str, Any]] = {}
+    for job in top_jobs:
+        if not isinstance(job, dict):
+            continue
+        job_hash = _safe_ui_text(job.get("job_hash"), max_len=128)
+        if job_hash:
+            top_jobs_by_hash[job_hash] = job
+
+    events: List[Dict[str, Any]] = []
+    for job in timeline_jobs:
+        for row in _project_timeline_changes(job):
+            observed_dt = row.get("_observed_dt")
+            if not isinstance(observed_dt, datetime):
+                continue
+            if not (window_start < observed_dt <= reference_dt):
+                continue
+            if not bool(row.get("notable")):
+                continue
+            job_hash = str(row.get("_job_hash") or "")
+            top_lookup = top_jobs_by_hash.get(job_hash, {})
+            events.append(
+                {
+                    "job_hash": job_hash,
+                    "change_hash": row.get("change_hash"),
+                    "observed_at_utc": row.get("observed_at_utc"),
+                    "provider_id": row.get("_provider_id") or top_lookup.get("provider"),
+                    "title": top_lookup.get("title"),
+                    "company": top_lookup.get("company"),
+                    "canonical_url": row.get("_canonical_url"),
+                    "changed_fields": row.get("changed_fields"),
+                    "skill_tokens_added": row.get("skill_tokens_added"),
+                    "skill_tokens_removed": row.get("skill_tokens_removed"),
+                    "seniority_shift": bool(row.get("seniority_shift")),
+                    "location_shift": bool(row.get("location_shift")),
+                    "compensation_shift": bool(row.get("compensation_shift")),
+                    "significance_score": int(row.get("significance_score") or 0),
+                    "_observed_dt": observed_dt,
+                }
+            )
+
+    events.sort(
+        key=lambda row: (
+            -int(row.get("significance_score") or 0),
+            -int(row.get("_observed_dt").timestamp()) if isinstance(row.get("_observed_dt"), datetime) else 0,
+            str(row.get("job_hash") or ""),
+            str(row.get("change_hash") or ""),
+        )
+    )
+    out["change_event_count"] = len(events)
+    out["notable_changes"] = [
+        {
+            key: row[key]
+            for key in (
+                "job_hash",
+                "change_hash",
+                "observed_at_utc",
+                "provider_id",
+                "title",
+                "company",
+                "canonical_url",
+                "changed_fields",
+                "skill_tokens_added",
+                "skill_tokens_removed",
+                "seniority_shift",
+                "location_shift",
+                "compensation_shift",
+                "significance_score",
+            )
+        }
+        for row in events[: max(1, min(top_n, 20))]
+    ]
+    return out
 
 
 def _read_s3_json(bucket: str, key: str) -> Tuple[Optional[Dict[str, Any]], str]:
@@ -733,6 +1135,16 @@ def ui_latest(candidate_id: str = DEFAULT_CANDIDATE_ID, top_n: int = 10) -> Dict
         ranked_payload = _read_artifact_json_value(run_id, safe_candidate, index, top_jobs_key, required=True)
         if ranked_payload is not None:
             top_jobs = _project_top_jobs(ranked_payload, top_n=top_n)
+    reference_dt = _safe_parse_utc(run_view.get("timestamp") or run_id) or datetime(1970, 1, 1, tzinfo=timezone.utc)
+    timeline_jobs = _load_job_timeline_jobs(run_id, safe_candidate, index)
+    recent_changes = _empty_recent_changes_payload(reference_dt)
+    if timeline_jobs:
+        recent_changes = _project_recent_changes(
+            timeline_jobs,
+            top_jobs=top_jobs,
+            reference_dt=reference_dt,
+            top_n=top_n,
+        )
 
     response: Dict[str, Any] = {
         "candidate_id": safe_candidate,
@@ -752,8 +1164,45 @@ def ui_latest(candidate_id: str = DEFAULT_CANDIDATE_ID, top_n: int = 10) -> Dict
         "explanation": explanation if isinstance(explanation, dict) else None,
         "provider_availability": provider_availability if isinstance(provider_availability, dict) else None,
         "run_health": run_health if isinstance(run_health, dict) else None,
+        "recent_changes": recent_changes,
     }
     _ensure_ui_safe(response, context="ui_latest")
+    return response
+
+
+@app.get("/v1/jobs/{job_hash}/timeline")
+def job_timeline(job_hash: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_job_hash = _sanitize_job_hash(job_hash)
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    latest_payload = latest(candidate_id=safe_candidate)
+    pointer = latest_payload.get("payload")
+    if not isinstance(pointer, dict):
+        raise HTTPException(status_code=500, detail="Latest payload has invalid shape")
+    run_id = pointer.get("run_id")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise HTTPException(status_code=404, detail="Latest run_id not found")
+
+    index = _load_index(run_id, safe_candidate)
+    timeline_jobs = _load_job_timeline_jobs(run_id, safe_candidate, index)
+    if timeline_jobs is None:
+        raise HTTPException(status_code=404, detail="job_timeline_v1.json not found")
+
+    selected: Optional[Dict[str, Any]] = None
+    for job in timeline_jobs:
+        if _safe_ui_text(job.get("job_hash"), max_len=128) == safe_job_hash:
+            selected = job
+            break
+    if selected is None:
+        raise HTTPException(status_code=404, detail="job_hash not found")
+
+    response = {
+        "candidate_id": safe_candidate,
+        "latest_source": latest_payload.get("source"),
+        "run_id": run_id,
+        "job_hash": safe_job_hash,
+        "timeline": _project_job_timeline(selected),
+    }
+    _ensure_ui_safe(response, context="job_timeline")
     return response
 
 
