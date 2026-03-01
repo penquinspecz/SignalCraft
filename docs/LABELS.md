@@ -43,6 +43,13 @@ Default behavior parses `## Milestone <number>` headings and ensures matching
 For roadmap headings with suffixes (for example `Milestone 19A/19B/19C`), sync
 maps them deterministically to the base numeric milestone (`M19`).
 
+GitHub milestone titles are also auto-synced from ROADMAP for readability while
+keeping stable numeric IDs:
+
+```bash
+make milestones-title-sync-apply
+```
+
 ## Examples
 
 ### from-composer PR (docs-only)
