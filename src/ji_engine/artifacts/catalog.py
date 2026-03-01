@@ -30,6 +30,7 @@ _ARTIFACT_CATALOG: Dict[str, str] = {
     "provider_availability_v1.json": "ui_safe",
     "explanation_v1.json": "ui_safe",
     "digest_v1.json": "ui_safe",
+    "job_timeline_v1.json": "ui_safe",
     "digest_receipt_v1.json": "replay_safe",
 }
 
@@ -61,6 +62,7 @@ UI_SAFE_SCHEMA_SPECS: Dict[str, Tuple[str, int]] = {
     "provider_availability_v1.json": ("provider_availability", 1),
     "explanation_v1.json": ("explanation", 1),
     "digest_v1.json": ("digest", 1),
+    "job_timeline_v1.json": ("job_timeline", 1),
     "ai_insights.cs.json": ("ai_insights_output", 1),
     "ai_job_briefs.cs.json": ("ai_job_brief", 1),
 }
@@ -75,6 +77,7 @@ DASHBOARD_SCHEMA_VERSION_BY_ARTIFACT_KEY: Dict[str, int] = {
     "provider_availability_v1.json": 1,
     "explanation_v1.json": 1,
     "digest_v1.json": 1,
+    "job_timeline_v1.json": 1,
     "run_report.json": 1,
 }
 
@@ -86,6 +89,7 @@ _SCHEMA_SPECS_BY_EXACT_ARTIFACT_KEY: Dict[str, Tuple[str, int]] = {
     "provider_availability_v1.json": ("provider_availability", 1),
     "explanation_v1.json": ("explanation", 1),
     "digest_v1.json": ("digest", 1),
+    "job_timeline_v1.json": ("job_timeline", 1),
 }
 
 
@@ -209,7 +213,10 @@ def _load_schema_cached(schema_name: str, version: int) -> Dict[str, Any]:
     if not hasattr(_load_schema_cached, "_cache"):
         _load_schema_cached._cache = {}
     if cache_key not in _load_schema_cached._cache:
-        from scripts.schema_validate import resolve_named_schema_path
+        try:
+            from scripts.schema_validate import resolve_named_schema_path
+        except ModuleNotFoundError:  # pragma: no cover - direct script execution fallback
+            from schema_validate import resolve_named_schema_path  # type: ignore
 
         path = resolve_named_schema_path(schema_name, version)
         _load_schema_cached._cache[cache_key] = json.loads(path.read_text(encoding="utf-8"))
@@ -229,7 +236,10 @@ def schema_spec_for_artifact_key(artifact_key: str) -> Tuple[str, int] | None:
 
 def _validate_against_schema(payload: Dict[str, Any], artifact_key: str) -> List[str]:
     """Validate artifact against its native schema. Returns list of errors."""
-    from scripts.schema_validate import validate_payload
+    try:
+        from scripts.schema_validate import validate_payload
+    except ModuleNotFoundError:  # pragma: no cover - direct script execution fallback
+        from schema_validate import validate_payload  # type: ignore
 
     schema_spec = schema_spec_for_artifact_key(artifact_key)
     if schema_spec is None:

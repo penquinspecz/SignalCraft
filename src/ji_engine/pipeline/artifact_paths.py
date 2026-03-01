@@ -38,6 +38,10 @@ def digest_receipt_path(run_dir: Path) -> Path:
     return run_dir / "artifacts" / "digest_receipt_v1.json"
 
 
+def job_timeline_path(run_dir: Path) -> Path:
+    return run_dir / "artifacts" / "job_timeline_v1.json"
+
+
 def ai_insights_path(run_dir: Path, profile: str) -> Path:
     return run_dir / "artifacts" / f"ai_insights.{profile}.json"
 

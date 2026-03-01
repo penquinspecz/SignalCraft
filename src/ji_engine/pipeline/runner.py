@@ -71,6 +71,9 @@ from ji_engine.pipeline.artifact_paths import (
     explanation_path as _explanation_path_impl,
 )
 from ji_engine.pipeline.artifact_paths import (
+    job_timeline_path as _job_timeline_path_impl,
+)
+from ji_engine.pipeline.artifact_paths import (
     provider_availability_path as _provider_availability_path_impl,
 )
 from ji_engine.pipeline.artifact_paths import (
@@ -132,7 +135,7 @@ from ji_engine.utils.atomic_write import atomic_write_text
 from ji_engine.utils.content_fingerprint import content_fingerprint
 from ji_engine.utils.diff_report import build_diff_markdown, build_diff_report
 from ji_engine.utils.dotenv import load_dotenv
-from ji_engine.utils.job_identity import job_identity
+from ji_engine.utils.job_identity import job_identity, normalize_job_url
 from ji_engine.utils.time import utc_now_naive, utc_now_z
 from ji_engine.utils.user_state import load_user_state_checked, normalize_user_status
 from ji_engine.utils.verification import (
@@ -208,6 +211,7 @@ PROOF_RECEIPT_SCHEMA_VERSION = 1
 PROVIDER_AVAILABILITY_SCHEMA_VERSION = 1
 EXPLANATION_SCHEMA_VERSION = 1
 DIGEST_SCHEMA_VERSION = 1
+JOB_TIMELINE_SCHEMA_VERSION = 1
 EARLY_FAILURE_UNKNOWN_REASON_CODE = "early_failure_unknown"
 EARLY_FAILURE_UNKNOWN_UNAVAILABLE_REASON = "fail_closed:unknown_due_to_early_failure"
 try:
@@ -247,6 +251,7 @@ _RUN_AUDIT_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _PROVIDER_AVAILABILITY_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _EXPLANATION_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 _DIGEST_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
+_JOB_TIMELINE_SCHEMA_CACHE: Optional[Dict[str, Any]] = None
 
 _EXPLANATION_REASON_NOTES: Dict[str, str] = {
     "penalty_irrelevant": "Role relevance penalty applied.",
@@ -2101,6 +2106,439 @@ def _write_digest_fallback_artifacts(
     return digest_path, receipt_path
 
 
+def _safe_timeline_text(value: Any, *, max_len: int = 256) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    compact = " ".join(value.split()).strip()
+    if not compact:
+        return None
+    return compact[:max_len]
+
+
+def _safe_timeline_url(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    normalized = normalize_job_url(value)
+    if not normalized:
+        return None
+    if not normalized.startswith("http://") and not normalized.startswith("https://"):
+        return None
+    return normalized[:512]
+
+
+def _timeline_normalized_tokens(raw: Any, *, max_items: int = 64, max_len: int = 64) -> List[str]:
+    tokens: List[str] = []
+    if isinstance(raw, str):
+        values: List[Any] = [raw]
+    elif isinstance(raw, list):
+        values = raw
+    else:
+        return []
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        normalized = _safe_timeline_text(value, max_len=max_len)
+        if normalized is None:
+            continue
+        tokens.append(normalized.lower())
+    deduped = sorted(set(tokens))
+    return deduped[:max_items]
+
+
+def _timeline_split_tokens(raw: Any, *, max_items: int = 16) -> List[str]:
+    if not isinstance(raw, str):
+        return []
+    normalized = _safe_timeline_text(raw, max_len=256)
+    if normalized is None:
+        return []
+    segments = normalized.replace("/", " ").replace(",", " ").split()
+    cleaned: List[str] = []
+    for segment in segments:
+        compact = "".join(ch for ch in segment.lower() if ch.isalnum() or ch in {"-", "_", "+"})
+        if compact:
+            cleaned.append(compact[:32])
+    deduped = sorted(set(cleaned))
+    return deduped[:max_items]
+
+
+def _timeline_optional_number(value: Any) -> Optional[float]:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed != parsed:  # NaN
+        return None
+    return round(parsed, 6)
+
+
+def _timeline_compensation(job: Dict[str, Any]) -> Dict[str, Any]:
+    low = None
+    high = None
+    for key in ("salary_min", "compensation_min", "base_salary_min", "pay_min"):
+        low = _timeline_optional_number(job.get(key))
+        if low is not None:
+            break
+    for key in ("salary_max", "compensation_max", "base_salary_max", "pay_max"):
+        high = _timeline_optional_number(job.get(key))
+        if high is not None:
+            break
+    currency = None
+    for key in ("salary_currency", "compensation_currency", "currency", "pay_currency"):
+        currency = _safe_timeline_text(job.get(key), max_len=16)
+        if currency:
+            currency = currency.upper()
+            break
+    period = None
+    for key in ("salary_period", "compensation_period", "pay_period"):
+        period = _safe_timeline_text(job.get(key), max_len=32)
+        if period:
+            period = period.lower()
+            break
+    return {"min": low, "max": high, "currency": currency, "period": period}
+
+
+def _timeline_job_hash(job: Dict[str, Any]) -> str:
+    for key in ("job_hash", "content_fingerprint"):
+        candidate = job.get(key)
+        if isinstance(candidate, str):
+            normalized = candidate.strip().lower()
+            if normalized:
+                return normalized
+    return content_fingerprint(job)
+
+
+def _timeline_provider_hint(artifact_key: str) -> Optional[str]:
+    marker = "_ranked_jobs."
+    if marker not in artifact_key:
+        return None
+    provider = artifact_key.split(marker, 1)[0].strip()
+    return provider if provider else None
+
+
+def _timeline_observation_from_job(
+    *,
+    job: Dict[str, Any],
+    run_id: str,
+    observed_at_utc: str,
+    source_artifact_key: str,
+    provider_hint: Optional[str],
+) -> Dict[str, Any]:
+    provider_id = _safe_timeline_text(job.get("provider"), max_len=80) or provider_hint
+    canonical_url = None
+    for key in ("canonical_url", "apply_url", "detail_url", "url"):
+        canonical_url = _safe_timeline_url(job.get(key))
+        if canonical_url is not None:
+            break
+    seniority_text = _safe_timeline_text(job.get("seniority"), max_len=64)
+    seniority_tokens = _timeline_normalized_tokens(job.get("seniority_tokens"), max_items=16, max_len=32)
+    if not seniority_tokens and seniority_text:
+        seniority_tokens = _timeline_split_tokens(seniority_text, max_items=16)
+    skills: List[str] = []
+    for key in ("skills_tokens", "skill_tokens", "skills"):
+        skills = _timeline_normalized_tokens(job.get(key), max_items=128, max_len=64)
+        if skills:
+            break
+    if not skills:
+        skills = _timeline_normalized_tokens(job.get("primary_skills"), max_items=128, max_len=64)
+    score = round(_coerce_float(job.get("score"), _coerce_float(job.get("final_score"), 0.0)), 6)
+    job_hash = _timeline_job_hash(job)
+    return {
+        "job_hash": job_hash,
+        "observation_id": f"{run_id}:{source_artifact_key}",
+        "run_id": run_id,
+        "observed_at_utc": observed_at_utc,
+        "provider_id": provider_id,
+        "canonical_url": canonical_url,
+        "source_artifact_key": source_artifact_key,
+        "title": _safe_timeline_text(job.get("title"), max_len=180),
+        "location": _safe_timeline_text(job.get("location") or job.get("locationName"), max_len=120),
+        "seniority": seniority_text,
+        "seniority_tokens": seniority_tokens,
+        "skills": skills,
+        "compensation": _timeline_compensation(job),
+        "_selection_key": (
+            -score,
+            str(provider_id or ""),
+            str(canonical_url or ""),
+            source_artifact_key,
+            str(job_hash),
+        ),
+    }
+
+
+def _timeline_observations_for_run(
+    *,
+    run_id: str,
+    candidate_id: str,
+    observed_at_utc: str,
+) -> List[Dict[str, Any]]:
+    run_dir = _run_repository().resolve_run_dir(run_id, candidate_id=candidate_id)
+    index_payload = _load_json_object(run_dir / "index.json")
+    artifacts = index_payload.get("artifacts")
+    if not isinstance(artifacts, dict):
+        return []
+    selected_by_hash: Dict[str, Dict[str, Any]] = {}
+    for artifact_key in sorted(artifacts):
+        if "ranked_jobs" not in artifact_key or not artifact_key.endswith(".json"):
+            continue
+        rel_value = artifacts.get(artifact_key)
+        if not isinstance(rel_value, str) or not rel_value.strip():
+            continue
+        rel_path = Path(rel_value)
+        if rel_path.is_absolute() or ".." in rel_path.parts:
+            continue
+        ranked_path = run_dir / rel_path
+        if not ranked_path.exists():
+            continue
+        try:
+            payload = json.loads(ranked_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(payload, list):
+            continue
+        provider_hint = _timeline_provider_hint(artifact_key)
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            observation = _timeline_observation_from_job(
+                job=item,
+                run_id=run_id,
+                observed_at_utc=observed_at_utc,
+                source_artifact_key=artifact_key,
+                provider_hint=provider_hint,
+            )
+            job_hash = str(observation.get("job_hash") or "")
+            if not job_hash:
+                continue
+            existing = selected_by_hash.get(job_hash)
+            if existing is None or observation["_selection_key"] < existing["_selection_key"]:
+                selected_by_hash[job_hash] = observation
+    ordered = [selected_by_hash[key] for key in sorted(selected_by_hash)]
+    return ordered
+
+
+def _timeline_set_diff(previous: List[str], current: List[str]) -> Dict[str, List[str]]:
+    prev_set = set(previous)
+    curr_set = set(current)
+    return {
+        "added": sorted(curr_set - prev_set),
+        "removed": sorted(prev_set - curr_set),
+    }
+
+
+def _timeline_change_payload(
+    *,
+    previous: Dict[str, Any],
+    current: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    changed_fields: List[str] = []
+    string_fields: Dict[str, Dict[str, Any]] = {}
+    for field in ("title", "location", "seniority", "provider_id", "canonical_url"):
+        if previous.get(field) == current.get(field):
+            continue
+        changed_fields.append(field)
+        string_fields[field] = {"from": previous.get(field), "to": current.get(field)}
+
+    set_fields: Dict[str, Dict[str, List[str]]] = {}
+    for field in ("seniority_tokens", "skills"):
+        previous_values = previous.get(field) if isinstance(previous.get(field), list) else []
+        current_values = current.get(field) if isinstance(current.get(field), list) else []
+        diff = _timeline_set_diff(previous_values, current_values)
+        if not diff["added"] and not diff["removed"]:
+            continue
+        changed_fields.append(field)
+        set_fields[field] = diff
+
+    numeric_range_fields: Dict[str, Dict[str, Any]] = {}
+    for field in ("compensation",):
+        previous_value = previous.get(field) if isinstance(previous.get(field), dict) else {}
+        current_value = current.get(field) if isinstance(current.get(field), dict) else {}
+        if previous_value == current_value:
+            continue
+        changed_fields.append(field)
+        numeric_range_fields[field] = {"from": previous_value, "to": current_value}
+
+    if not changed_fields:
+        return None
+
+    payload_without_hash = {
+        "from_observation_id": previous.get("observation_id"),
+        "to_observation_id": current.get("observation_id"),
+        "changed_fields": sorted(changed_fields),
+        "field_diffs": {
+            "string_fields": {key: string_fields[key] for key in sorted(string_fields)},
+            "set_fields": {key: set_fields[key] for key in sorted(set_fields)},
+            "numeric_range_fields": {key: numeric_range_fields[key] for key in sorted(numeric_range_fields)},
+        },
+    }
+    digest = json.dumps(payload_without_hash, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return {
+        **payload_without_hash,
+        "change_hash": compute_sha256_bytes(digest),
+    }
+
+
+def _timeline_reference_dt(run_id: str, current_run_report: Dict[str, Any]) -> datetime:
+    reference_dt = _safe_parse_timestamp_utc(run_id)
+    if reference_dt is not None:
+        return reference_dt
+    reference_dt = _run_timestamp_from_report_row(current_run_report)
+    if reference_dt is not None:
+        return reference_dt
+    return datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
+def _build_job_timeline_payload(
+    *,
+    run_id: str,
+    candidate_id: str,
+    current_run_report: Dict[str, Any],
+) -> Dict[str, Any]:
+    reference_dt = _timeline_reference_dt(run_id, current_run_report)
+    entries: List[Dict[str, Any]] = [{"run_id": run_id, "timestamp": reference_dt}]
+    seen_run_ids: set[str] = {run_id}
+    rows = _run_repository().list_runs(candidate_id=candidate_id, limit=500)
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        row_run_id = row.get("run_id")
+        if not isinstance(row_run_id, str) or not row_run_id or row_run_id in seen_run_ids:
+            continue
+        timestamp = _run_timestamp_from_report_row(row)
+        if timestamp is None:
+            continue
+        entries.append({"run_id": row_run_id, "timestamp": timestamp})
+        seen_run_ids.add(row_run_id)
+    entries.sort(key=lambda item: (item["timestamp"], str(item["run_id"])))
+
+    timelines_by_hash: Dict[str, Dict[str, Any]] = {}
+    for entry in entries:
+        entry_run_id = str(entry["run_id"])
+        observed_at_utc = _utc_iso(entry["timestamp"])
+        observations = _timeline_observations_for_run(
+            run_id=entry_run_id,
+            candidate_id=candidate_id,
+            observed_at_utc=observed_at_utc,
+        )
+        for observation in observations:
+            job_hash = str(observation.get("job_hash") or "")
+            if not job_hash:
+                continue
+            cleaned_observation = {
+                key: observation[key]
+                for key in (
+                    "observation_id",
+                    "run_id",
+                    "observed_at_utc",
+                    "provider_id",
+                    "canonical_url",
+                    "source_artifact_key",
+                    "title",
+                    "location",
+                    "seniority",
+                    "seniority_tokens",
+                    "skills",
+                    "compensation",
+                )
+            }
+            timeline = timelines_by_hash.get(job_hash)
+            if timeline is None:
+                timeline = {
+                    "job_hash": job_hash,
+                    "provider_id": cleaned_observation.get("provider_id"),
+                    "canonical_url": cleaned_observation.get("canonical_url"),
+                    "observations": [],
+                    "changes": [],
+                }
+                timelines_by_hash[job_hash] = timeline
+            timeline["observations"].append(cleaned_observation)
+            if cleaned_observation.get("provider_id"):
+                timeline["provider_id"] = cleaned_observation.get("provider_id")
+            if cleaned_observation.get("canonical_url"):
+                timeline["canonical_url"] = cleaned_observation.get("canonical_url")
+
+    jobs: List[Dict[str, Any]] = []
+    for job_hash in sorted(timelines_by_hash):
+        timeline = timelines_by_hash[job_hash]
+        observations = list(timeline.get("observations") or [])
+        observations.sort(
+            key=lambda item: (
+                str(item.get("observed_at_utc") or ""),
+                str(item.get("run_id") or ""),
+                str(item.get("observation_id") or ""),
+            )
+        )
+        changes: List[Dict[str, Any]] = []
+        for idx in range(1, len(observations)):
+            change = _timeline_change_payload(previous=observations[idx - 1], current=observations[idx])
+            if change is not None:
+                changes.append(change)
+        jobs.append(
+            {
+                "job_hash": job_hash,
+                "provider_id": timeline.get("provider_id"),
+                "canonical_url": timeline.get("canonical_url"),
+                "observations": observations,
+                "changes": changes,
+            }
+        )
+
+    return {
+        "job_timeline_schema_version": JOB_TIMELINE_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": _utc_iso(reference_dt),
+        "source_run_count": len(entries),
+        "jobs": jobs,
+    }
+
+
+def _write_job_timeline_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+    run_report_path: Path,
+) -> Path:
+    current_run_report = _load_json_object(run_report_path)
+    payload = _build_job_timeline_payload(
+        run_id=run_id,
+        candidate_id=candidate_id,
+        current_run_report=current_run_report,
+    )
+    errors = validate_payload(payload, _job_timeline_schema())
+    if errors:
+        raise RuntimeError(f"job timeline schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    validate_artifact_payload(payload, "job_timeline_v1.json", run_id, ArtifactCategory.UI_SAFE)
+    path = _job_timeline_path(run_id)
+    _write_canonical_json(path, payload)
+    return path
+
+
+def _write_job_timeline_fallback_artifact(
+    *,
+    run_id: str,
+    candidate_id: str,
+) -> Path:
+    reference_dt = _safe_parse_timestamp_utc(run_id) or datetime(1970, 1, 1, tzinfo=timezone.utc)
+    payload = {
+        "job_timeline_schema_version": JOB_TIMELINE_SCHEMA_VERSION,
+        "run_id": run_id,
+        "candidate_id": candidate_id,
+        "generated_at_utc": _utc_iso(reference_dt),
+        "source_run_count": 0,
+        "jobs": [],
+    }
+    errors = validate_payload(payload, _job_timeline_schema())
+    if errors:
+        raise RuntimeError(f"job timeline fallback schema validation failed for run_id={run_id}: {'; '.join(errors)}")
+    validate_artifact_payload(payload, "job_timeline_v1.json", run_id, ArtifactCategory.UI_SAFE)
+    path = _job_timeline_path(run_id)
+    _write_canonical_json(path, payload)
+    return path
+
+
 def _get_env_float(name: str, default: float) -> float:
     raw = os.environ.get(name)
     if raw is None:
@@ -2311,6 +2749,10 @@ def _digest_receipt_path(run_id: str) -> Path:
     return _digest_receipt_path_impl(_run_registry_dir(run_id))
 
 
+def _job_timeline_path(run_id: str) -> Path:
+    return _job_timeline_path_impl(_run_registry_dir(run_id))
+
+
 def _provider_availability_schema() -> Dict[str, Any]:
     global _PROVIDER_AVAILABILITY_SCHEMA_CACHE
     if _PROVIDER_AVAILABILITY_SCHEMA_CACHE is None:
@@ -2341,6 +2783,14 @@ def _digest_schema() -> Dict[str, Any]:
         schema_path = resolve_named_schema_path("digest", DIGEST_SCHEMA_VERSION)
         _DIGEST_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
     return _DIGEST_SCHEMA_CACHE
+
+
+def _job_timeline_schema() -> Dict[str, Any]:
+    global _JOB_TIMELINE_SCHEMA_CACHE
+    if _JOB_TIMELINE_SCHEMA_CACHE is None:
+        schema_path = resolve_named_schema_path("job_timeline", JOB_TIMELINE_SCHEMA_VERSION)
+        _JOB_TIMELINE_SCHEMA_CACHE = json.loads(schema_path.read_text(encoding="utf-8"))
+    return _JOB_TIMELINE_SCHEMA_CACHE
 
 
 def _summary_path_text(path: Path) -> str:
@@ -6247,6 +6697,7 @@ def main() -> int:
             logger.warning("Failed to write run summary artifact: %r", exc)
         digest_path: Optional[Path] = None
         digest_receipt_path: Optional[Path] = None
+        job_timeline_artifact_path: Optional[Path] = None
         try:
             digest_path, digest_receipt_path = _write_digest_artifacts(
                 run_id=run_id,
@@ -6264,6 +6715,19 @@ def main() -> int:
                 error_message=repr(exc),
             )
 
+        try:
+            job_timeline_artifact_path = _write_job_timeline_artifact(
+                run_id=run_id,
+                candidate_id=CANDIDATE_ID,
+                run_report_path=run_metadata_path,
+            )
+        except Exception as exc:
+            logger.warning("Failed to write job timeline artifact; writing fail-closed fallback: %r", exc)
+            job_timeline_artifact_path = _write_job_timeline_fallback_artifact(
+                run_id=run_id,
+                candidate_id=CANDIDATE_ID,
+            )
+
         if digest_path and digest_receipt_path:
             try:
                 digest_pointer = _artifact_pointer(digest_path)
@@ -6278,7 +6742,10 @@ def main() -> int:
                     digest_pointer=digest_pointer,
                     digest_receipt_pointer=digest_receipt_pointer,
                 )
-                _update_run_registry_index_artifacts(run_id, [digest_path, digest_receipt_path])
+                artifacts_to_index = [digest_path, digest_receipt_path]
+                if job_timeline_artifact_path:
+                    artifacts_to_index.append(job_timeline_artifact_path)
+                _update_run_registry_index_artifacts(run_id, artifacts_to_index)
                 run_summary_path = _write_run_summary_artifact(
                     run_id=run_id,
                     final_status=final_status,
@@ -6286,6 +6753,11 @@ def main() -> int:
                 )
             except Exception as exc:
                 logger.warning("Failed to attach digest pointers to run metadata/summary: %r", exc)
+        elif job_timeline_artifact_path:
+            try:
+                _update_run_registry_index_artifacts(run_id, [job_timeline_artifact_path])
+            except Exception as exc:
+                logger.warning("Failed to index job timeline artifact: %r", exc)
 
         # Best-effort local run index; run artifacts remain source of truth.
         try:

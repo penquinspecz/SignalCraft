@@ -272,6 +272,105 @@ def _digest_payload() -> Dict[str, Any]:
     }
 
 
+def _job_timeline_payload() -> Dict[str, Any]:
+    return {
+        "job_timeline_schema_version": 1,
+        "run_id": _RUN_ID,
+        "candidate_id": _CANDIDATE_ID,
+        "generated_at_utc": _RUN_ID,
+        "source_run_count": 2,
+        "jobs": [
+            {
+                "job_hash": "f" * 64,
+                "provider_id": "openai",
+                "canonical_url": "https://example.com/jobs/1",
+                "observations": [
+                    {
+                        "observation_id": "2026-02-20T12:00:00Z:openai_ranked_jobs.cs.json",
+                        "run_id": "2026-02-20T12:00:00Z",
+                        "observed_at_utc": "2026-02-20T12:00:00Z",
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/jobs/1",
+                        "source_artifact_key": "openai_ranked_jobs.cs.json",
+                        "title": "Security Engineer",
+                        "location": "Remote",
+                        "seniority": "Senior",
+                        "seniority_tokens": ["senior"],
+                        "skills": ["python", "security"],
+                        "compensation": {
+                            "min": 180000.0,
+                            "max": 220000.0,
+                            "currency": "USD",
+                            "period": "yearly",
+                        },
+                    },
+                    {
+                        "observation_id": "2026-02-21T12:00:00Z:openai_ranked_jobs.cs.json",
+                        "run_id": _RUN_ID,
+                        "observed_at_utc": _RUN_ID,
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/jobs/1",
+                        "source_artifact_key": "openai_ranked_jobs.cs.json",
+                        "title": "Staff Security Engineer",
+                        "location": "Remote (US)",
+                        "seniority": "Staff",
+                        "seniority_tokens": ["staff"],
+                        "skills": ["python", "security", "threat modeling"],
+                        "compensation": {
+                            "min": 210000.0,
+                            "max": 250000.0,
+                            "currency": "USD",
+                            "period": "yearly",
+                        },
+                    },
+                ],
+                "changes": [
+                    {
+                        "from_observation_id": "2026-02-20T12:00:00Z:openai_ranked_jobs.cs.json",
+                        "to_observation_id": "2026-02-21T12:00:00Z:openai_ranked_jobs.cs.json",
+                        "changed_fields": [
+                            "compensation",
+                            "location",
+                            "seniority",
+                            "seniority_tokens",
+                            "skills",
+                            "title",
+                        ],
+                        "field_diffs": {
+                            "string_fields": {
+                                "location": {"from": "Remote", "to": "Remote (US)"},
+                                "seniority": {"from": "Senior", "to": "Staff"},
+                                "title": {"from": "Security Engineer", "to": "Staff Security Engineer"},
+                            },
+                            "set_fields": {
+                                "seniority_tokens": {"added": ["staff"], "removed": ["senior"]},
+                                "skills": {"added": ["threat modeling"], "removed": []},
+                            },
+                            "numeric_range_fields": {
+                                "compensation": {
+                                    "from": {
+                                        "min": 180000.0,
+                                        "max": 220000.0,
+                                        "currency": "USD",
+                                        "period": "yearly",
+                                    },
+                                    "to": {
+                                        "min": 210000.0,
+                                        "max": 250000.0,
+                                        "currency": "USD",
+                                        "period": "yearly",
+                                    },
+                                }
+                            },
+                        },
+                        "change_hash": "a" * 64,
+                    }
+                ],
+            }
+        ],
+    }
+
+
 def _ai_insights_payload() -> Dict[str, Any]:
     return {
         "schema_version": "ai_insights_output.v1",
@@ -472,6 +571,7 @@ def artifact_cases() -> Dict[str, Dict[str, Any]]:
         "run_summary.v1.json": _run_summary_payload,
         "provider_availability_v1.json": _provider_availability_payload,
         "explanation_v1.json": _explanation_payload,
+        "job_timeline_v1.json": _job_timeline_payload,
         "ai_insights.cs.json": _ai_insights_payload,
         "ai_job_briefs.cs.json": _ai_job_briefs_payload,
         "ai_job_briefs.cs.error.json": _ai_job_briefs_error_payload,

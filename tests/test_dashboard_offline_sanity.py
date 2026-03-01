@@ -9,11 +9,11 @@ def test_dashboard_offline_sanity_run_checks_passes() -> None:
     summary = dashboard_offline_sanity.run_checks()
 
     assert summary["status"] == "ok"
-    assert summary["artifacts_checked"] == 7
-    assert summary["category_checks_passed"] == 7
-    assert summary["artifact_model_checks_passed"] == 7
-    assert summary["schema_checks_passed"] == 7
-    assert summary["forbidden_field_checks_passed"] == 7
+    assert summary["artifacts_checked"] == 8
+    assert summary["category_checks_passed"] == 8
+    assert summary["artifact_model_checks_passed"] == 8
+    assert summary["schema_checks_passed"] == 8
+    assert summary["forbidden_field_checks_passed"] == 8
     assert summary["errors"] == []
 
 
@@ -24,5 +24,5 @@ def test_dashboard_offline_sanity_json_output_is_stable(capsys) -> None:
     assert exit_code == 0
     payload = json.loads(captured.out)
     assert payload["status"] == "ok"
-    assert payload["artifacts_checked"] == 7
+    assert payload["artifacts_checked"] == 8
     assert payload["errors"] == []

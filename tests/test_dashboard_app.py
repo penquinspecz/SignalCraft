@@ -1235,6 +1235,168 @@ def test_dashboard_v1_ui_latest_aggregate_payload_and_redaction(tmp_path: Path, 
     assert forbidden == []
 
 
+def test_dashboard_v1_job_timeline_endpoint(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-23T00:00:00Z"
+    job_hash = "a" * 64
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+    timeline_payload = {
+        "job_timeline_schema_version": 1,
+        "run_id": run_id,
+        "candidate_id": "local",
+        "generated_at_utc": run_id,
+        "source_run_count": 2,
+        "jobs": [
+            {
+                "job_hash": job_hash,
+                "provider_id": "openai",
+                "canonical_url": "https://example.com/jobs/j1",
+                "observations": [
+                    {
+                        "observation_id": "2026-01-22T00:00:00Z:openai_ranked_jobs.cs.json",
+                        "run_id": "2026-01-22T00:00:00Z",
+                        "observed_at_utc": "2026-01-22T00:00:00Z",
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/jobs/j1",
+                        "source_artifact_key": "openai_ranked_jobs.cs.json",
+                        "title": "Backend Engineer",
+                        "location": "Remote",
+                        "seniority": "Senior",
+                        "seniority_tokens": ["senior"],
+                        "skills": ["python"],
+                        "compensation": {"min": 180000.0, "max": 220000.0, "currency": "USD", "period": "yearly"},
+                    },
+                    {
+                        "observation_id": "2026-01-23T00:00:00Z:openai_ranked_jobs.cs.json",
+                        "run_id": run_id,
+                        "observed_at_utc": run_id,
+                        "provider_id": "openai",
+                        "canonical_url": "https://example.com/jobs/j1",
+                        "source_artifact_key": "openai_ranked_jobs.cs.json",
+                        "title": "Staff Backend Engineer",
+                        "location": "Remote (US)",
+                        "seniority": "Staff",
+                        "seniority_tokens": ["staff"],
+                        "skills": ["python", "distributed systems"],
+                        "compensation": {"min": 210000.0, "max": 250000.0, "currency": "USD", "period": "yearly"},
+                    },
+                ],
+                "changes": [
+                    {
+                        "from_observation_id": "2026-01-22T00:00:00Z:openai_ranked_jobs.cs.json",
+                        "to_observation_id": "2026-01-23T00:00:00Z:openai_ranked_jobs.cs.json",
+                        "changed_fields": ["title"],
+                        "field_diffs": {
+                            "string_fields": {
+                                "title": {"from": "Backend Engineer", "to": "Staff Backend Engineer"},
+                            },
+                            "set_fields": {},
+                            "numeric_range_fields": {},
+                        },
+                        "change_hash": "b" * 64,
+                    }
+                ],
+            }
+        ],
+    }
+    (artifacts_dir / "job_timeline_v1.json").write_text(json.dumps(timeline_payload), encoding="utf-8")
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "status": "success",
+                "artifacts": {
+                    "job_timeline_v1.json": "artifacts/job_timeline_v1.json",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    resp = client.get(f"/v1/jobs/{job_hash}/timeline?candidate_id=local")
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["run_id"] == run_id
+    assert payload["job_hash"] == job_hash
+    assert payload["timeline"]["job_hash"] == job_hash
+    forbidden = _find_forbidden_keys(payload)
+    assert forbidden == []
+
+
+def test_dashboard_v1_job_timeline_not_found(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
+
+    import importlib
+
+    import ji_engine.config as config
+    import ji_engine.dashboard.app as dashboard
+
+    importlib.reload(config)
+    dashboard = importlib.reload(dashboard)
+
+    run_id = "2026-01-23T00:00:00Z"
+    run_dir = config.RUN_METADATA_DIR / _sanitize(run_id)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir = run_dir / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "job_timeline_v1.json").write_text(
+        json.dumps(
+            {
+                "job_timeline_schema_version": 1,
+                "run_id": run_id,
+                "candidate_id": "local",
+                "generated_at_utc": run_id,
+                "source_run_count": 1,
+                "jobs": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "index.json").write_text(
+        json.dumps(
+            {
+                "run_id": run_id,
+                "timestamp": run_id,
+                "artifacts": {"job_timeline_v1.json": "artifacts/job_timeline_v1.json"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "state" / "candidates" / "local" / "system_state").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "state" / "candidates" / "local" / "system_state" / "last_success.json").write_text(
+        json.dumps({"run_id": run_id, "timestamp": run_id}),
+        encoding="utf-8",
+    )
+
+    client = TestClient(dashboard.app)
+    missing = client.get(f"/v1/jobs/{'c' * 64}/timeline?candidate_id=local")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Job timeline not found"
+    invalid = client.get("/v1/jobs/not-a-hash/timeline?candidate_id=local")
+    assert invalid.status_code == 400
+    assert invalid.json()["detail"] == "Invalid job_hash"
+
+
 def test_dashboard_v1_ui_latest_bounded_reads_return_413(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("JOBINTEL_STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("JOBINTEL_DASHBOARD_MAX_JSON_BYTES", "64")

@@ -24,6 +24,7 @@ def test_ui_safe_catalog_contract_is_deterministic() -> None:
     assert exact_keys == [
         "digest_v1.json",
         "explanation_v1.json",
+        "job_timeline_v1.json",
         "provider_availability_v1.json",
         "run_summary.v1.json",
     ]
@@ -60,6 +61,7 @@ def test_run_artifact_path_helpers_cover_canonical_ui_safe_run_artifacts() -> No
         "explanation_v1.json": artifact_paths.explanation_path(run_dir).as_posix(),
         "digest_v1.json": artifact_paths.digest_path(run_dir).as_posix(),
         "digest_receipt_v1.json": artifact_paths.digest_receipt_path(run_dir).as_posix(),
+        "job_timeline_v1.json": artifact_paths.job_timeline_path(run_dir).as_posix(),
         "ai_insights.cs.json": artifact_paths.ai_insights_path(run_dir, "cs").as_posix(),
         "ai_job_briefs.cs.json": artifact_paths.ai_job_briefs_path(run_dir, "cs").as_posix(),
         "ai_job_briefs.cs.error.json": artifact_paths.ai_job_briefs_error_path(run_dir, "cs").as_posix(),
@@ -70,6 +72,7 @@ def test_run_artifact_path_helpers_cover_canonical_ui_safe_run_artifacts() -> No
     assert helper_paths["explanation_v1.json"].endswith("/artifacts/explanation_v1.json")
     assert helper_paths["digest_v1.json"].endswith("/artifacts/digest_v1.json")
     assert helper_paths["digest_receipt_v1.json"].endswith("/artifacts/digest_receipt_v1.json")
+    assert helper_paths["job_timeline_v1.json"].endswith("/artifacts/job_timeline_v1.json")
     assert helper_paths["ai_insights.cs.json"].endswith("/artifacts/ai_insights.cs.json")
     assert helper_paths["ai_job_briefs.cs.json"].endswith("/artifacts/ai_job_briefs.cs.json")
     assert helper_paths["ai_job_briefs.cs.error.json"].endswith("/artifacts/ai_job_briefs.cs.error.json")

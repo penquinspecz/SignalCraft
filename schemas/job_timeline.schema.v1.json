@@ -1,0 +1,313 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "job timeline schema v1",
+  "type": "object",
+  "required": [
+    "job_timeline_schema_version",
+    "run_id",
+    "candidate_id",
+    "generated_at_utc",
+    "source_run_count",
+    "jobs"
+  ],
+  "properties": {
+    "job_timeline_schema_version": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "generated_at_utc": {
+      "type": "string"
+    },
+    "source_run_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/job_timeline"
+      }
+    }
+  },
+  "$defs": {
+    "compensation": {
+      "type": "object",
+      "required": [
+        "min",
+        "max",
+        "currency",
+        "period"
+      ],
+      "properties": {
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "currency": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "period": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "string_diff": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "set_diff": {
+      "type": "object",
+      "required": [
+        "added",
+        "removed"
+      ],
+      "properties": {
+        "added": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "removed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "numeric_range_diff": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/compensation"
+        },
+        "to": {
+          "$ref": "#/$defs/compensation"
+        }
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": [
+        "observation_id",
+        "run_id",
+        "observed_at_utc",
+        "provider_id",
+        "canonical_url",
+        "source_artifact_key",
+        "title",
+        "location",
+        "seniority",
+        "seniority_tokens",
+        "skills",
+        "compensation"
+      ],
+      "properties": {
+        "observation_id": {
+          "type": "string"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "observed_at_utc": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canonical_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_artifact_key": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seniority": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "seniority_tokens": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "compensation": {
+          "$ref": "#/$defs/compensation"
+        }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "required": [
+        "from_observation_id",
+        "to_observation_id",
+        "changed_fields",
+        "field_diffs",
+        "change_hash"
+      ],
+      "properties": {
+        "from_observation_id": {
+          "type": "string"
+        },
+        "to_observation_id": {
+          "type": "string"
+        },
+        "changed_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "field_diffs": {
+          "type": "object",
+          "required": [
+            "string_fields",
+            "set_fields",
+            "numeric_range_fields"
+          ],
+          "properties": {
+            "string_fields": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/string_diff"
+              }
+            },
+            "set_fields": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/set_diff"
+              }
+            },
+            "numeric_range_fields": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/numeric_range_diff"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "change_hash": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "job_timeline": {
+      "type": "object",
+      "required": [
+        "job_hash",
+        "provider_id",
+        "canonical_url",
+        "observations",
+        "changes"
+      ],
+      "properties": {
+        "job_hash": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "canonical_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          }
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/change"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

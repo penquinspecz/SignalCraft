@@ -51,6 +51,7 @@ RUN_REPOSITORY: RunRepository = FileSystemRunRepository(RUN_METADATA_DIR)
 
 
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.:+-]{1,128}$")
+_JOB_HASH_RE = re.compile(r"^[a-f0-9]{64}$")
 _DEFAULT_MAX_JSON_BYTES = 2 * 1024 * 1024
 _UI_V0_HTML = Path(__file__).with_name("static") / "ui_v0.html"
 
@@ -193,6 +194,15 @@ def _sanitize_run_id(run_id: str) -> str:
     if not _RUN_ID_RE.fullmatch(raw):
         raise HTTPException(status_code=400, detail="Invalid run_id")
     return raw.replace(":", "").replace("-", "").replace(".", "")
+
+
+def _sanitize_job_hash(job_hash: str) -> str:
+    if not isinstance(job_hash, str):
+        raise HTTPException(status_code=400, detail="Invalid job_hash")
+    normalized = job_hash.strip().lower()
+    if not _JOB_HASH_RE.fullmatch(normalized):
+        raise HTTPException(status_code=400, detail="Invalid job_hash")
+    return normalized
 
 
 def _ensure_ui_safe(obj: object, context: str = "") -> None:
@@ -754,6 +764,51 @@ def ui_latest(candidate_id: str = DEFAULT_CANDIDATE_ID, top_n: int = 10) -> Dict
         "run_health": run_health if isinstance(run_health, dict) else None,
     }
     _ensure_ui_safe(response, context="ui_latest")
+    return response
+
+
+@app.get("/v1/jobs/{job_hash}/timeline")
+def job_timeline(job_hash: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
+    safe_job_hash = _sanitize_job_hash(job_hash)
+    safe_candidate = _sanitize_candidate_id(candidate_id)
+    latest_payload = latest(candidate_id=safe_candidate)
+    pointer = latest_payload.get("payload")
+    if not isinstance(pointer, dict):
+        raise HTTPException(status_code=500, detail="Latest payload has invalid shape")
+    run_id = pointer.get("run_id")
+    if not isinstance(run_id, str) or not run_id.strip():
+        raise HTTPException(status_code=404, detail="Latest run_id not found")
+
+    index = _load_index(run_id, safe_candidate)
+    timeline_payload = _read_artifact_json_value(
+        run_id,
+        safe_candidate,
+        index,
+        "job_timeline_v1.json",
+        required=True,
+    )
+    if not isinstance(timeline_payload, dict):
+        raise HTTPException(status_code=500, detail="job_timeline_v1.json invalid shape")
+    jobs = timeline_payload.get("jobs")
+    if not isinstance(jobs, list):
+        raise HTTPException(status_code=500, detail="job_timeline_v1.json invalid shape")
+    matched: Optional[Dict[str, Any]] = None
+    for item in jobs:
+        if not isinstance(item, dict):
+            continue
+        candidate_hash = item.get("job_hash")
+        if isinstance(candidate_hash, str) and candidate_hash.lower() == safe_job_hash:
+            matched = item
+            break
+    if matched is None:
+        raise HTTPException(status_code=404, detail="Job timeline not found")
+    response = {
+        "candidate_id": safe_candidate,
+        "run_id": run_id,
+        "job_hash": safe_job_hash,
+        "timeline": matched,
+    }
+    _ensure_ui_safe(response, context="job_timeline")
     return response
 
 
