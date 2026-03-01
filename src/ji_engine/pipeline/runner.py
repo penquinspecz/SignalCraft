@@ -114,7 +114,7 @@ from ji_engine.providers.registry import (
     provider_registry_provenance,
     provider_tombstone_provenance,
 )
-from ji_engine.providers.retry import evaluate_allowlist_policy
+from ji_engine.providers.retry import evaluate_allowlist_policy, reset_politeness_state
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from ji_engine.scoring import (
@@ -5434,6 +5434,7 @@ def _resolve_run_id() -> str:
 
 def main() -> int:
     ensure_dirs()
+    reset_politeness_state()  # Phase2-C9: clear stale circuit breaker/rate-limit state
     ap = argparse.ArgumentParser(description="Run the SignalCraft daily pipeline (JIE engine).")
 
     ap.add_argument("--profile", default="cs", help="Scoring profile name (cs|tam|se)")
