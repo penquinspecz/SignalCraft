@@ -25,18 +25,22 @@ Add deterministic automation that applies governance labels on PR metadata/conte
 - otherwise -> `type:chore`
 
 3. Area (at least one)
-- `docs/**` or README -> `area:docs`
+- docs-only (`docs/**` or README paths only) -> `area:docs`
 - `src/ji_engine/**` or `src/jobintel/**` -> `area:engine`
 - `src/ji_engine/providers/**` -> `area:providers`
 - `scripts/ops/**` or `ops/**` -> `area:dr`
 - `ops/aws/**` or `ops/k8s/**` -> `area:infra`
+- `.github/**`, `scripts/dev/**`, `scripts/**` (non-ops), `scripts/release/**`, `scripts/security_*`, `Makefile` -> `area:infra`
 - fallback -> `area:unknown`
 
 ## Proof Cases
 - Open PR: workflow runs on `opened` and applies missing `from-*`, `type:*`, and inferred `area:*` labels.
 - Edit title: workflow runs on `edited`; selected `type:*` label is recomputed and conflicting `type:*` labels are replaced.
 - Push commits: workflow runs on `synchronize`; inferred `area:*` labels are recomputed and ensured present while provenance/type remain normalized.
+- `.github/workflows/*`-only PR resolves to `area:infra` (not `area:unknown`) with one provenance and one type label.
+- PR without milestone: workflow defaults milestone to `Backlog Cleanup` when present; otherwise `Infra & Tooling` when present.
 
 ## Notes
-- Milestones are intentionally not auto-set by this workflow.
+- Existing milestone is never overridden by the auto-apply workflow.
+- If neither default bucket milestone exists, milestone remains unset and strict `pr-governance` enforcement still fails closed.
 - Required governance labels are auto-created if missing, with stable color/description values.

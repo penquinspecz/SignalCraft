@@ -77,11 +77,19 @@ jobs:
             }
 
             function isDrPath(path) {
+              if (path.startsWith("ops/aws/") || path.startsWith("ops/k8s/")) return false;
               return path.startsWith("scripts/ops/") || path.startsWith("ops/");
             }
 
             function isInfraPath(path) {
-              return path.startsWith("ops/aws/") || path.startsWith("ops/k8s/");
+              if (path === "Makefile") return true;
+              if (path.startsWith(".github/")) return true;
+              if (path.startsWith("ops/aws/") || path.startsWith("ops/k8s/")) return true;
+              if (path.startsWith("scripts/dev/")) return true;
+              if (path.startsWith("scripts/release/")) return true;
+              if (path.startsWith("scripts/security_")) return true;
+              if (path.startsWith("scripts/") && !path.startsWith("scripts/ops/")) return true;
+              return false;
             }
 
             function chooseProvenance(headRef) {
@@ -101,18 +109,29 @@ jobs:
 
             function inferAreas(changedPaths) {
               const inferred = new Set();
-              if (changedPaths.some((path) => isDocsPath(path))) inferred.add("area:docs");
+              const docsOnly = changedPaths.length > 0 && changedPaths.every((path) => isDocsPath(path));
+              if (docsOnly) inferred.add("area:docs");
               if (changedPaths.some((path) => isEnginePath(path))) inferred.add("area:engine");
               if (changedPaths.some((path) => isProvidersPath(path))) inferred.add("area:providers");
               if (changedPaths.some((path) => isDrPath(path))) inferred.add("area:dr");
               if (changedPaths.some((path) => isInfraPath(path))) inferred.add("area:infra");
               if (inferred.size === 0) inferred.add("area:unknown");
-
-              // Keep inferred areas aligned with governance semantics.
-              const nonDocs = [...inferred].filter((label) => !["area:docs", "area:unknown"].includes(label));
-              if (inferred.has("area:docs") && nonDocs.length > 0) inferred.delete("area:docs");
-              if (inferred.has("area:unknown") && inferred.size > 1) inferred.delete("area:unknown");
               return inferred;
+            }
+
+            function normalizeAreas(areas) {
+              const normalized = new Set(areas);
+              const specificNonDocs = [...normalized].filter(
+                (label) => label !== "area:docs" && label !== "area:unknown"
+              );
+              if (specificNonDocs.length > 0) {
+                normalized.delete("area:docs");
+                normalized.delete("area:unknown");
+              } else if (normalized.has("area:docs")) {
+                normalized.delete("area:unknown");
+              }
+              if (normalized.size === 0) normalized.add("area:unknown");
+              return normalized;
             }
 
             function sortAreas(areas) {
@@ -160,6 +179,35 @@ jobs:
               }
             }
 
+            async function maybeApplyDefaultMilestone(prData) {
+              if (prData.milestone && prData.milestone.title) {
+                core.info(`Milestone already set on PR #${pull_number}: ${prData.milestone.title}`);
+                return;
+              }
+              const milestones = await github.paginate(github.rest.issues.listMilestones, {
+                owner,
+                repo,
+                state: "open",
+                per_page: 100,
+              });
+              const byTitle = new Map(milestones.map((m) => [m.title, m]));
+              let chosen = byTitle.get("Backlog Cleanup");
+              if (!chosen) {
+                chosen = byTitle.get("Infra & Tooling");
+              }
+              if (!chosen) {
+                core.info("No default milestone candidate found (Backlog Cleanup, Infra & Tooling); leaving unset.");
+                return;
+              }
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number,
+                milestone: chosen.number,
+              });
+              core.info(`Applied default milestone '${chosen.title}' to PR #${pull_number}`);
+            }
+
             const { data: pr } = await github.rest.pulls.get({
               owner,
               repo,
@@ -183,6 +231,7 @@ jobs:
             const inferredAreas = inferAreas(changedPaths);
 
             await ensureRequiredLabelsExist();
+            await maybeApplyDefaultMilestone(pr);
 
             const { data: currentLabelsData } = await github.rest.issues.listLabelsOnIssue({
               owner,
@@ -197,9 +246,7 @@ jobs:
             for (const label of inferredAreas) {
               mergedAreas.add(label);
             }
-            if (mergedAreas.size === 0) {
-              mergedAreas.add("area:unknown");
-            }
+            const normalizedAreas = normalizeAreas(mergedAreas);
 
             const preserved = currentLabels.filter(
               (label) => !PROVENANCE.includes(label) && !label.startsWith("type:") && !label.startsWith("area:")
@@ -209,7 +256,7 @@ jobs:
               ...preserved.sort((a, b) => a.localeCompare(b)),
               chosenProvenance,
               chosenType,
-              ...sortAreas(mergedAreas),
+              ...sortAreas(normalizedAreas),
             ]);
 
             const currentSet = new Set(currentLabels);
@@ -237,5 +284,5 @@ jobs:
             }
 
             core.info(
-              `Resolved labels: provenance=${chosenProvenance}, type=${chosenType}, inferred_areas=${sortAreas(inferredAreas).join(", ")}`
+              `Resolved labels: provenance=${chosenProvenance}, type=${chosenType}, inferred_areas=${sortAreas(inferredAreas).join(", ")}, normalized_areas=${sortAreas(normalizedAreas).join(", ")}`
             );
