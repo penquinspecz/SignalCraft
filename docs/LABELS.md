@@ -64,3 +64,25 @@ The `.github/workflows/labeler.yml` workflow adds `area:*` labels based on chang
 - `area:docs` is auto-applied only when all changed files are in `docs/**` (docs-only PRs).
 - For mixed-domain PRs, automation removes `area:docs` when another specific area exists.
 - If no specific `area:*` can be inferred, automation applies `area:unknown` as fallback.
+
+## Programmatic Application
+
+Use `scripts/dev/apply_pr_governance.py` to apply milestone + governance labels via GitHub API through `gh` CLI.
+
+Examples:
+
+```bash
+python scripts/dev/apply_pr_governance.py --apply-defaults-for-hardening-epoch
+```
+
+```bash
+python scripts/dev/apply_pr_governance.py \
+  --pr 252 --milestone "M22" --provenance from-codex --type "type:fix" --area "area:engine" \
+  --pr 253 --milestone "M22" --provenance from-codex --type "type:fix" --area "area:dr" \
+  --pr 254 --milestone "M22" --provenance from-codex --type "type:fix" --area "area:engine" \
+  --pr 255 --milestone "Docs & Governance" --provenance from-codex --type "type:docs" --area "area:docs"
+```
+
+```bash
+python scripts/dev/apply_pr_governance.py --verify-only --pr 252 --pr 253 --pr 254 --pr 255
+```

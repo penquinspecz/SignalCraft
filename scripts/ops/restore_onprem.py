@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import boto3
@@ -63,6 +63,48 @@ def _decrypt_file(src: Path, dst: Path, *, passphrase: str) -> None:
         ],
         env=env,
     )
+
+
+def _sanitize_mode(mode: int, *, is_dir: bool) -> int:
+    sanitized = mode & 0o777
+    if sanitized:
+        return sanitized
+    return 0o755 if is_dir else 0o644
+
+
+def _safe_extract_tar(tf: tarfile.TarFile, dest: Path) -> None:
+    dest_resolved = dest.resolve()
+    for member in tf.getmembers():
+        member_name = str(member.name or "")
+        posix_path = PurePosixPath(member_name)
+        if posix_path.is_absolute():
+            raise RuntimeError(f"unsafe tar member path: {member_name}")
+
+        parts = [part for part in posix_path.parts if part not in ("", ".")]
+        if not parts or any(part == ".." for part in parts):
+            raise RuntimeError(f"unsafe tar member path: {member_name}")
+
+        target = (dest_resolved / Path(*parts)).resolve()
+        try:
+            target.relative_to(dest_resolved)
+        except ValueError as exc:
+            raise RuntimeError(f"unsafe tar member path: {member_name}") from exc
+
+        if member.isdir():
+            target.mkdir(parents=True, exist_ok=True)
+            os.chmod(target, _sanitize_mode(member.mode, is_dir=True))
+            continue
+
+        if not member.isfile():
+            raise RuntimeError(f"unsafe tar member type: {member_name}")
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        src = tf.extractfile(member)
+        if src is None:
+            raise RuntimeError(f"failed to read tar member: {member_name}")
+        with src, target.open("wb") as out:
+            shutil.copyfileobj(src, out)
+        os.chmod(target, _sanitize_mode(member.mode, is_dir=False))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -139,11 +181,11 @@ def main(argv: list[str] | None = None) -> int:
             db_target_dir = restore_dir / "db_export"
             db_target_dir.mkdir(parents=True, exist_ok=True)
             with tarfile.open(db_plain, "r:gz") as tf:
-                tf.extractall(path=db_target_dir)
+                _safe_extract_tar(tf, db_target_dir)
             verify_lines.append(f"db alternative restored: {db_target_dir}")
 
         with tarfile.open(artifacts_plain, "r:gz") as tf:
-            tf.extractall(path=restore_dir)
+            _safe_extract_tar(tf, restore_dir)
 
         state_ok = (restore_dir / "state").exists()
         proof_ok = (restore_dir / "ops" / "proof").exists()
