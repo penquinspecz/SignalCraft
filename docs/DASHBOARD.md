@@ -41,3 +41,29 @@ This failure is intentional and deterministic.
 
 - CI fast job runs `make dashboard-sanity` only.
 - CI does not install dashboard extras dynamically.
+
+## Authentication
+
+Dashboard authentication is disabled by default (localhost-only access).
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DASHBOARD_HOST` | `127.0.0.1` | Bind address. Set to `0.0.0.0` for non-local access. |
+| `DASHBOARD_PORT` | `8080` | Listen port. |
+| `DASHBOARD_AUTH_ENABLED` | `false` | Enable bearer token authentication. |
+| `DASHBOARD_AUTH_TOKEN` | (none) | Required when auth is enabled. |
+
+### Production Deployment
+
+When deploying outside localhost, enable authentication:
+
+```bash
+DASHBOARD_HOST=0.0.0.0
+DASHBOARD_AUTH_ENABLED=true
+DASHBOARD_AUTH_TOKEN=<secure-random-token>
+```
+
+Health and version endpoints (`/health`, `/healthz`, `/version`, `/v1/version`) are always
+accessible without authentication.

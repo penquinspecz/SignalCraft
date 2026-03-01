@@ -26,12 +26,12 @@ spec:
           command:
             - python
             - -m
-            - uvicorn
-            - ji_engine.dashboard.app:app
-            - --host
-            - 0.0.0.0
-            - --port
-            - "8080"
+            - ji_engine.dashboard.app
+          env:
+            - name: DASHBOARD_HOST
+              value: "0.0.0.0"
+            - name: DASHBOARD_PORT
+              value: "8080"
           envFrom:
             - configMapRef:
                 name: jobintel-config
