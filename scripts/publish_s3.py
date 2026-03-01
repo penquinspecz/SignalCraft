@@ -11,7 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import boto3
 from botocore.exceptions import ClientError
 
-from ji_engine.config import DATA_DIR, DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, sanitize_candidate_id
+from ji_engine.config import DATA_DIR, DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, STATE_DIR, sanitize_candidate_id
 from ji_engine.pipeline.run_pathing import sanitize_run_id
 from jobintel.aws_runs import build_state_payload, write_last_success_state, write_provider_last_success_state
 
@@ -57,6 +57,15 @@ class UploadItem:
 def _fail_validation(message: str) -> None:
     logger.error(message)
     raise SystemExit(2)
+
+
+def _is_within(path: Path, root: Path) -> bool:
+    """Check if resolved path is within root directory."""
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 _sanitize_run_id = sanitize_run_id
@@ -208,6 +217,14 @@ def _build_upload_plan(
         path = Path(path_str)
         if not path.is_absolute():
             path = DATA_DIR / path
+        resolved = path.resolve()
+        allowed_roots = [DATA_DIR.resolve(), STATE_DIR.resolve()]
+        if not any(_is_within(resolved, root) for root in allowed_roots):
+            _fail_validation(
+                f"Artifact path {path_str!r} resolves to {resolved} which is "
+                f"outside allowed roots: {[str(root) for root in allowed_roots]}"
+            )
+        path = resolved
         if not path.exists():
             msg = f"verifiable artifact missing on disk: {path}"
             if allow_missing:
@@ -406,6 +423,11 @@ def publish_run(
         }
 
     run_dir = run_dir or _run_dir(run_id, safe_candidate_id)
+    resolved_run_dir = Path(run_dir).resolve()
+    allowed_roots = [STATE_DIR.resolve(), RUN_METADATA_DIR.parent.resolve()]
+    if not any(_is_within(resolved_run_dir, root) for root in allowed_roots):
+        _fail_validation(f"run_dir {run_dir} resolves outside STATE_DIR {STATE_DIR}")
+    run_dir = resolved_run_dir
     report = _load_run_report(run_dir)
     report_run_id = report.get("run_id")
     if report_run_id and report_run_id != run_id:
