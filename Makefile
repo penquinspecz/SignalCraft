@@ -1,7 +1,5 @@
 .PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks merge-train provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
-.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks merge-train milestones-sync pr-governance-apply provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
-.PHONY: milestones-rehome-dry milestones-rehome-apply milestones-rehome-verify
-
+.PHONY: test lint format-check gates gate gate-fast gate-truth gate-ci ci-fast docker-build docker-run-local report snapshot snapshot-openai smoke image smoke-fast smoke-ci image-ci ci ci-local docker-ok daily debug-snapshots explain-smoke dashboard dashboard-sanity weekly publish-last aws-env-check aws-deploy aws-smoke aws-first-run aws-schedule-status aws-oneoff-run aws-bootstrap aws-bootstrap-help aws-s3-hardening deps deps-sync deps-check snapshot-guard verify-snapshots install-hooks replay gate-replay verify-publish verify-publish-live cronjob-smoke k8s-render k8s-validate k8s-commands k8s-run-once preflight eks-proof-run-help proof-run-vars tf-eks-apply-vars eks-proof-run aws-discover-subnets dr-plan dr-apply dr-validate dr-destroy dr-restore-check dr-validate-image-ref dr-drill release-build-ecr release-verify-image-arch tofu-eks-vars tofu-eks-guardrails tofu-eks-plan ops-eks-plan doctor onprem-rehearsal m21-stability-harness gh-checks merge-train milestones-sync milestones-rehome-dry milestones-rehome-apply milestones-rehome-verify milestones-rehome-issues-dry milestones-rehome-issues-apply milestones-rehome-issues-verify labels-cleanup-dry labels-cleanup-apply milestones-cleanup-dry milestones-cleanup-apply branches-cleanup-dry branches-cleanup-apply pr-governance-apply provider-template provider-scaffold provider-manifest-update provider-validate provider-enable provider-append changelog-policy release-policy
 # Prefer repo venv if present; fall back to system python3.
 PY ?= .venv/bin/python
 DEPS_PY ?= .venv/bin/python
@@ -104,13 +102,40 @@ milestones-sync:
 	$(PY) scripts/dev/sync_github_milestones.py
 
 milestones-rehome-dry:
-	$(PY) scripts/dev/rehoming_milestones.py --dry-run
+	$(PY) scripts/dev/rehoming_milestones.py --dry-run $(ARGS)
 
 milestones-rehome-apply:
-	$(PY) scripts/dev/rehoming_milestones.py --apply
+	$(PY) scripts/dev/rehoming_milestones.py --apply $(ARGS)
 
 milestones-rehome-verify:
-	$(PY) scripts/dev/rehoming_milestones.py --verify
+	$(PY) scripts/dev/rehoming_milestones.py --verify $(ARGS)
+
+milestones-rehome-issues-dry:
+	$(PY) scripts/dev/rehoming_milestones.py --rehome-issues --dry-run $(ARGS)
+
+milestones-rehome-issues-apply:
+	$(PY) scripts/dev/rehoming_milestones.py --rehome-issues --apply $(ARGS)
+
+milestones-rehome-issues-verify:
+	$(PY) scripts/dev/rehoming_milestones.py --rehome-issues --verify $(ARGS)
+
+labels-cleanup-dry:
+	$(PY) scripts/dev/cleanup_labels.py $(ARGS)
+
+labels-cleanup-apply:
+	$(PY) scripts/dev/cleanup_labels.py --apply $(ARGS)
+
+milestones-cleanup-dry:
+	$(PY) scripts/dev/cleanup_milestones.py $(ARGS)
+
+milestones-cleanup-apply:
+	$(PY) scripts/dev/cleanup_milestones.py --apply $(ARGS)
+
+branches-cleanup-dry:
+	$(PY) scripts/dev/cleanup_branches.py $(ARGS)
+
+branches-cleanup-apply:
+	$(PY) scripts/dev/cleanup_branches.py --apply $(ARGS)
 
 pr-governance-apply:
 	$(PY) scripts/dev/apply_pr_governance.py $(ARGS)
