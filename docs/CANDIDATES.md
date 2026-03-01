@@ -27,7 +27,10 @@ SignalCraft now includes a file-backed candidate registry scaffold for Milestone
 ```bash
 python scripts/candidates.py list --json
 python scripts/candidates.py add <candidate_id> --display-name "Candidate Name" --json
+python scripts/candidates.py create <candidate_id> --display-name "Candidate Name" --json
 python scripts/candidates.py bootstrap <candidate_id> --display-name "Candidate Name" --json
+python scripts/candidates.py switch <candidate_id> --json
+python scripts/candidates.py update <candidate_id> --seniority senior --role-archetype "staff_ic" --location remote --skills "python,leadership" --json
 python scripts/candidates.py doctor <candidate_id> --json
 python scripts/candidates.py validate --json
 python scripts/candidates.py ingest-text <candidate_id> --resume-file ./resume.txt --linkedin-file ./linkedin.txt --json
@@ -82,6 +85,19 @@ python scripts/candidates.py --state-dir /tmp/signalcraft_state add alice --disp
 
 - `schemas/candidate_profile.schema.v1.json`
 - `schemas/candidate_registry.schema.v1.json`
+
+## Profile Fields Contract (v1)
+
+- Versioned profile fields live at `profile_fields`:
+  - `schema_version` (currently `1`)
+  - `seniority`
+  - `role_archetype`
+  - `location`
+  - `skills[]`
+- Deterministic profile hash is canonicalized from profile content:
+  - whitespace normalized for scalar fields
+  - `skills`, `target_roles`, and `preferred_locations` deduped + sorted
+  - text input pointers contribute by SHA only (timestamps/paths excluded)
 
 ## Text-Only Ingestion Contract (v0)
 

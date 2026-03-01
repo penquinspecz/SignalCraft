@@ -187,6 +187,91 @@ def _provider_availability_payload() -> Dict[str, Any]:
     }
 
 
+def _digest_payload() -> Dict[str, Any]:
+    return {
+        "digest_schema_version": 1,
+        "run_id": _RUN_ID,
+        "candidate_id": _CANDIDATE_ID,
+        "generated_at_utc": _RUN_ID,
+        "quiet_mode": True,
+        "notify": {
+            "requested": False,
+            "attempted": False,
+            "status": "disabled_quiet_mode",
+        },
+        "source_artifacts": {
+            "run_health": {"path": "run_health.v1.json", "sha256": "a" * 64, "bytes": 100},
+            "provider_availability": {
+                "path": "artifacts/provider_availability_v1.json",
+                "sha256": "b" * 64,
+                "bytes": 120,
+            },
+            "explanation": {"path": "artifacts/explanation_v1.json", "sha256": "c" * 64, "bytes": 220},
+            "costs": {"path": "costs.json", "sha256": "d" * 64, "bytes": 80},
+        },
+        "current_run": {
+            "run_health": {"status": "success", "failed_stage": None, "failure_codes": []},
+            "provider_availability": [
+                {
+                    "provider_id": "mock",
+                    "availability": "unavailable",
+                    "reason_code": "provider_disabled",
+                    "attempts_made": 0,
+                }
+            ],
+            "costs": {
+                "ai_estimated_tokens": 123,
+                "ai_estimated_cost_usd": "0.001230",
+                "embeddings_count": 0,
+            },
+            "top_jobs": [
+                {
+                    "job_hash": "e" * 64,
+                    "rank": 1,
+                    "score_total": 91.0,
+                    "title": "Staff Security Engineer",
+                    "company": "Acme",
+                    "location": "Remote",
+                    "apply_url": "https://example.com/jobs/1",
+                    "provider": "openai",
+                    "profile": "cs",
+                    "notes": ["Role relevance boost applied."],
+                    "top_positive_signals": [{"name": "boost_relevant", "contribution": 5.0}],
+                    "top_negative_signals": [{"name": "penalty_low_level", "contribution": -1.0}],
+                }
+            ],
+        },
+        "cadence": {
+            "daily": {
+                "window_days": 1,
+                "window_start_utc": "2026-02-20T12:00:00Z",
+                "window_end_utc": _RUN_ID,
+                "run_count": 1,
+                "run_ids": [_RUN_ID],
+                "status_counts": {"success": 1},
+                "cost_totals": {
+                    "ai_estimated_tokens": 123,
+                    "ai_estimated_cost_usd": "0.001230",
+                    "embeddings_count": 0,
+                },
+            },
+            "weekly": {
+                "window_days": 7,
+                "window_start_utc": "2026-02-14T12:00:00Z",
+                "window_end_utc": _RUN_ID,
+                "run_count": 1,
+                "run_ids": [_RUN_ID],
+                "status_counts": {"success": 1},
+                "cost_totals": {
+                    "ai_estimated_tokens": 123,
+                    "ai_estimated_cost_usd": "0.001230",
+                    "embeddings_count": 0,
+                },
+            },
+        },
+    }
+
+
 def _ai_insights_payload() -> Dict[str, Any]:
     return {
         "schema_version": "ai_insights_output.v1",
@@ -383,6 +468,7 @@ def _validate_ai_job_briefs_error_payload(payload: Dict[str, Any]) -> List[str]:
 
 def artifact_cases() -> Dict[str, Dict[str, Any]]:
     builders: Dict[str, Callable[[], Dict[str, Any]]] = {
+        "digest_v1.json": _digest_payload,
         "run_summary.v1.json": _run_summary_payload,
         "provider_availability_v1.json": _provider_availability_payload,
         "explanation_v1.json": _explanation_payload,

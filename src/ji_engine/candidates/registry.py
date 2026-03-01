@@ -25,8 +25,11 @@ from ji_engine.utils.time import utc_now_z
 
 CANDIDATE_PROFILE_SCHEMA_VERSION = 1
 CANDIDATE_REGISTRY_SCHEMA_VERSION = 1
+CANDIDATE_PROFILE_FIELDS_SCHEMA_VERSION = 1
+CANDIDATE_ACTIVE_POINTER_SCHEMA_VERSION = 1
 CANDIDATE_PROFILE_FILENAME = "candidate_profile.json"
 CANDIDATE_REGISTRY_FILENAME = "registry.json"
+ACTIVE_CANDIDATE_FILENAME = "active_candidate.json"
 RESUME_SCHEMA_VERSION = 1
 RESUME_HASH_VERSION = "resume_hash.v1"
 RESUME_PARSER_VERSION = "resume_parser.v1"
@@ -36,7 +39,6 @@ PROFILE_TEXT_MAX_BYTES = {
     "summary_text": 40_000,
 }
 RESUME_TEXT_MAX_BYTES = 500_000
-
 RESUME_SKILL_KEYWORDS = (
     "python",
     "java",
@@ -103,6 +105,16 @@ class CandidateConstraints(BaseModel):
     max_commute_minutes: int = Field(default=90, ge=0, le=600)
 
 
+class CandidateProfileFields(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = CANDIDATE_PROFILE_FIELDS_SCHEMA_VERSION
+    seniority: str = "unspecified"
+    role_archetype: str = "unspecified"
+    location: str = "unspecified"
+    skills: List[str] = Field(default_factory=list)
+
+
 class CandidateResumeExperienceSummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -137,6 +149,13 @@ class CandidateResumePointer(BaseModel):
     size_bytes: int = Field(ge=1)
 
 
+class ActiveCandidatePointer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal[1] = CANDIDATE_ACTIVE_POINTER_SCHEMA_VERSION
+    candidate_id: str
+
+
 class CandidateProfile(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -146,6 +165,7 @@ class CandidateProfile(BaseModel):
     target_roles: List[str] = Field(default_factory=list)
     preferred_locations: List[str] = Field(default_factory=list)
     constraints: CandidateConstraints = Field(default_factory=CandidateConstraints)
+    profile_fields: CandidateProfileFields = Field(default_factory=CandidateProfileFields)
     text_inputs: CandidateTextInputs = Field(default_factory=CandidateTextInputs)
     text_input_artifacts: CandidateTextInputArtifacts = Field(default_factory=CandidateTextInputArtifacts)
     resume_structured: Optional[CandidateResumeStructured] = None
@@ -172,6 +192,10 @@ class CandidateValidationError(ValueError):
 
 def candidate_registry_path() -> Path:
     return STATE_DIR / "candidates" / CANDIDATE_REGISTRY_FILENAME
+
+
+def active_candidate_pointer_path() -> Path:
+    return STATE_DIR / "candidates" / ACTIVE_CANDIDATE_FILENAME
 
 
 def _registry_path() -> Path:
@@ -209,153 +233,87 @@ def _canonical_json_bytes(payload: Dict[str, Any]) -> bytes:
     return (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
-def _canonical_text(value: str) -> str:
-    return " ".join(value.replace("\x00", " ").split()).strip()
+def _normalize_text(value: Optional[str], *, max_len: int = 120) -> str:
+    if value is None:
+        return ""
+    text = " ".join(str(value).split()).strip()
+    return text[:max_len]
 
 
-def _extract_text_from_pdf_bytes(raw_bytes: bytes) -> str:
-    # Prefer deterministic parser when pypdf is available; otherwise fallback to lightweight token extraction.
-    try:
-        from pypdf import PdfReader  # type: ignore
-
-        reader = PdfReader(io.BytesIO(raw_bytes))
-        parts: List[str] = []
-        for page in reader.pages:
-            piece = page.extract_text() or ""
-            if piece:
-                parts.append(piece)
-        return "\n".join(parts)
-    except Exception:
-        pass
-
-    latin = raw_bytes.decode("latin-1", errors="ignore")
-    chunks = re.findall(r"\(([^()]*)\)\s*Tj", latin)
-    if not chunks:
-        chunks = re.findall(r"\[(.*?)\]\s*TJ", latin, flags=re.DOTALL)
-    flattened = " ".join(chunk.replace("\\(", "(").replace("\\)", ")") for chunk in chunks)
-    if flattened.strip():
-        return flattened
-    return latin
+def _normalize_tokens(values: List[str], *, max_items: int = 128, max_len: int = 80) -> List[str]:
+    normalized: List[str] = []
+    seen: set[str] = set()
+    for raw in values:
+        text = _normalize_text(raw, max_len=max_len).lower()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        normalized.append(text)
+        if len(normalized) >= max_items:
+            break
+    return sorted(normalized)
 
 
-def _extract_resume_text(path: Path) -> Tuple[str, Literal["pdf", "text"]]:
-    suffix = path.suffix.lower()
-    raw = path.read_bytes()
-    if len(raw) > RESUME_TEXT_MAX_BYTES:
-        raise CandidateValidationError(f"resume file exceeds max bytes ({len(raw)} > {RESUME_TEXT_MAX_BYTES})")
-
-    if suffix == ".pdf":
-        text = _extract_text_from_pdf_bytes(raw)
-        source_format: Literal["pdf", "text"] = "pdf"
-    else:
-        try:
-            text = raw.decode("utf-8")
-        except UnicodeDecodeError:
-            text = raw.decode("latin-1", errors="ignore")
-        source_format = "text"
-    normalized = _canonical_text(text)
-    if not normalized:
-        raise CandidateValidationError("resume extraction produced empty text")
-    return normalized, source_format
-
-
-def _keyword_hits(text_lower: str, keywords: Tuple[str, ...], *, max_items: int = 50) -> List[str]:
-    hits = sorted({keyword for keyword in keywords if keyword in text_lower})
-    return hits[:max_items]
-
-
-def _extract_years_experience(text_lower: str) -> Optional[int]:
-    matches = re.findall(r"\b(\d{1,2})\+?\s+years?\b", text_lower)
-    if not matches:
-        return None
-    values = [int(item) for item in matches]
-    return max(values) if values else None
-
-
-def _extract_seniority_signal(text_lower: str) -> Optional[str]:
-    for label in ("principal", "staff", "senior", "lead", "manager", "mid", "junior"):
-        if label in text_lower:
-            return label
-    return None
-
-
-def _resume_hash(normalized_text: str) -> str:
-    canonical = {
-        "hash_version": RESUME_HASH_VERSION,
-        "parser_version": RESUME_PARSER_VERSION,
-        "normalized_text": normalized_text.lower(),
-    }
-    return hashlib.sha256(_canonical_json_bytes(canonical)).hexdigest()
-
-
-def _build_structured_resume(
-    *,
-    candidate_id: str,
-    normalized_text: str,
-    source_format: Literal["pdf", "text"],
-) -> CandidateResumeStructured:
-    text_lower = normalized_text.lower()
-    return CandidateResumeStructured(
-        resume_schema_version=RESUME_SCHEMA_VERSION,
-        candidate_id=candidate_id,
-        source_format=source_format,
-        hash_version=RESUME_HASH_VERSION,
-        parser_version=RESUME_PARSER_VERSION,
-        resume_hash=_resume_hash(normalized_text),
-        skills=_keyword_hits(text_lower, RESUME_SKILL_KEYWORDS),
-        role_signals=_keyword_hits(text_lower, RESUME_ROLE_KEYWORDS),
-        experience_summary=CandidateResumeExperienceSummary(
-            years_experience_estimate=_extract_years_experience(text_lower),
-            seniority_signal=_extract_seniority_signal(text_lower),
-        ),
-        education_signals=_keyword_hits(text_lower, RESUME_EDUCATION_KEYWORDS),
-        certification_signals=_keyword_hits(text_lower, RESUME_CERTIFICATION_KEYWORDS),
+def _normalized_profile_fields(fields: CandidateProfileFields) -> CandidateProfileFields:
+    return CandidateProfileFields(
+        schema_version=CANDIDATE_PROFILE_FIELDS_SCHEMA_VERSION,
+        seniority=_normalize_text(fields.seniority, max_len=64) or "unspecified",
+        role_archetype=_normalize_text(fields.role_archetype, max_len=64) or "unspecified",
+        location=_normalize_text(fields.location, max_len=120) or "unspecified",
+        skills=_normalize_tokens(fields.skills),
     )
 
 
-def _resume_artifact_path(candidate_id: str, resume_hash: str) -> Path:
-    safe_candidate = sanitize_candidate_id(candidate_id)
-    return _profile_artifacts_dir(safe_candidate) / f"resume_structured_{resume_hash[:16]}.v1.json"
-
-
-def _canonical_profile_payload(profile: CandidateProfile) -> Dict[str, Any]:
-    resume_text_sha = (
-        profile.text_input_artifacts.resume_text.sha256 if profile.text_input_artifacts.resume_text else None
-    )
-    linkedin_text_sha = (
-        profile.text_input_artifacts.linkedin_text.sha256 if profile.text_input_artifacts.linkedin_text else None
-    )
-    summary_text_sha = (
-        profile.text_input_artifacts.summary_text.sha256 if profile.text_input_artifacts.summary_text else None
-    )
+def _canonical_profile_hash_payload(profile: CandidateProfile) -> Dict[str, Any]:
+    """
+    Canonicalization rules for deterministic profile hashing:
+    - trim + collapse whitespace for scalar text fields
+    - lowercase/dedupe/sort skills and legacy role/location arrays
+    - include text input SHA only (exclude timestamp/path metadata)
+    """
+    fields = _normalized_profile_fields(profile.profile_fields)
     return {
-        "schema_version": profile.schema_version,
+        "schema_version": int(profile.schema_version),
         "candidate_id": sanitize_candidate_id(profile.candidate_id),
-        "display_name": _canonical_text(profile.display_name),
-        "target_roles": sorted(
-            {_canonical_text(item).lower() for item in profile.target_roles if _canonical_text(item)}
-        ),
-        "preferred_locations": sorted(
-            {_canonical_text(item).lower() for item in profile.preferred_locations if _canonical_text(item)}
-        ),
+        "display_name": _normalize_text(profile.display_name, max_len=120),
         "constraints": {
             "allow_remote": bool(profile.constraints.allow_remote),
             "max_commute_minutes": int(profile.constraints.max_commute_minutes),
         },
+        "profile_fields": {
+            "schema_version": int(fields.schema_version),
+            "seniority": fields.seniority,
+            "role_archetype": fields.role_archetype,
+            "location": fields.location,
+            "skills": fields.skills,
+        },
+        "target_roles": _normalize_tokens(profile.target_roles, max_len=120),
+        "preferred_locations": _normalize_tokens(profile.preferred_locations, max_len=120),
         "resume_structured_hash": profile.resume_structured.resume_hash if profile.resume_structured else None,
         "text_input_sha256": {
-            "resume_text": resume_text_sha,
-            "linkedin_text": linkedin_text_sha,
-            "summary_text": summary_text_sha,
+            "resume_text": (
+                profile.text_input_artifacts.resume_text.sha256 if profile.text_input_artifacts.resume_text else None
+            ),
+            "linkedin_text": (
+                profile.text_input_artifacts.linkedin_text.sha256
+                if profile.text_input_artifacts.linkedin_text
+                else None
+            ),
+            "summary_text": (
+                profile.text_input_artifacts.summary_text.sha256 if profile.text_input_artifacts.summary_text else None
+            ),
         },
     }
 
 
-def profile_hash(candidate_id: str) -> str:
-    safe_id = sanitize_candidate_id(candidate_id)
-    profile = load_candidate_profile(safe_id)
-    canonical = _canonical_profile_payload(profile)
-    return hashlib.sha256(_canonical_json_bytes(canonical)).hexdigest()
+def profile_hash_for_model(profile: CandidateProfile) -> str:
+    canonical = json.dumps(
+        _canonical_profile_hash_payload(profile),
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _normalize_registry(registry: CandidateRegistry) -> CandidateRegistry:
@@ -408,7 +366,15 @@ def _normalize_profile(profile: CandidateProfile, expected_candidate_id: str) ->
     if profile.schema_version != CANDIDATE_PROFILE_SCHEMA_VERSION:
         raise CandidateValidationError(f"unsupported candidate profile schema_version '{profile.schema_version}'")
     _validate_profile_text_inputs(profile.text_inputs)
-    return profile
+    normalized_fields = _normalized_profile_fields(profile.profile_fields)
+    normalized_display_name = _normalize_text(profile.display_name, max_len=120) or safe_id
+    return profile.model_copy(
+        update={
+            "candidate_id": safe_id,
+            "display_name": normalized_display_name,
+            "profile_fields": normalized_fields,
+        }
+    )
 
 
 def _validate_profile_text_inputs(text_inputs: CandidateTextInputs) -> None:
@@ -423,6 +389,110 @@ def _validate_profile_text_inputs(text_inputs: CandidateTextInputs) -> None:
 
 def _text_sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _extract_text_from_pdf_bytes(raw_bytes: bytes) -> str:
+    # Prefer deterministic extraction via pypdf when available.
+    try:
+        from pypdf import PdfReader  # type: ignore
+
+        reader = PdfReader(io.BytesIO(raw_bytes))
+        pages: List[str] = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            if text:
+                pages.append(text)
+        joined = "\n".join(pages)
+        if joined.strip():
+            return joined
+    except Exception:
+        pass
+
+    # Fallback: extract simple Tj/TJ token text for deterministic offline behavior.
+    latin = raw_bytes.decode("latin-1", errors="ignore")
+    chunks = re.findall(r"\(([^()]*)\)\s*Tj", latin)
+    if not chunks:
+        chunks = re.findall(r"\[(.*?)\]\s*TJ", latin, flags=re.DOTALL)
+    flattened = " ".join(chunk.replace("\\(", "(").replace("\\)", ")") for chunk in chunks)
+    return flattened if flattened.strip() else latin
+
+
+def _extract_resume_text(path: Path) -> Tuple[str, Literal["pdf", "text"]]:
+    suffix = path.suffix.lower()
+    raw = path.read_bytes()
+    if len(raw) > RESUME_TEXT_MAX_BYTES:
+        raise CandidateValidationError(f"resume file exceeds max bytes ({len(raw)} > {RESUME_TEXT_MAX_BYTES})")
+
+    if suffix == ".pdf":
+        text = _extract_text_from_pdf_bytes(raw)
+        source_format: Literal["pdf", "text"] = "pdf"
+    else:
+        try:
+            text = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw.decode("latin-1", errors="ignore")
+        source_format = "text"
+    normalized = " ".join(text.replace("\x00", " ").split()).strip()
+    if not normalized:
+        raise CandidateValidationError("resume extraction produced empty text")
+    return normalized, source_format
+
+
+def _keyword_hits(text_lower: str, keywords: Tuple[str, ...], *, max_items: int = 50) -> List[str]:
+    return sorted({keyword for keyword in keywords if keyword in text_lower})[:max_items]
+
+
+def _extract_years_experience(text_lower: str) -> Optional[int]:
+    matches = re.findall(r"\b(\d{1,2})\+?\s+years?\b", text_lower)
+    if not matches:
+        return None
+    return max(int(item) for item in matches)
+
+
+def _extract_seniority_signal(text_lower: str) -> Optional[str]:
+    for label in ("principal", "staff", "senior", "lead", "manager", "mid", "junior"):
+        if label in text_lower:
+            return label
+    return None
+
+
+def _resume_hash(normalized_text: str) -> str:
+    canonical = {
+        "hash_version": RESUME_HASH_VERSION,
+        "parser_version": RESUME_PARSER_VERSION,
+        "normalized_text": normalized_text.lower(),
+    }
+    return hashlib.sha256(_canonical_json_bytes(canonical)).hexdigest()
+
+
+def _build_structured_resume(
+    *,
+    candidate_id: str,
+    normalized_text: str,
+    source_format: Literal["pdf", "text"],
+) -> CandidateResumeStructured:
+    text_lower = normalized_text.lower()
+    return CandidateResumeStructured(
+        resume_schema_version=RESUME_SCHEMA_VERSION,
+        candidate_id=candidate_id,
+        source_format=source_format,
+        hash_version=RESUME_HASH_VERSION,
+        parser_version=RESUME_PARSER_VERSION,
+        resume_hash=_resume_hash(normalized_text),
+        skills=_keyword_hits(text_lower, RESUME_SKILL_KEYWORDS),
+        role_signals=_keyword_hits(text_lower, RESUME_ROLE_KEYWORDS),
+        experience_summary=CandidateResumeExperienceSummary(
+            years_experience_estimate=_extract_years_experience(text_lower),
+            seniority_signal=_extract_seniority_signal(text_lower),
+        ),
+        education_signals=_keyword_hits(text_lower, RESUME_EDUCATION_KEYWORDS),
+        certification_signals=_keyword_hits(text_lower, RESUME_CERTIFICATION_KEYWORDS),
+    )
+
+
+def _resume_artifact_path(candidate_id: str, resume_hash: str) -> Path:
+    safe_candidate = sanitize_candidate_id(candidate_id)
+    return _profile_artifacts_dir(safe_candidate) / f"resume_structured_{resume_hash[:16]}.v1.json"
 
 
 def _ingest_one_text(candidate_id: str, kind: str, text: str) -> CandidateTextArtifactPointer:
@@ -494,6 +564,7 @@ def _profile_skeleton(candidate_id: str, display_name: str | None = None) -> Can
         target_roles=[],
         preferred_locations=[],
         constraints=CandidateConstraints(),
+        profile_fields=CandidateProfileFields(),
     )
 
 
@@ -507,6 +578,12 @@ def _profile_bootstrap_template(candidate_id: str, display_name: str | None = No
         target_roles=["replace_with_target_role"],
         preferred_locations=["replace_with_location"],
         constraints=CandidateConstraints(),
+        profile_fields=CandidateProfileFields(
+            seniority="replace_with_seniority",
+            role_archetype="replace_with_role_archetype",
+            location="replace_with_location",
+            skills=["replace_with_skill"],
+        ),
     )
 
 
@@ -632,7 +709,7 @@ def set_profile_text(
     return {
         "candidate_id": safe_id,
         "profile_path": str(profile_path),
-        "profile_hash": profile_hash(safe_id),
+        "profile_hash": profile_hash_for_model(load_candidate_profile(safe_id)),
         "updated_fields": sorted(provided),
         "text_input_artifacts": emitted,
     }
@@ -650,7 +727,7 @@ def ingest_resume_file(candidate_id: str, resume_file: str) -> Dict[str, Any]:
         normalized_text=normalized_text,
         source_format=source_format,
     )
-    # Drop raw text promptly; only structured fields and deterministic hash survive.
+    # Drop raw resume text immediately after deterministic structured extraction.
     normalized_text = ""
 
     artifact_path = _resume_artifact_path(safe_id, structured.resume_hash)
@@ -675,12 +752,7 @@ def ingest_resume_file(candidate_id: str, resume_file: str) -> Dict[str, Any]:
         update={
             "resume_structured": structured,
             "resume_structured_artifact": pointer,
-            # Ensure raw text fields are not accidentally carried as part of resume ingestion path.
-            "text_inputs": profile.text_inputs.model_copy(
-                update={
-                    "resume_text": None,
-                }
-            ),
+            "text_inputs": profile.text_inputs.model_copy(update={"resume_text": None}),
         }
     )
     profile_path = write_candidate_profile(updated)
@@ -689,7 +761,7 @@ def ingest_resume_file(candidate_id: str, resume_file: str) -> Dict[str, Any]:
         "profile_path": str(profile_path),
         "resume_structured_artifact": pointer.model_dump(),
         "resume_structured": structured.model_dump(),
-        "profile_hash": profile_hash(safe_id),
+        "profile_hash": profile_hash_for_model(load_candidate_profile(safe_id)),
     }
 
 
@@ -793,11 +865,114 @@ def doctor_candidate(candidate_id: str) -> Dict[str, Any]:
             "exists": profile_exists,
             "schema_valid": profile_valid,
             "error": profile_error,
-            "profile_hash": profile_hash(safe_id) if profile_valid else None,
+            "profile_hash": profile_hash_for_model(profile) if profile_valid and profile is not None else None,
         },
         "text_input_artifacts": pointer_checks,
         "errors": sorted(errors),
     }
+
+
+def profile_hash(candidate_id: str) -> str:
+    safe_id = sanitize_candidate_id(candidate_id)
+    profile = load_candidate_profile(safe_id)
+    return profile_hash_for_model(profile)
+
+
+def profile_contract(candidate_id: str) -> Dict[str, Any]:
+    safe_id = sanitize_candidate_id(candidate_id)
+    profile = load_candidate_profile(safe_id)
+    fields = _normalized_profile_fields(profile.profile_fields)
+    return {
+        "candidate_id": safe_id,
+        "profile_schema_version": CANDIDATE_PROFILE_SCHEMA_VERSION,
+        "profile_hash": profile_hash_for_model(profile),
+        "display_name": profile.display_name,
+        "profile_fields": fields.model_dump(),
+    }
+
+
+def update_candidate_profile(
+    candidate_id: str,
+    *,
+    display_name: Optional[str] = None,
+    seniority: Optional[str] = None,
+    role_archetype: Optional[str] = None,
+    location: Optional[str] = None,
+    skills: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    safe_id = sanitize_candidate_id(candidate_id)
+    profile = load_candidate_profile(safe_id)
+    updates_provided = any(value is not None for value in (display_name, seniority, role_archetype, location, skills))
+    if not updates_provided:
+        raise CandidateValidationError("at least one profile field is required")
+
+    if display_name is None:
+        next_display_name = profile.display_name
+    else:
+        next_display_name = _normalize_text(display_name, max_len=120) or safe_id
+
+    next_fields = profile.profile_fields.model_copy(deep=True)
+    if seniority is not None:
+        next_fields.seniority = _normalize_text(seniority, max_len=64) or "unspecified"
+    if role_archetype is not None:
+        next_fields.role_archetype = _normalize_text(role_archetype, max_len=64) or "unspecified"
+    if location is not None:
+        next_fields.location = _normalize_text(location, max_len=120) or "unspecified"
+    if skills is not None:
+        next_fields.skills = _normalize_tokens(skills)
+    next_fields = _normalized_profile_fields(next_fields)
+
+    target_roles = profile.target_roles
+    if role_archetype is not None:
+        target_roles = [next_fields.role_archetype] if next_fields.role_archetype != "unspecified" else []
+    preferred_locations = profile.preferred_locations
+    if location is not None:
+        preferred_locations = [next_fields.location] if next_fields.location != "unspecified" else []
+
+    updated = profile.model_copy(
+        update={
+            "display_name": next_display_name,
+            "profile_fields": next_fields,
+            "target_roles": target_roles,
+            "preferred_locations": preferred_locations,
+        }
+    )
+    profile_path = write_candidate_profile(updated)
+    return {
+        "candidate_id": safe_id,
+        "profile_path": str(profile_path),
+        "profile_hash": profile_hash_for_model(load_candidate_profile(safe_id)),
+        "display_name": next_display_name,
+        "profile_fields": next_fields.model_dump(),
+    }
+
+
+def get_active_candidate_id() -> str:
+    path = active_candidate_pointer_path()
+    if not path.exists():
+        return DEFAULT_CANDIDATE_ID
+    try:
+        payload = _load_json(path)
+        pointer = ActiveCandidatePointer.model_validate(payload)
+        return sanitize_candidate_id(pointer.candidate_id)
+    except Exception as exc:
+        raise CandidateValidationError(f"invalid active candidate pointer: {path}: {exc}") from exc
+
+
+def switch_active_candidate(candidate_id: str) -> Dict[str, str]:
+    safe_id = sanitize_candidate_id(candidate_id)
+    registry = load_registry()
+    known = {entry.candidate_id for entry in registry.candidates}
+    if safe_id not in known:
+        raise CandidateValidationError(f"candidate not registered: {safe_id}")
+    pointer = ActiveCandidatePointer(
+        schema_version=CANDIDATE_ACTIVE_POINTER_SCHEMA_VERSION,
+        candidate_id=safe_id,
+    )
+    path = active_candidate_pointer_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, _dump_json(pointer.model_dump()))
+    return {"candidate_id": safe_id, "active_candidate_path": str(path)}
 
 
 def list_candidates() -> List[Dict[str, str]]:

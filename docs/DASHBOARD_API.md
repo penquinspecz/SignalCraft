@@ -43,12 +43,70 @@ Returns last successful run state for the candidate.
 - `candidate_id` (optional): default `local`. Must match `[a-z0-9_]{1,64}`.
 
 **Response** (200):
-- Local: `{"source": "local", "path": "<path>", "payload": <last_success JSON>}`
-- S3: `{"source": "s3", "bucket": "...", "prefix": "...", "key": "...", "payload": <state>}`
+- Local: `{"source": "local", "candidate_id": "<id>", "path": "<path>", "payload": <last_success JSON>}`
+- S3: `{"source": "s3", "candidate_id": "<id>", "bucket": "...", "prefix": "...", "key": "...", "payload": <state>}`
 
 **Failure modes**:
 - 400: Invalid `candidate_id`
 - 404: last_success not found (local or S3)
+
+---
+
+### GET /v1/profile?candidate_id=...
+
+Returns UI-safe candidate profile projection.
+
+**Query params**:
+- `candidate_id` (optional): if omitted, resolves current active candidate pointer.
+
+**Response** (200):
+```json
+{
+  "candidate_id": "alice",
+  "profile_schema_version": 1,
+  "profile_hash": "<sha256>",
+  "display_name": "Alice Example",
+  "profile_fields": {
+    "schema_version": 1,
+    "seniority": "senior",
+    "role_archetype": "staff_ic",
+    "location": "remote",
+    "skills": ["python", "leadership"]
+  }
+}
+```
+
+**Failure modes**:
+- 400: Invalid `candidate_id`
+- 404: Candidate profile not found
+- 500: Invalid profile payload / active pointer
+
+---
+
+### PUT /v1/profile?candidate_id=...
+
+Updates versioned profile fields under contract.
+
+**Request body**:
+```json
+{
+  "display_name": "Alice Example",
+  "profile_fields": {
+    "seniority": "senior",
+    "role_archetype": "staff_ic",
+    "location": "remote",
+    "skills": ["python", "leadership"]
+  }
+}
+```
+
+**Response** (200):
+- Same shape as `GET /v1/profile`, including updated deterministic `profile_hash`.
+
+**Failure modes**:
+- 400: Invalid request / no fields provided
+- 404: Candidate profile not found
+- 500: Profile update failed
 
 ---
 
@@ -165,6 +223,7 @@ Artifact index for latest run by provider/profile.
 - **Bounded JSON**: `JOBINTEL_DASHBOARD_MAX_JSON_BYTES` (default 2MB) caps payload size. Oversized returns 413.
 - **Path traversal**: Artifact names are validated; `..` and absolute paths are rejected (500).
 - **Candidate ID**: Strict sanitization via `[a-z0-9_]{1,64}`. Invalid values return 400.
+- **UI-safe profile contract**: `/v1/profile` returns only contracted fields and hash, never raw resume/LinkedIn text.
 
 ## Run Proof Script
 

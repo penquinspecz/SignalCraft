@@ -10,6 +10,12 @@ SignalCraft uses labels for PR governance: provenance, type, and area. **CI enfo
 | **Type** | Kind of change | `type:feat`, `type:fix`, `type:chore`, `type:docs`, `type:refactor`, `type:test` |
 | **Area** | Domain touched | `area:engine`, `area:providers`, `area:dr`, `area:release`, `area:infra`, `area:docs` (docs-only), `area:unknown` (fallback) |
 
+## Type vs Area
+
+- `type:*` describes the kind of change (for example: bug fix vs docs vs feature).
+- `area:*` describes which subsystem is touched (for example: engine, providers, infra, dr, docs).
+- Docs PRs should carry both `type:docs` and `area:docs`.
+
 ## Required Labels for Merge (Enforced by CI)
 
 - **Exactly one provenance label:** `from-composer`, `from-codex`, or `from-human`
@@ -20,6 +26,22 @@ SignalCraft uses labels for PR governance: provenance, type, and area. **CI enfo
 **Provenance is label-only.** PR titles must NOT contain `[from-composer]`, `[from-codex]`, or `[from-human]`. Every PR must have exactly one provenance label; pick based on who authored the changes (Composer / Codex / human).
 
 See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
+
+## Milestone Metadata Sync
+
+PR governance requires a GitHub milestone (roadmap or bucket) on every PR.
+To align GitHub milestones with `docs/ROADMAP.md`, run:
+
+```bash
+make milestones-sync
+```
+
+Default behavior parses `## Milestone <number>` headings and ensures matching
+`M<number>` milestones exist, then ensures bucket milestones also exist:
+`Infra & Tooling`, `Docs & Governance`, and `Backlog Cleanup`.
+
+For roadmap headings with suffixes (for example `Milestone 19A/19B/19C`), sync
+maps them deterministically to the base numeric milestone (`M19`).
 
 ## Examples
 
@@ -43,30 +65,35 @@ See `docs/RELEASE_PROCESS.md` for the Milestone B rule and bucket milestones.
 
 ## Auto-Labeling
 
-The `.github/workflows/labeler.yml` workflow adds `area:*` labels based on changed paths (see `.github/labeler.yml`) with these rules:
+The `.github/workflows/pr-governance-apply.yml` workflow normalizes governance labels deterministically:
 
-- `area:docs` is auto-applied only when all changed files are in `docs/**` (docs-only PRs).
-- For mixed-domain PRs, automation removes `area:docs` when another specific area exists.
-- If no specific `area:*` can be inferred, automation applies `area:unknown` as fallback.
+- Exactly one provenance label based on branch prefix:
+  - `composer/*` -> `from-composer`
+  - `codex/*` -> `from-codex`
+  - everything else -> `from-human`
+- Exactly one type label with priority:
+  - docs-only (`docs/**` and/or `README*`) or title starts with `docs(` / `docs:` -> `type:docs`
+  - title starts with `fix(` / `fix:` -> `type:fix`
+  - title starts with `feat(` / `feat:` -> `type:feat`
+  - fallback -> `type:chore`
+- Area labels are inferred from changed paths (see `.github/labeler.yml`) and normalized to keep docs/fallback semantics valid.
+- `area:docs` is removed for mixed-domain PRs when another specific area exists.
+- `area:unknown` is fallback-only and removed when a specific area exists.
+
+You can simulate the same decision logic locally:
+
+```bash
+python scripts/dev/simulate_pr_labeler.py \
+  --title "fix(engine): harden resolver" \
+  --head-ref "codex/security-fix" \
+  --changed-file src/ji_engine/utils/network_shield.py
+```
 
 ## Programmatic Application
 
-Use `scripts/dev/apply_pr_governance.py` to apply milestone + governance labels via GitHub API through `gh` CLI.
-
-Examples:
+Use `scripts/dev/apply_pr_governance.py` to repair and verify governance metadata for open PRs.
 
 ```bash
-python scripts/dev/apply_pr_governance.py --apply-defaults-for-hardening-epoch
-```
-
-```bash
-python scripts/dev/apply_pr_governance.py \
-  --pr 252 --milestone "M22" --provenance from-codex --type "type:fix" --area "area:engine" \
-  --pr 253 --milestone "M22" --provenance from-codex --type "type:fix" --area "area:dr" \
-  --pr 254 --milestone "M22" --provenance from-codex --type "type:fix" --area "area:engine" \
-  --pr 255 --milestone "Docs & Governance" --provenance from-codex --type "type:docs" --area "area:docs"
-```
-
-```bash
-python scripts/dev/apply_pr_governance.py --verify-only --pr 252 --pr 253 --pr 254 --pr 255
+python scripts/dev/apply_pr_governance.py --apply-open-prs
+python scripts/dev/apply_pr_governance.py --apply-open-prs --verify-only
 ```

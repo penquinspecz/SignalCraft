@@ -6,7 +6,10 @@ The format is based on Keep a Changelog and follows SemVer.
 
 ## [Unreleased]
 
-- _No unreleased changes yet._
+### Product
+
+- Added deterministic digest artifacts and receipts in quiet mode, including candidate-aware daily/weekly generation and UI-safe contract coverage.
+- Added candidate profile UX v1 contracts, including a versioned profile schema, deterministic profile hashing, and candidate-aware API/CLI profile flows.
 
 ## [v0.1.0] - 2026-02-12
 
