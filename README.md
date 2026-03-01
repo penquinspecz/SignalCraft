@@ -18,7 +18,7 @@ See [LICENSE](LICENSE) for permitted use.
 
 **Deterministic Career Intelligence for Top Technology Companies**
 
-SignalCraft is a career intelligence engine that aggregates, normalizes, scores, and analyzes job postings directly from leading technology company career pages — with deterministic logic, reproducible outputs, and guardrailed AI augmentation.
+SignalCraft is a career intelligence engine for job discovery, deterministic matching/ranking, and longitudinal analytics. It aggregates and normalizes postings from leading technology company career pages, scores and explains fit, and tracks role changes over time with reproducible outputs and guardrailed AI augmentation.
 
 It is built as infrastructure, not a script.
 
@@ -26,18 +26,31 @@ It is built as infrastructure, not a script.
 
 ## What It Does
 
-SignalCraft is a temporal job intelligence system first.
+### Discovery
 
-Primary value:
-- Tracks how roles change over time (not only whether they match right now)
-- Produces deterministic, provenance-backed diffs between observations
-- Surfaces company/role drift signals (skills rising/falling, seniority/location shifts)
-- Maintains replayable receipts so longitudinal conclusions are auditable
-- Scales provider coverage through a provider onboarding factory (robots/TOS evaluation, scaffolding, receipts)
+- Aggregates jobs from official first-party career sites (not paywalled/credentialed scraping)
+- Normalizes and de-duplicates postings across providers
+- Preserves provenance and replayable run artifacts for auditability
+
+### Matching
+
+- Applies deterministic scoring and ranking (matching engine)
+- Produces explainability artifacts for score interpretation
+- Keeps ordering stable and reproducible across equivalent inputs
+
+### Intelligence
+
+- Tracks temporal changes and emits structured diffs across retained runs
+- Computes drift analytics (for example, skills rising/falling and role requirement shifts)
+- Scales provider coverage via the provider onboarding factory (robots/TOS evaluation + scaffolding + receipts)
+- Can layer bounded AI insights on top of structured artifacts (optional)
 
 Capability narrative:
-- For a single role family at Company X, SignalCraft can show that required skills shifted over recent windows, when the shifts occurred, and which provider snapshots/provenance records support each change.
-- This is emitted as deterministic artifacts, so the same evidence can be replayed and reviewed without hidden model-state drift.
+- For a target role family, SignalCraft can deterministically rank current openings with explainable reasons, then show how required skills and role attributes changed over recent windows with provenance-backed diffs.
+
+Operational note:
+- Every run produces inspectable artifacts under `state/runs/<run_id>/`.
+- Canonical pipeline entrypoint: `scripts/run_daily.py`.
 
 ---
 
@@ -51,28 +64,6 @@ Capability narrative:
 - [Legal Positioning](docs/LEGAL_POSITIONING.md)
 - [License](LICENSE)
 - [Security Policy](SECURITY.md)
-
----
-
-## What SignalCraft Does
-
-SignalCraft:
-
-- Aggregates job postings directly from official company career pages
-- Normalizes and de-duplicates roles across providers
-- Applies deterministic scoring and ranking logic
-- Tracks historical changes across runs and produces temporal change artifacts
-- Computes company/role drift analytics from retained observations
-- Produces reproducible, artifact-backed outputs
-- Provides provider onboarding factory tooling with policy/scaffolding receipts
-- Optionally layers AI insights on top of stable, deterministic artifacts
-
-The system is snapshot-first, replayable, and explainable.
-
-Every run produces inspectable artifacts under `state/runs/<run_id>/`.
-
-Canonical pipeline entrypoint:
-`scripts/run_daily.py`
 
 ---
 
