@@ -252,8 +252,9 @@ gate:
 	$(PY) -m pytest -q
 	@echo "==> snapshot immutability"
 	PYTHONPATH=src $(PY) scripts/verify_snapshots_immutable.py
-	@echo "==> replay smoke"
-	CAREERS_MODE=SNAPSHOT PYTHONPATH=src $(PY) scripts/replay_smoke_fixture.py
+	@echo "==> real replay determinism"
+	CAREERS_MODE=SNAPSHOT EMBED_PROVIDER=stub PYTHONHASHSEED=0 TZ=UTC LC_ALL=C.UTF-8 \
+		$(PY) -m pytest tests/test_pipeline_replay_determinism.py -v
 
 gate-truth: gate
 	@echo "==> docker build (no-cache, RUN_TESTS=1)"
@@ -283,7 +284,8 @@ replay:
 gate-replay:
 	$(PY) -m pytest -q
 	$(MAKE) verify-snapshots
-	PYTHONPATH=src $(PY) scripts/replay_smoke_fixture.py
+	CAREERS_MODE=SNAPSHOT EMBED_PROVIDER=stub PYTHONHASHSEED=0 TZ=UTC LC_ALL=C.UTF-8 \
+		$(PY) -m pytest tests/test_pipeline_replay_determinism.py -v
 
 ecs-shape-smoke:
 	$(PY) scripts/ecs_shape_smoke.py

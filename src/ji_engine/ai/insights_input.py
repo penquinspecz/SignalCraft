@@ -396,7 +396,7 @@ def _window_trends(
         base_time = utc_now_iso()
         parsed_now = _safe_parse_timestamp(base_time)
         if parsed_now is None:
-            parsed_now = datetime.now(timezone.utc)
+            raise RuntimeError(f"utc_now_iso() returned an unparseable timestamp: {base_time!r}")
         base_time = parsed_now
 
     windows_payload: List[Dict[str, Any]] = []
