@@ -7,21 +7,23 @@ This document records planner/execution conventions for AI-assisted delivery.
 
 ## Planner Transition
 
-- Planner transition date: **2026-03-01**
+- Transition date: **2026-03-01**
 - Planner transition: **ChatGPT -> Claude**
-- Scope: planning/default planning recommendations for new work starting on and
-  after the transition date.
+- Scope: roadmap planning/model-lineage guidance for work planned on or after
+  the transition date.
 
-## Labeling Guidance
+## Label Guidance
 
-- Going forward, optional planner provenance labels may include:
+- Going forward, optional planner metadata may use:
   - `planner:claude`
-- Do **not** backfill historical PRs with planner labels retroactively.
-- Existing required PR governance labels (provenance/type/area + milestone)
-  remain unchanged and enforced by repository governance workflows.
+- Do **not** backfill historical PRs with planner labels.
+- Required governance labels remain unchanged:
+  - exactly one `from-*`
+  - exactly one `type:*`
+  - at least one `area:*`
+  - milestone required
 
 ## Notes
 
-- This workflow note is additive and does not alter determinism/replay
-  contracts.
-- Planner choice does not change artifact schema contracts or gate requirements.
+- Planner lineage is documentation metadata, not execution behavior.
+- Determinism/replay/snapshot contracts are unchanged by planner choice.

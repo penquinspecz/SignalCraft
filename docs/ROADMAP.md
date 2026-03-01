@@ -73,22 +73,34 @@ Evidence expectations:
 
 # Product Thesis (2026)
 
-SignalCraft product direction is now explicit:
+SignalCraft primary product value is temporal intelligence:
 
 - **Temporal Intelligence > Matching**
-- Matching remains useful, but the primary product truth is longitudinal change:
-  how postings evolve, what skills drift, and where role requirements shift over
-  time.
-- Deterministic provenance and artifact-backed diffs are required for every
+- Matching remains useful, but longitudinal change detection is the product
+  anchor (role evolution, skills drift, and stable diffs over time).
+- Deterministic provenance and replayable artifact diffs are required for every
   longitudinal claim.
-- Provider expansion is treated as a first-class product capability through the
-  onboarding factory model (policy evaluation, scaffolding, receipts, and
-  auditable enablement), not ad hoc scraping.
+- Provider expansion remains first-class via the onboarding factory model in
+  Milestone 26 (policy/robots evaluation + scaffolding + receipts).
 
 This thesis is additive and does not reorder milestone blocks below.
 
 ---
 
+# Planning Model Lineage
+
+Planning lineage documents which planning assistant was used for roadmap
+architecture direction. It does not change execution-engine contracts,
+determinism guarantees, or milestone DoD requirements.
+
+- Milestones 1–24 (the last merged milestone tranche prior to the 2026-03-01
+  planner cutover) were planned by ChatGPT.
+- Milestones 25 onward are planned by Claude.
+
+This lineage note is intentionally durable and does not require retroactive PR
+label backfills.
+
+---
 # Current State
 
 Last verified: 2026-03-01 on commit `ea3a7a2c2519da010c643d191cca48aad736f07a` (mainline verification checks were confirmed green on this SHA.)
