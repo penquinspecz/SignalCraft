@@ -12,6 +12,19 @@ The format is based on Keep a Changelog and follows SemVer.
 - Added candidate profile UX v1 contracts, including a versioned profile schema, deterministic profile hashing, and candidate-aware API/CLI profile flows.
 - Added offline resume ingestion v1 with structured-only artifacts, deterministic resume hashing, and candidate profile hash updates without raw resume text storage.
 
+### Changed
+
+- Real pipeline replay determinism test replaces synthetic replay check in CI (Phase2-C12).
+- `generated_at` added to `VOLATILE_VALUE_KEYS` for comparison coverage.
+- Automated test validates all timestamp fields in schemas are covered by `VOLATILE_VALUE_KEYS`.
+- Dead-code `datetime.now()` fallback removed from `insights_input.py`.
+
+### Security
+
+- Wire network shield into retry.py fetch path; all live HTTP calls now validate destination safety before any outbound connection (Phase2-C7).
+- Allowlist defaults are now fail-closed in LIVE/AUTO mode; empty allowlists reject outbound domains.
+- LIVE→SNAPSHOT fallback is now structured: security violations propagate, while degradations capture fallback metadata for run health artifacts.
+
 ## [v0.1.0] - 2026-02-12
 
 Theme: Deterministic Core + Guardrailed AI Foundation

@@ -72,6 +72,7 @@ def test_retry_final_url_allowlist_fail_closed(monkeypatch: pytest.MonkeyPatch) 
     _set_allowlist(monkeypatch, "allowed.example")
     monkeypatch.setenv("JOBINTEL_PROVIDER_MIN_DELAY_S", "0")
     monkeypatch.setenv("JOBINTEL_PROVIDER_BACKOFF_JITTER_S", "0")
+    monkeypatch.setattr(provider_retry, "validate_url_destination", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         provider_retry.requests,
         "get",

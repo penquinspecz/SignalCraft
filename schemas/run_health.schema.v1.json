@@ -373,6 +373,28 @@
       "type": "object",
       "additionalProperties": true
     },
+    "fallback_triggered": {
+      "type": "boolean",
+      "description": "Whether any provider fell back from LIVE to SNAPSHOT mode"
+    },
+    "fallback_details": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "exception_class": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Details of provider fallback events"
+    },
     "proof_bundle_path": {
       "type": [
         "string",

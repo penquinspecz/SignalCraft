@@ -20,6 +20,9 @@ from urllib.request import Request, urlopen
 
 import requests
 
+from ji_engine.config import get_careers_mode
+from ji_engine.utils.network_shield import validate_url_destination
+
 logger = logging.getLogger(__name__)
 
 _LAST_REQUEST_TS: dict[str, float] = {}
@@ -302,6 +305,9 @@ def _resolve_allowlist(provider_id: Optional[str]) -> list[str]:
 
 def _allowlist_allows(host: str, entries: list[str]) -> bool:
     if not entries:
+        mode = get_careers_mode().upper()
+        if mode in {"LIVE", "AUTO"}:
+            return False
         return True
     if "*" in entries:
         return True
@@ -407,6 +413,7 @@ def evaluate_robots_policy(
 
     try:
         if fetcher is None:
+            validate_url_destination(robots_url)
             resp = requests.get(robots_url, timeout=5)
             final_url = str(getattr(resp, "url", robots_url) or robots_url)
             final_allowlist = evaluate_allowlist_policy(final_url, provider_id=provider_id)
@@ -507,6 +514,7 @@ def fetch_text_with_retry(
         reason = str(preflight.get("reason") or "allowlist_denied")
         record_policy_block(provider_id, reason)
         raise ProviderFetchError(reason, attempts=0)
+    validate_url_destination(url)
 
     _check_circuit(provider_id)
     attempts, backoff_base, backoff_max = _retry_config(
@@ -595,6 +603,7 @@ def fetch_urlopen_with_retry(
         reason = str(preflight.get("reason") or "allowlist_denied")
         record_policy_block(provider_id, reason)
         raise ProviderFetchError(reason, attempts=0)
+    validate_url_destination(url)
 
     _check_circuit(provider_id)
     attempts, backoff_base, backoff_max = _retry_config(
@@ -687,6 +696,7 @@ def fetch_json_with_retry(
         reason = str(preflight.get("reason") or "allowlist_denied")
         record_policy_block(provider_id, reason)
         raise ProviderFetchError(reason, attempts=0)
+    validate_url_destination(url)
 
     _check_circuit(provider_id)
     attempts, backoff_base, backoff_max = _retry_config(
