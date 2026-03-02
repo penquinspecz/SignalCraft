@@ -9,7 +9,7 @@ import pytest
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 ALLOWED_FILE = REPO_ROOT / "src" / "ji_engine" / "pipeline" / "run_pathing.py"
-SKIP_DIR_NAMES = {".claude", ".git", ".venv", "__pycache__"}
+SKIP_DIR_NAMES = {".claude", ".git", ".venv", "__pycache__", "build"}
 
 
 def test_no_duplicate_sanitize_run_id() -> None:
@@ -30,6 +30,6 @@ def test_no_duplicate_sanitize_run_id() -> None:
 
     if violations:
         pytest.fail(
-            f"Found duplicate sanitize_run_id definitions "
-            f"(should only be in run_pathing.py):\n" + "\n".join(f"  - {v}" for v in sorted(violations))
+            "Found duplicate sanitize_run_id definitions "
+            "(should only be in run_pathing.py):\n" + "\n".join(f"  - {v}" for v in sorted(violations))
         )
