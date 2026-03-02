@@ -535,7 +535,7 @@ explain-smoke:
 
 dashboard:
 	@$(PY) -c "import importlib.util,sys;missing=[name for name in ('fastapi','uvicorn') if importlib.util.find_spec(name) is None];print(\"Dashboard deps missing (%s). Install with: pip install -e '.[dashboard]'\" % ', '.join(missing)) if missing else None;sys.exit(2 if missing else 0)"
-	$(PY) -m uvicorn ji_engine.dashboard.app:app --reload --port 8000
+	DASHBOARD_HOST=$${DASHBOARD_HOST:-127.0.0.1} DASHBOARD_PORT=$${DASHBOARD_PORT:-8080} $(PY) -m ji_engine.dashboard.app
 
 dashboard-sanity:
 	PYTHONPATH=src $(PY) -m scripts.dashboard_offline_sanity

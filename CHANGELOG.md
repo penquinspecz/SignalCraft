@@ -15,6 +15,8 @@ The format is based on Keep a Changelog and follows SemVer.
 ### Security
 
 - Security dependency check now uses three-way exit codes: 0=clean, 1=vulnerabilities, 2=infra unavailable. CI treats infra-unavailable as warning, not pass. (Phase2-C11)
+- Dashboard binds to `127.0.0.1` by default (localhost-only).
+- Optional bearer token authentication middleware added for dashboard APIs (Phase2-C10).
 
 ## [v0.1.0] - 2026-02-12
 

@@ -21,6 +21,8 @@ try:
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import FileResponse, Response
     from pydantic import BaseModel, ConfigDict, Field, ValidationError
+    from starlette.middleware.base import BaseHTTPMiddleware
+    from starlette.responses import JSONResponse
 except ModuleNotFoundError as exc:  # pragma: no cover - exercised in environments without dashboard extras
     raise RuntimeError("Dashboard dependencies are not installed. Install with: pip install -e '.[dashboard]'") from exc
 
@@ -45,8 +47,65 @@ from ji_engine.run_id import sanitize_run_id
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from jobintel import aws_runs
 
-app = FastAPI(title="SignalCraft Dashboard API")
 logger = logging.getLogger(__name__)
+_AUTH_EXEMPT_PATHS = frozenset(("/health", "/healthz", "/version", "/v1/version"))
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _dashboard_host() -> str:
+    raw = os.environ.get("DASHBOARD_HOST", "127.0.0.1").strip()
+    if raw:
+        return raw
+    return "127.0.0.1"
+
+
+def _dashboard_port() -> int:
+    raw = os.environ.get("DASHBOARD_PORT", "8080").strip()
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid DASHBOARD_PORT=%r; using default=8080", raw)
+        return 8080
+
+
+class AuthMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: FastAPI, token: Optional[str] = None, enabled: bool = False):
+        super().__init__(app)
+        self.token = token
+        self.enabled = enabled
+
+    async def dispatch(self, request, call_next):
+        if not self.enabled:
+            return await call_next(request)
+        if request.url.path in _AUTH_EXEMPT_PATHS:
+            return await call_next(request)
+
+        auth_header = request.headers.get("authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return JSONResponse({"error": "Authorization required"}, status_code=401)
+        if not self.token:
+            return JSONResponse({"error": "Auth token not configured"}, status_code=503)
+
+        provided_token = auth_header[7:]
+        if provided_token != self.token:
+            return JSONResponse({"error": "Invalid token"}, status_code=403)
+        return await call_next(request)
+
+
+DASHBOARD_HOST = _dashboard_host()
+DASHBOARD_PORT = _dashboard_port()
+DASHBOARD_AUTH_ENABLED = _env_bool("DASHBOARD_AUTH_ENABLED", default=False)
+DASHBOARD_AUTH_TOKEN = (os.environ.get("DASHBOARD_AUTH_TOKEN") or "").strip() or None
+
+app = FastAPI(title="SignalCraft Dashboard API")
+if DASHBOARD_AUTH_ENABLED:
+    app.add_middleware(AuthMiddleware, token=DASHBOARD_AUTH_TOKEN, enabled=True)
 RUN_REPOSITORY: RunRepository = FileSystemRunRepository(RUN_METADATA_DIR)
 
 
@@ -520,6 +579,16 @@ def version() -> Dict[str, Any]:
     return _version_payload()
 
 
+@app.get("/v1/version")
+def version_v1() -> Dict[str, Any]:
+    return _version_payload()
+
+
+@app.get("/health")
+def health() -> Dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/healthz")
 def healthz() -> Dict[str, str]:
     return {"status": "ok"}
@@ -917,3 +986,17 @@ def latest_artifacts(provider: str, profile: str, candidate_id: str = DEFAULT_CA
         "run_id": run_id,
         "paths": files,
     }
+
+
+def _run_dashboard() -> None:
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Dashboard runtime dependency is not installed. Install with: pip install -e '.[dashboard]'"
+        ) from exc
+    uvicorn.run(app, host=DASHBOARD_HOST, port=DASHBOARD_PORT)
+
+
+if __name__ == "__main__":
+    _run_dashboard()
