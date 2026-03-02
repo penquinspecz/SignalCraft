@@ -17,16 +17,20 @@ from scripts.schema_validate import resolve_named_schema_path, validate_payload
 
 CANONICAL_JSON_KWARGS = {"ensure_ascii": False, "sort_keys": True, "separators": (",", ":")}
 VOLATILE_VALUE_KEYS = {
+    "captured_at_utc",
     "created_at",
     "created_at_utc",
+    "decision_timestamp",
     "ended_at",
     "fetched_at",
+    "generated_at",
     "generated_at_utc",
     "run_started_at",
     "scored_at",
     "scraped_at",
     "started_at",
     "timestamp",
+    "timestamp_utc",
     "updated_at",
     "duration_sec",
 }

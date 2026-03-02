@@ -172,7 +172,7 @@ jobs:
           .venv/bin/python -m pip cache info || true
           du -sh ~/.cache/pip 2>/dev/null || true
           echo "::endgroup::"
-      - name: Gate timings (pytest + snapshot + replay + docker truth)
+      - name: Gate timings (pytest + snapshot + docker truth)
         run: |
           set -euo pipefail
           timed() {
@@ -186,44 +186,20 @@ jobs:
             echo "::notice title=ci-timing::${label}_sec=$((end-start))"
             echo "::endgroup::"
           }
-          # Keep behavior equivalent to `make gate-ci`:
-          # pytest + snapshot immutability + replay smoke + gate-truth docker build.
+          # Keep core gate behavior aligned to `make gate-ci` for pytest/snapshot/docker truth.
           timed pytest .venv/bin/python -m pytest -q
           timed verify_snapshots_immutable env PYTHONPATH=src .venv/bin/python scripts/verify_snapshots_immutable.py
-          timed replay_smoke env CAREERS_MODE=SNAPSHOT PYTHONPATH=src .venv/bin/python scripts/replay_smoke_fixture.py
           timed gate_truth_docker_build docker build --no-cache --build-arg RUN_TESTS=1 -t jobintel:tests .
-      - name: Determinism contract checks
+      - name: Real pipeline replay determinism check
+        env:
+          CAREERS_MODE: SNAPSHOT
+          EMBED_PROVIDER: stub
+          PYTHONHASHSEED: "0"
+          TZ: UTC
+          LC_ALL: C.UTF-8
         run: |
           set -euo pipefail
-          export JOBINTEL_DATA_DIR=/tmp/jobintel_ci_data
-          export JOBINTEL_STATE_DIR=/tmp/jobintel_ci_state
-          .venv/bin/python - <<'PY'
-          from pathlib import Path
-          import json
-          from ji_engine.utils.verification import compute_sha256_file
-          data_dir = Path("/tmp/jobintel_ci_data")
-          state_dir = Path("/tmp/jobintel_ci_state")
-          data_dir.mkdir(parents=True, exist_ok=True)
-          run_dir = state_dir / "runs" / "ci-run"
-          run_dir.mkdir(parents=True, exist_ok=True)
-          ranked = data_dir / "openai_ranked_jobs.cs.json"
-          ranked.write_text("[]", encoding="utf-8")
-          report = {
-              "run_id": "ci-run",
-              "run_report_schema_version": 1,
-              "verifiable_artifacts": {
-                  "openai:cs:ranked_json": {
-                      "path": ranked.name,
-                      "sha256": compute_sha256_file(ranked),
-                      "bytes": ranked.stat().st_size,
-                      "hash_algo": "sha256",
-                  }
-              },
-          }
-          (run_dir / "run_report.json").write_text(json.dumps(report), encoding="utf-8")
-          PY
-          .venv/bin/python scripts/publish_s3.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --plan --json
-          .venv/bin/python scripts/replay_run.py --run-dir /tmp/jobintel_ci_state/runs/ci-run --profile cs --strict --json
+          .venv/bin/python -m pytest tests/test_pipeline_replay_determinism.py -v
       - name: CronJob smoke (offline)
         run: make cronjob-smoke
       - name: Roadmap discipline guard (warn-only)
