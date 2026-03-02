@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+"""Dependency vulnerability check wrapper with retry-aware exit codes.
+
+Exit code policy:
+- Exit 0: clean scan completed with no vulnerabilities.
+- Exit 1: vulnerabilities found (or non-transient audit failure).
+- Exit 2: advisory infrastructure unavailable after transient retries.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -8,6 +16,10 @@ import subprocess
 import sys
 import time
 from typing import Sequence
+
+EXIT_CLEAN = 0
+EXIT_VULNERABILITIES = 1
+EXIT_INFRA_UNAVAILABLE = 2
 
 _TRANSIENT_PATTERNS = (
     re.compile(r"timed out", re.IGNORECASE),
@@ -70,19 +82,19 @@ def main() -> int:
     for attempt in range(1, attempts + 1):
         print(f"dependency audit attempt {attempt}/{attempts}")
         rc, output = _run_pip_audit(args.requirements)
-        if rc == 0:
+        if rc == EXIT_CLEAN:
             print("dependency audit passed")
-            return 0
+            return EXIT_CLEAN
         if _is_transient(output):
             if attempt < attempts:
                 print("transient dependency-audit failure detected; retrying")
                 time.sleep(max(0.0, args.sleep_seconds))
                 continue
-            print("WARNING: dependency audit unavailable after retries (transient network/service failure); soft-pass")
-            return 0
-        print(f"dependency audit failed (exit={rc})")
-        return rc
-    return 0
+            print("WARNING: dependency audit unavailable after retries (transient network/service failure); exiting 2")
+            return EXIT_INFRA_UNAVAILABLE
+        print(f"dependency audit found vulnerabilities (exit={rc})")
+        return EXIT_VULNERABILITIES
+    return EXIT_INFRA_UNAVAILABLE
 
 
 if __name__ == "__main__":

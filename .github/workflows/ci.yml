@@ -45,7 +45,25 @@ jobs:
           .venv/bin/python -m pip install -r requirements.txt -r requirements-dev.txt
           .venv/bin/python -m pip install -e .
       - name: Dependency vulnerability audit (runtime, non-flaky retries)
-        run: .venv/bin/python scripts/security_dependency_check.py --requirements requirements.txt
+        id: sec_audit
+        continue-on-error: true
+        run: |
+          set +e
+          .venv/bin/python scripts/security_dependency_check.py --requirements requirements.txt
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          exit $rc
+      - name: Check security audit result
+        run: |
+          if [ "${{ steps.sec_audit.outcome }}" = "failure" ]; then
+            exit_code="${{ steps.sec_audit.outputs.exit_code }}"
+            if [ "$exit_code" = "2" ]; then
+              echo "::warning::Security dependency check could not reach advisory database (infrastructure unavailable)"
+            else
+              echo "::error::Security dependency check found vulnerabilities"
+              exit 1
+            fi
+          fi
       - name: Fast feedback (ruff + pytest)
         run: make ci-fast
 
