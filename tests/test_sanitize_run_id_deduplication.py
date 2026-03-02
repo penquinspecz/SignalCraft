@@ -1,4 +1,5 @@
 """Ensure no private _sanitize_run_id copies exist in the codebase."""
+
 from __future__ import annotations
 
 import pathlib
@@ -30,6 +31,5 @@ def test_no_duplicate_sanitize_run_id() -> None:
     if violations:
         pytest.fail(
             f"Found duplicate sanitize_run_id definitions "
-            f"(should only be in run_pathing.py):\n"
-            + "\n".join(f"  - {v}" for v in sorted(violations))
+            f"(should only be in run_pathing.py):\n" + "\n".join(f"  - {v}" for v in sorted(violations))
         )
