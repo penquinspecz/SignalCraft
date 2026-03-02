@@ -156,29 +156,6 @@ def _ranked_sort_key(job: Dict[str, Any]) -> Tuple[int, str, str, str]:
     return (-score, provider, profile, stable_id)
 
 
-CSV_FIELDNAMES = [
-    "job_id",
-    "score",
-    "heuristic_score",
-    "final_score",
-    "explanation_summary",
-    "base_score",
-    "profile_delta",
-    "role_band",
-    "title",
-    "department",
-    "team",
-    "location",
-    "enrich_status",
-    "enrich_reason",
-    "jd_text_chars",
-    "fit_signals",
-    "risk_signals",
-    "apply_url",
-    "why_top3",
-]
-
-
 def _print_explain_top(scored: List[Dict[str, Any]], n: int) -> None:
     """
     Print a deterministic, output-only report for the top N jobs.

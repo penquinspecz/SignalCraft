@@ -14,11 +14,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ji_engine.config import DATA_DIR, RUN_METADATA_DIR, STATE_DIR
+from ji_engine.pipeline.run_pathing import sanitize_run_id
 from ji_engine.utils.verification import compute_sha256_file, verify_verifiable_artifacts
 
-
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
+_sanitize_run_id = sanitize_run_id
 
 
 def _load_run_report(path: Path) -> Dict[str, Any]:
@@ -191,7 +190,7 @@ def _resolve_report_path(
         return Path(run_dir) / "run_report.json"
     if not run_id:
         raise SystemExit("ERROR: provide --run-report, --run-dir, or --run-id")
-    sanitized = _sanitize_run_id(run_id)
+    sanitized = sanitize_run_id(run_id)
     candidate = runs_dir / f"{sanitized}.json"
     if candidate.exists():
         return candidate
@@ -617,7 +616,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         run_dir = report_path.parent
     else:
         run_id = report.get("run_id")
-        run_dir = RUN_METADATA_DIR / _sanitize_run_id(run_id or report_path.stem)
+        run_dir = RUN_METADATA_DIR / sanitize_run_id(run_id or report_path.stem)
     state_dir = STATE_DIR
     if run_dir.parent.name == "runs":
         state_dir = run_dir.parent.parent

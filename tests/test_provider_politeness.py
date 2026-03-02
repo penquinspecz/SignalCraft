@@ -11,6 +11,21 @@ class _Resp:
         self.text = text
 
 
+def test_reset_politeness_state_clears_all() -> None:
+    """Verify reset_politeness_state clears all global counters."""
+    provider_retry._LAST_REQUEST_TS["test_host"] = 123.0
+    provider_retry._INFLIGHT_BY_HOST["test_host"] = 1
+    provider_retry._FAILURES_BY_PROVIDER["test_provider"] = 5
+    provider_retry._CIRCUIT_OPEN_UNTIL["test_provider"] = 999.0
+
+    provider_retry.reset_politeness_state()
+
+    assert len(provider_retry._LAST_REQUEST_TS) == 0
+    assert len(provider_retry._INFLIGHT_BY_HOST) == 0
+    assert len(provider_retry._FAILURES_BY_PROVIDER) == 0
+    assert len(provider_retry._CIRCUIT_OPEN_UNTIL) == 0
+
+
 def test_rate_limit_enforces_min_delay(monkeypatch) -> None:
     provider_retry.reset_politeness_state()
     monkeypatch.setenv("JOBINTEL_PROVIDER_MIN_DELAY_S", "1.0")

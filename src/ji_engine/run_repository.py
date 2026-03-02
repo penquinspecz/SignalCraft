@@ -29,6 +29,15 @@ from ji_engine.config import (
 logger = logging.getLogger(__name__)
 
 
+def _normalize_run_id(run_id: str) -> str:
+    from ji_engine.pipeline.run_pathing import sanitize_run_id
+
+    return sanitize_run_id(run_id)
+
+
+_sanitize_run_id = _normalize_run_id
+
+
 def _invalid_artifact_path() -> ValueError:
     return ValueError("Invalid artifact path")
 
@@ -159,10 +168,6 @@ class _RunIndexEntry:
     payload: Dict[str, Any]
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
-
-
 def list_run_metadata_paths_from_dir(runs_dir: Path) -> List[Path]:
     """List *.json run metadata files in runs_dir. Used by prune_state and other scripts."""
     if not runs_dir.exists():
@@ -201,7 +206,7 @@ class FileSystemRunRepository(RunRepository):
 
     def run_dir(self, run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
         safe_candidate = sanitize_candidate_id(candidate_id)
-        safe_run = _sanitize_run_id(run_id)
+        safe_run = _normalize_run_id(run_id)
         namespaced = candidate_run_metadata_dir(safe_candidate) / safe_run
         if namespaced.exists():
             return namespaced
@@ -243,7 +248,7 @@ class FileSystemRunRepository(RunRepository):
         return [paths_by_name[name] for name in sorted(paths_by_name.keys())]
 
     def resolve_run_metadata_path(self, run_id: str, *, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Path:
-        safe_run = _sanitize_run_id(run_id)
+        safe_run = _normalize_run_id(run_id)
         for root in self._candidate_run_roots(candidate_id):
             candidate = root / f"{safe_run}.json"
             if candidate.exists():

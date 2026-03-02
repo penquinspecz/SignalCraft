@@ -11,7 +11,6 @@ import fnmatch
 import json
 import logging
 import os
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Type
 
@@ -42,6 +41,7 @@ from ji_engine.config import (
     candidate_state_paths,
     sanitize_candidate_id,
 )
+from ji_engine.run_id import sanitize_run_id
 from ji_engine.run_repository import FileSystemRunRepository, RunRepository
 from jobintel import aws_runs
 
@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 RUN_REPOSITORY: RunRepository = FileSystemRunRepository(RUN_METADATA_DIR)
 
 
-_RUN_ID_RE = re.compile(r"^[A-Za-z0-9_.:+-]{1,128}$")
 _DEFAULT_MAX_JSON_BYTES = 2 * 1024 * 1024
 _UI_V0_HTML = Path(__file__).with_name("static") / "ui_v0.html"
 
@@ -186,13 +185,11 @@ def _resolve_candidate_or_active(candidate_id: Optional[str]) -> str:
     return _sanitize_candidate_id(candidate_id)
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    if not isinstance(run_id, str):
-        raise HTTPException(status_code=400, detail="Invalid run_id")
-    raw = run_id.strip()
-    if not _RUN_ID_RE.fullmatch(raw):
-        raise HTTPException(status_code=400, detail="Invalid run_id")
-    return raw.replace(":", "").replace("-", "").replace(".", "")
+def _validate_run_id(run_id: str) -> str:
+    try:
+        return sanitize_run_id(run_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid run_id") from exc
 
 
 def _ensure_ui_safe(obj: object, context: str = "") -> None:
@@ -208,7 +205,7 @@ def _ensure_ui_safe(obj: object, context: str = "") -> None:
 
 
 def _run_dir(run_id: str, candidate_id: str) -> Path:
-    _sanitize_run_id(run_id)
+    _validate_run_id(run_id)
     return RUN_REPOSITORY.resolve_run_dir(run_id, candidate_id=_sanitize_candidate_id(candidate_id))
 
 
@@ -542,7 +539,7 @@ def runs(candidate_id: str = DEFAULT_CANDIDATE_ID) -> List[Dict[str, Any]]:
 
 @app.get("/runs/{run_id}")
 def run_detail(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
-    _sanitize_run_id(run_id)
+    _validate_run_id(run_id)
     index = _load_index(run_id, candidate_id)
     run_dir = _run_dir(run_id, candidate_id)
     run_report = (
@@ -609,7 +606,7 @@ def _enforce_artifact_model(
 
 @app.get("/runs/{run_id}/artifact/{name}")
 def run_artifact(run_id: str, name: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Response:
-    _sanitize_run_id(run_id)
+    _validate_run_id(run_id)
     safe_run_id = run_id.strip()
     index = _load_index(run_id, candidate_id)
     path = _resolve_artifact_path(run_id, candidate_id, index, name)
@@ -652,7 +649,7 @@ def _provider_profile_pairs_for_semantic(index: Dict[str, Any], run_dir: Path, p
 
 @app.get("/runs/{run_id}/semantic_summary/{profile}")
 def run_semantic_summary(run_id: str, profile: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
-    _sanitize_run_id(run_id)
+    _validate_run_id(run_id)
     index = _load_index(run_id, candidate_id)
     run_dir = _run_dir(run_id, candidate_id)
     summary_rel = "semantic/semantic_summary.json"
@@ -821,7 +818,7 @@ def latest(candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
 
 @app.get("/v1/runs/{run_id}")
 def run_receipt(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) -> Dict[str, Any]:
-    _sanitize_run_id(run_id)
+    _validate_run_id(run_id)
     safe_candidate = _sanitize_candidate_id(candidate_id)
     if _s3_enabled():
         bucket = _s3_bucket()
@@ -847,7 +844,7 @@ def run_artifact_index(run_id: str, candidate_id: str = DEFAULT_CANDIDATE_ID) ->
     Stable artifact index for a run. Bounded: no raw artifact bodies.
     Returns { run_id, candidate_id, artifacts: [{key, schema_version, path, content_type, size_bytes?}] }
     """
-    _sanitize_run_id(run_id)
+    _validate_run_id(run_id)
     safe_candidate = _sanitize_candidate_id(candidate_id)
     index = _load_index(run_id, candidate_id)
     artifacts_map = index.get("artifacts")

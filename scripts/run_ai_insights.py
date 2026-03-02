@@ -26,10 +26,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _sanitize_run_id(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
-
-
 def _read_last_run(path: Path) -> Optional[str]:
     if not path.exists():
         return None

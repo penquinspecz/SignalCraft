@@ -20,6 +20,7 @@ from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, candidate_r
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
+from ji_engine.run_id import sanitize_run_id
 from ji_engine.state.run_index import get_run_as_dict, list_runs_as_dicts
 
 from .safety.diff import build_safety_diff_report, load_jobs_from_path, render_summary, write_report
@@ -212,18 +213,14 @@ def _run_daily(args: argparse.Namespace) -> int:
     return result.returncode
 
 
-def _sanitize_run_id_for_path(run_id: str) -> str:
-    return run_id.replace(":", "").replace("-", "").replace(".", "")
-
-
 def _run_summary_path(candidate_id: str, run_id: str) -> Path:
     run_root = RUN_METADATA_DIR if candidate_id == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(candidate_id)
-    return run_root / _sanitize_run_id_for_path(run_id) / "run_summary.v1.json"
+    return run_root / sanitize_run_id(run_id) / "run_summary.v1.json"
 
 
 def _run_dir(candidate_id: str, run_id: str) -> Path:
     run_root = RUN_METADATA_DIR if candidate_id == DEFAULT_CANDIDATE_ID else candidate_run_metadata_dir(candidate_id)
-    return run_root / _sanitize_run_id_for_path(run_id)
+    return run_root / sanitize_run_id(run_id)
 
 
 def _run_health_path(candidate_id: str, run_id: str) -> Path:
