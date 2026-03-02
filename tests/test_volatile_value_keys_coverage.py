@@ -69,17 +69,13 @@ class TestVolatileValueKeysCoverage:
             msg_lines = ["Timestamp/duration fields not in VOLATILE_VALUE_KEYS:"]
             for schema_name, field in sorted(uncovered):
                 msg_lines.append(f"  {schema_name}: {field}")
-            msg_lines.append(
-                "\nAdd these fields to VOLATILE_VALUE_KEYS in "
-                "scripts/compare_run_artifacts.py"
-            )
+            msg_lines.append("\nAdd these fields to VOLATILE_VALUE_KEYS in scripts/compare_run_artifacts.py")
             pytest.fail("\n".join(msg_lines))
 
     def test_generated_at_is_covered(self) -> None:
         """Explicit check that 'generated_at' is in VOLATILE_VALUE_KEYS."""
         assert "generated_at" in VOLATILE_VALUE_KEYS, (
-            "'generated_at' must be in VOLATILE_VALUE_KEYS "
-            "(AI insights uses this field)"
+            "'generated_at' must be in VOLATILE_VALUE_KEYS (AI insights uses this field)"
         )
 
     def test_generated_at_utc_is_covered(self) -> None:

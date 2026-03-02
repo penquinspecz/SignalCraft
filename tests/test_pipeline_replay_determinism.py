@@ -125,11 +125,7 @@ def _run_pipeline(work_dir: Path, env: dict[str, str], *, sequence: int) -> Path
     )
 
     if result.returncode != 0:
-        pytest.fail(
-            "Pipeline failed:\n"
-            f"stdout: {result.stdout[-3000:]}\n"
-            f"stderr: {result.stderr[-3000:]}"
-        )
+        pytest.fail(f"Pipeline failed:\nstdout: {result.stdout[-3000:]}\nstderr: {result.stderr[-3000:]}")
 
     parsed_run_id = _parse_run_id(result.stdout) or run_id
     return _find_run_dir(state_dir, parsed_run_id)
