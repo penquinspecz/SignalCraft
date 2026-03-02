@@ -20,6 +20,13 @@ The format is based on Keep a Changelog and follows SemVer.
 
 Theme: Deterministic Core + Guardrailed AI Foundation
 
+### Changed
+
+- Delete deprecated stub scripts: run_full_pipeline.py, run_openai_pipeline.py
+- Deduplicate CSV_FIELDNAMES in score_jobs.py
+- Call reset_politeness_state() at pipeline start to clear stale rate-limit state
+- Add K8s manifest documentation clarifying dev vs production stacks (Phase2-C9)
+
 ### Determinism & Replayability
 
 - Established deterministic run contracts with strict artifact validation and replay tooling.
