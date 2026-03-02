@@ -41,7 +41,17 @@ def test_sanitize_run_id_normal_timestamp() -> None:
 
 
 def test_sanitize_run_id_normalizes_utc_offset_suffix() -> None:
-    assert sanitize_run_id("2026-01-01T00:00:00+00:00") == "20260101T000000Z"
+    assert sanitize_run_id("2026-01-01T00:00:00+00:00") == "20260101T0000000000"
+
+
+def test_sanitize_run_id_handles_timezone_offset() -> None:
+    """UTC offset + must be stripped, not rejected."""
+    assert sanitize_run_id("2026-01-01T00:00:00+00:00") == "20260101T0000000000"
+
+
+def test_sanitize_run_id_handles_negative_offset() -> None:
+    """Negative UTC offset must also be handled (- already stripped)."""
+    assert sanitize_run_id("2026-01-01T00:00:00-05:00") == "20260101T0000000500"
 
 
 def test_sanitize_run_id_already_clean() -> None:

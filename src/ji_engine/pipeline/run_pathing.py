@@ -19,11 +19,7 @@ def sanitize_run_id(run_id: str) -> str:
         raise ValueError(f"Invalid run_id: {run_id!r}")
 
     raw = run_id.strip()
-    # Backward compatibility: normalize UTC offset form into canonical Z suffix.
-    if raw.endswith("+00:00"):
-        raw = f"{raw[:-6]}Z"
-
-    sanitized = raw.replace(":", "").replace("-", "").replace(".", "")
+    sanitized = raw.replace(":", "").replace("-", "").replace(".", "").replace("+", "")
 
     if not _RUN_ID_PATTERN.fullmatch(sanitized):
         raise ValueError(
