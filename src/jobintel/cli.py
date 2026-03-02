@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ji_engine.config import DEFAULT_CANDIDATE_ID, RUN_METADATA_DIR, candidate_run_metadata_dir, sanitize_candidate_id
-from ji_engine.run_id import sanitize_run_id
 from ji_engine.providers.openai_provider import CAREERS_SEARCH_URL
 from ji_engine.providers.registry import load_providers_config
 from ji_engine.providers.selection import DEFAULTS_CONFIG_PATH, select_provider_ids
+from ji_engine.run_id import sanitize_run_id
 from ji_engine.state.run_index import get_run_as_dict, list_runs_as_dicts
 
 from .safety.diff import build_safety_diff_report, load_jobs_from_path, render_summary, write_report

@@ -17,7 +17,6 @@ from ji_engine.config import DATA_DIR, RUN_METADATA_DIR, STATE_DIR
 from ji_engine.pipeline.run_pathing import sanitize_run_id
 from ji_engine.utils.verification import compute_sha256_file, verify_verifiable_artifacts
 
-
 _sanitize_run_id = sanitize_run_id
 
 
