@@ -90,10 +90,7 @@ def main() -> int:
                 print("transient dependency-audit failure detected; retrying")
                 time.sleep(max(0.0, args.sleep_seconds))
                 continue
-            print(
-                "WARNING: dependency audit unavailable after retries "
-                "(transient network/service failure); exiting 2"
-            )
+            print("WARNING: dependency audit unavailable after retries (transient network/service failure); exiting 2")
             return EXIT_INFRA_UNAVAILABLE
         print(f"dependency audit found vulnerabilities (exit={rc})")
         return EXIT_VULNERABILITIES
